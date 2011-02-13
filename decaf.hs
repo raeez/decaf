@@ -230,7 +230,7 @@ strLiteral = do
               char '"'
               s <- many (quoted)
               char '"' <?> "string literal"
-              return $ DStr s
+              return $ DStrLit . DStr $ s
               where
                 quoted = try (char '\\' >> anyChar >>= return) -- TODO only \', \", \t, \n, \t
                   <|> noneOf "\""
@@ -244,7 +244,7 @@ numLiteral = do
 
 boolLiteral :: Parser DecafLiteral
 boolLiteral = do
-                (string "true" >> return DTrue) <|> (string "false" >> return DFalse)
+                (string "true" >> (return . DBoolLit)  DTrue) <|> (string "false" >> (return . DBoolLit) DFalse)
                 <?> "boolean literal"
 
 --------------------------------------------
