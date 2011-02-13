@@ -1,6 +1,7 @@
 module Main
 where
 import Test.HUnit
+import Scanner
 import Decaf
 import Text.ParserCombinators.Parsec hiding (spaces)
 
@@ -10,10 +11,29 @@ data Report a = Success a
 
 tests = TestList [
   literalTests,
-  identifierTests
+  identifierTests,
+  expressionTests
   ]
 
 main = do runTestTT tests
+
+--------------------------------------------
+-- scannerTests
+--
+scanTokens :: Parser [DecafLiteral]
+scanTokens = token `sepEndBy` separator
+
+readTokens :: String -> Report [DecafLiteral]
+readTokens input = case parse scanTokens "literal-test-scanner" input of
+                      Left err -> Error ("Parser Error!: " ++ show err)
+                      Right val -> Success val
+literalTests = TestList [
+  numbers,
+  bools,
+  strings,
+  characters,
+  comments
+  ]
 
 --------------------------------------------
 -- literalTests
@@ -24,7 +44,7 @@ parseLiteral = do
               literal >>= return
 
 parseLiteralStream :: Parser [DecafLiteral]
-parseLiteralStream = parseLiteral `sepBy` separator
+parseLiteralStream = parseLiteral `sepEndBy` separator
 
 readLiterals :: String -> Report [DecafLiteral]
 readLiterals input = case parse parseLiteralStream "literal-test-scanner" input of
@@ -32,6 +52,7 @@ readLiterals input = case parse parseLiteralStream "literal-test-scanner" input 
                       Right val -> Success val
 literalTests = TestList [
   numbers,
+  bools,
   strings,
   characters,
   comments
@@ -57,6 +78,26 @@ identifierTests = TestList [
   ids
   ]
 
+--------------------------------------------
+-- expressionTests
+--
+parseExpressionStream :: Parser [Integer]
+parseExpressionStream = expr `sepBy` separator
+
+readExpressions :: String -> Report [Integer]
+readExpressions input = case parse parseExpressionStream "expression-test-scanner" input of
+                          Left err -> Error ("Parser Error!: " ++ show err)
+                          Right val -> Success val
+
+expressionTests = TestList [
+  arithmeticExpressions
+  ]
+
+--
+--
+-- TESTS
+--
+--
 numbers = TestList [
   TestLabel "decimal-0" (readLiterals "0" ~=? Success [(DNumLit . DDec) 0]),
   TestLabel "decimal-100" (readLiterals "100" ~=? Success [(DNumLit . DDec) 100]),
@@ -65,6 +106,10 @@ numbers = TestList [
   TestLabel "hexadecimal-50" (readLiterals "0x32" ~=? Success [(DNumLit . DHex) 50]),
   TestLabel "dec10-hex16" (readLiterals "10\r\r\n 0x10" ~=? Success [(DNumLit . DDec) 10, (DNumLit . DHex) 16]),
   TestLabel "enum 1...10" (readLiterals "1     \t\t\t 2   \n\n\r\n   3 4 5\t6 0x7 0x8//haha, check out this comment ;-) xor'djuggajugga\n0x9//here we go again[0]@!\"!#@$!@#$!@%#$^%$^&%^&*^&*(\"\n0x1000" ~=? Success [(DNumLit . DDec) 1, (DNumLit . DDec) 2, (DNumLit . DDec) 3, (DNumLit . DDec) 4, (DNumLit . DDec) 5, (DNumLit . DDec) 6, (DNumLit . DHex) 7, (DNumLit . DHex) 8, (DNumLit . DHex) 9, (DNumLit . DHex) 4096])
+  ]
+
+bools = TestList [
+  TestLabel "simple-bools" (readLiterals "true false true" ~=? Success[DBoolLit DTrue, DBoolLit DFalse, DBoolLit DTrue])
   ]
 
 strings = TestList [
@@ -78,7 +123,8 @@ strings = TestList [
 characters = TestList [
   TestLabel "single-char" (readLiterals "'A'" ~=? Success [(DCharLit . DChar) 'A']),
   TestLabel "badbeef-char" (readLiterals "'b' 'a' 'd' 'b' 'e' 'e' 'f'" ~=? Success [(DCharLit . DChar) 'b', (DCharLit . DChar) 'a', (DCharLit . DChar) 'd', (DCharLit . DChar) 'b', (DCharLit . DChar) 'e', (DCharLit . DChar) 'e', (DCharLit . DChar) 'f']),
-  TestLabel "char-string-num" (readLiterals "'.' \"B\" 3" ~=? Success [(DCharLit . DChar) '.', (DStrLit . DStr) "B", (DNumLit . DDec) 3])
+  TestLabel "char-string-num" (readLiterals "'.' \"B\" 3" ~=? Success [(DCharLit . DChar) '.', (DStrLit . DStr) "B", (DNumLit . DDec) 3]),
+  TestLabel "chained-characters" (readLiterals "'.''A''B'" ~=? Success [])
   ]
 
 comments = TestList [
@@ -93,4 +139,9 @@ ids = TestList [
   TestLabel "mixed" (readIdentifiers "breakbreak break callout_ boolean if if int return true void void false eLse clasS continue f0r" ~=? Success [DecafID "breakbreak",DecafKeyword "break",DecafID "callout_",DecafKeyword "boolean",DecafKeyword "if",DecafKeyword "if",DecafKeyword "int",DecafKeyword "return",DecafKeyword "true",DecafKeyword "void",DecafKeyword "void",DecafKeyword "false",DecafID "eLse",DecafID "clasS",DecafKeyword "continue",DecafID "f0r"]),
   TestLabel "invalid-!" (readIdentifiers "break!" ~=? Error ""),
   TestLabel "invalid-3" (readIdentifiers "3l3t3" ~=? Error "")
+  ]
+
+arithmeticExpressions = TestList [
+  TestLabel "simple-expressions" (readExpressions "3+2*2 3*5+6 21/3-2" ~=? Success [7,21,5]),
+  TestLabel "paren-expressions" (readExpressions "(3+6*(2-11)) (21+21/21)/22" ~=? Success [-51, 1])
   ]

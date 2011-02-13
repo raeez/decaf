@@ -1,6 +1,7 @@
 module Decaf
 where
 import Text.ParserCombinators.Parsec
+import Text.ParserCombinators.Parsec.Expr
 import Numeric
 import Monad
 
@@ -24,7 +25,7 @@ data DecafVarDecl = DecafVarDecl DecafType DecafIdentifier
 data DecafArrDecl = DecafArrDecl DecafType DecafIdentifier DNumLit 
                   deriving (Show, Eq)
 
-data DecafType = DDeceger
+data DecafType = DInt
                | DBoolean
                | DVoid
                deriving (Show, Eq)
@@ -109,7 +110,7 @@ data DNumLit = DDec Int
              | DHex Int
              deriving (Show, Eq)
 
-data DBoolLit = DTrue
+data DBoolLit = DTrue 
               | DFalse
               deriving (Show, Eq)
 
@@ -176,11 +177,30 @@ data ParserErrorMessage = ParserErrorMessage String
 --parseVarDecl = 
 
 --------------------------------------------
+-- expressions
+--
+expr :: Parser Integer
+expr = buildExpressionParser table factor
+    <?> "expression"
+
+table = [[op "*" (*) AssocLeft, op "/" div AssocLeft],
+         [op "+" (+) AssocLeft, op "-" (-) AssocLeft]]
+        where
+          op s f assoc = Infix (string s >> return f) assoc
+
+factor = do
+          char '('
+          x <- expr
+          char ')'
+          return x
+      <|> parseNumLiteral
+      <?> "simple expression"
+--------------------------------------------
 -- types
 --
 typeDecl :: Parser DecafType
 typeDecl =  (string "boolean" >> return DBoolean)
-        <|> (string "integer" >> return DDeceger)
+        <|> (string "integer" >> return DInt)
         <|> (string "void" >> return DVoid)
 
 --------------------------------------------
@@ -283,6 +303,6 @@ ws = do
 
 separator :: Parser ()
 separator = do
-              skipMany1 dead <|> skipMany1 comment
+              skipMany1 dead <|> skipMany1 comment <|> eof
               ws
             <?> "ws"
