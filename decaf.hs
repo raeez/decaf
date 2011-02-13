@@ -11,20 +11,20 @@ data DecafField = DecafVarField DecafVarDecl
                | DecafArrayField DecafArrDecl
                deriving (Show, Eq)
 
-data DecafMethod = DecafMethod DecafType DecafID (Maybe [DecafVarDecl]) DecafBlock
+data DecafMethod = DecafMethod DecafType DecafIdentifier (Maybe [DecafVarDecl]) DecafBlock
                  deriving (Show, Eq)
 
 data DecafBlock = DecafBlock [DecafVarDecl] [DecafStm]
                 deriving (Show, Eq)
 
-data DecafVarDecl = DecafVarDecl DecafType DecafID
-                  | DecafVarListDecl DecafType [DecafID]
+data DecafVarDecl = DecafVarDecl DecafType DecafIdentifier 
+                  | DecafVarListDecl DecafType [DecafIdentifier]
                   deriving (Show, Eq)
 
-data DecafArrDecl = DecafArrDecl DecafType DecafID DNumLit 
+data DecafArrDecl = DecafArrDecl DecafType DecafIdentifier DNumLit 
                   deriving (Show, Eq)
 
-data DecafType = DInteger
+data DecafType = DDeceger
                | DBoolean
                | DVoid
                deriving (Show, Eq)
@@ -32,7 +32,7 @@ data DecafType = DInteger
 data DecafStm = DecafAssignStm DecafLoc DecafAssignOp DecafExpr
               | DecafMethodStm DecafMethodCall
               | DecafIfStm DecafExpr DecafBlock (Maybe DecafBlock)
-              | DecafForStm DecafID DecafExpr DecafExpr DecafBlock
+              | DecafForStm DecafIdentifier DecafExpr DecafExpr DecafBlock
               | DecafRetStm (Maybe DecafExpr)
               | DecafBreakStm
               | DecafContStm
@@ -44,12 +44,12 @@ data DecafAssignOp = DecafEq
                    | DecafMinusEq
                    deriving (Show, Eq)
 
-data DecafMethodCall = DecafMethodCall DecafID (Maybe [DecafExpr])
+data DecafMethodCall = DecafMethodCall DecafIdentifier (Maybe [DecafExpr])
                      | DecafMethodCallout DStrLit (Maybe [DecafCalloutArg])
                      deriving (Show, Eq)
 
-data DecafLoc = DecafVar DecafID
-              | DecafArr DecafID DecafExpr
+data DecafLoc = DecafVar DecafIdentifier
+              | DecafArr DecafIdentifier DecafExpr
               deriving (Show, Eq)
 
 data DecafExpr = DecafFieldExpr DecafField
@@ -92,8 +92,9 @@ data DecafCondOp = DecafAndOp
                  | DecafOrOp
                  deriving (Show, Eq)
 
-data DecafID = DecafID String
-             deriving (Show, Eq)
+data DecafIdentifier = DecafID String
+                     | DecafKeyword String
+                     deriving (Show, Eq)
 
 data DecafLiteral = DNumLit DNumLit
                | DBoolLit DBoolLit
@@ -104,7 +105,7 @@ data DecafLiteral = DNumLit DNumLit
 data DStrLit = DStr String
              deriving (Show, Eq)
 
-data DNumLit = DInt Int
+data DNumLit = DDec Int
              | DHex Int
              deriving (Show, Eq)
 
@@ -118,22 +119,6 @@ data DCharLit = DChar Char
 data ParserErrorMessage = ParserErrorMessage String
                 | ParserErrorMessageList [ParserErrorMessage]
                 deriving (Show, Eq)
-
-keywords = [
-  "boolean",
-  "break",
-  "callout",
-  "class",
-  "continue",
-  "else",
-  "false",
-  "for",
-  "if",
-  "int",
-  "return",
-  "true",
-  "void"
-  ]
 
 
 --------------------------------------------
@@ -195,13 +180,33 @@ keywords = [
 --
 typeDecl :: Parser DecafType
 typeDecl =  (string "boolean" >> return DBoolean)
-        <|> (string "integer" >> return DInteger)
+        <|> (string "integer" >> return DDeceger)
         <|> (string "void" >> return DVoid)
 
 --------------------------------------------
 -- identifiers
---
-identifier = alphaNumeric >>= return . DecafID
+keywords = [
+  "boolean",
+  "break",
+  "callout",
+  "class",
+  "continue",
+  "else",
+  "false",
+  "for",
+  "if",
+  "int",
+  "return",
+  "true",
+  "void"
+  ]
+
+makeIdentifier :: String -> DecafIdentifier
+makeIdentifier s = case s `elem` keywords of
+                    True -> DecafKeyword s
+                    otherwise -> DecafID s
+
+identifier = alphaNumeric >>= return . makeIdentifier
 
 alphaNumeric :: Parser [Char]
 alphaNumeric = do
@@ -239,7 +244,7 @@ strLiteral = do
 numLiteral :: Parser DecafLiteral
 numLiteral = do
                 (try $ string "0x" >> many1 hexDigit >>= return . DNumLit . DHex . fst . head . readHex)
-                <|> (many1 digit >>= return . DNumLit . DInt . read)
+                <|> (many1 digit >>= return . DNumLit . DDec . read)
                 <?> "integer literal"
 
 boolLiteral :: Parser DecafLiteral
