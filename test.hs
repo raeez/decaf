@@ -54,7 +54,7 @@ readIdentifiers input = case parse parseIdentifierStream "identifier-test-scanne
                           Right val -> Success val
 
 identifierTests = TestList [
-  variables
+  ids
   ]
 
 numbers = TestList [
@@ -86,28 +86,11 @@ comments = TestList [
   TestLabel "complex-comment" (readLiterals " 4// the cow, he jumped! and this happened 0x2 times, afterwards, giant[3] said \"ho,ho,ho! find for fee fum; @!#$!@#^%$^*(&*^(!@$\"\"\"\n\"test_string\"" ~=? Success [(DNumLit . DDec) 4, (DStrLit . DStr) "test_string"])
   ]
 
-variables = TestList [
+ids = TestList [
   TestLabel "simple-vars" (readIdentifiers "a Db cd e_D fgh_iJKL _g0g0_gadg3t" ~=? Success [DecafID "a",DecafID "Db",DecafID "cd",DecafID "e_D",DecafID "fgh_iJKL",DecafID "_g0g0_gadg3t"]),
   TestLabel "non-keywords" (readIdentifiers "iF If BooLeaN booLean breaK foR For VoiD InTTruE truE inT Class CLASS CONTINuE BreAK fi callouT elsE reTurN" ~=? Success [DecafID "iF",DecafID "If",DecafID "BooLeaN",DecafID "booLean",DecafID "breaK",DecafID "foR",DecafID "For",DecafID "VoiD",DecafID "InTTruE",DecafID "truE",DecafID "inT",DecafID "Class",DecafID "CLASS",DecafID "CONTINuE",DecafID "BreAK",DecafID "fi",DecafID "callouT",DecafID "elsE",DecafID "reTurN"]),
   TestLabel "keywords" (readIdentifiers "break break callout boolean if if int return true void void false else class continue for" ~=? Success [DecafKeyword "break",DecafKeyword "break",DecafKeyword "callout",DecafKeyword "boolean",DecafKeyword "if",DecafKeyword "if",DecafKeyword "int",DecafKeyword "return",DecafKeyword "true",DecafKeyword "void",DecafKeyword "void",DecafKeyword "false",DecafKeyword "else",DecafKeyword "class",DecafKeyword "continue",DecafKeyword "for"]),
   TestLabel "mixed" (readIdentifiers "breakbreak break callout_ boolean if if int return true void void false eLse clasS continue f0r" ~=? Success [DecafID "breakbreak",DecafKeyword "break",DecafID "callout_",DecafKeyword "boolean",DecafKeyword "if",DecafKeyword "if",DecafKeyword "int",DecafKeyword "return",DecafKeyword "true",DecafKeyword "void",DecafKeyword "void",DecafKeyword "false",DecafID "eLse",DecafID "clasS",DecafKeyword "continue",DecafID "f0r"]),
   TestLabel "invalid-!" (readIdentifiers "break!" ~=? Error ""),
   TestLabel "invalid-3" (readIdentifiers "3l3t3" ~=? Error "")
-  ]
-
-
-keywords = [
-  "boolean",
-  "break",
-  "callout",
-  "class",
-  "continue",
-  "else",
-  "false",
-  "for",
-  "if",
-  "int",
-  "return",
-  "true",
-  "void"
   ]
