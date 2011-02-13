@@ -6,18 +6,6 @@ import Text.ParserCombinators.Parsec hiding (spaces)
 
 main = do runTestTT tests
 
---------------------------------------------
--- types
---
-typeDecl :: Parser DecafType
-typeDecl =  (string "boolean" >> return DBoolean)
-        <|> (string "integer" >> return DInteger)
-        <|> (string "void" >> return DVoid)
-
---------------------------------------------
--- Test everything below with these
---
-
 parseLiteral :: Parser DecafLiteral
 parseLiteral = do
               ws
@@ -78,9 +66,6 @@ comments = TestList [
 types = TestList [
   TestLabel "void" (readTokens "void void void" ~=? [tVoid, tVoid, tVoid]
 
---------------------------------------------
--- scannerTests
---
 literalTests = [
 
 ]
