@@ -3,6 +3,7 @@ where
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Pos
 import Text.ParserCombinators.Parsec.Error
+import Data.List
 
 type Token = (SourcePos, DecafToken)
 
@@ -101,8 +102,8 @@ data DecafToken = Fail String
 --------------------------------------------
 -- helper func
 --------------------------------------------
-repl s = crepl readTokens s -- a repl, for use with ghci
-crepl c s =  putStrLn $ unlines $ map showToken $ getReport $ c s
+repl s = createREPL readTokens s -- a repl, for use with ghci
+createREPL c s =  putStrLn $ unlines $ map showToken $ getReport $ c s
 
 readTokens input = case parse tokenStream "test-scanner" input of
                           Left err -> Error err
@@ -116,6 +117,7 @@ run parser input = case parse parser "test-parser" input of
 --------------------------------------------
 --
 
+scprint = putStrLn . formattedOutput . scanner
 formattedOutput scannerOutput = unlines $ map showToken $ getMixedTokenStream scannerOutput
                                 where
                                   getMixedTokenStream (a,b,c) = c
@@ -128,12 +130,20 @@ scanIter input input' tokens errors both = case parse tokenStream "decaf-scanner
                                              Left err ->  scanIter input (remainingInput $ errorPos err) tokens (errors ++ [err]) (both ++ [(errorPos err, Fail $ show err)])
                                              Right val -> (tokens ++ val, errors, both ++ val)
                                              where
-                                               remainingInput errPos = skipTo input $ incSourceColumn errPos 1
+                                               remainingInput ep = skipTo input $ incSourceColumn ep 1
+
+wrapIter2 input = scanIter2 input input [] [] []
+scanIter2 input input' tokens errors both = case parse tokenStream "decaf-scanner" input' of
+                                             Left err ->  Left $ (remainingInput (errorPos err), (errorPos err))
+                                             Right val -> Right (tokens ++ val, errors, both ++ val)
+                                             where
+                                               remainingInput ep = skipTo input $ incSourceColumn ep 1
 
 skipTo :: String -> SourcePos -> String
-skipTo input p = case (sourceLine p) == 1 of
-                      False -> skipTo (unlines $ tail $ lines input) (incSourceLine p (-1))
-                      otherwise -> case (sourceColumn p) == 1 of
+skipTo "" _ = ""
+skipTo input p = case (sourceLine p) <= 1 of
+                      False -> skipTo (init $ unlines $ tail $ lines input) (incSourceLine p (-1))
+                      otherwise -> case (sourceColumn p) <= 1 of
                                      False -> skipTo (tail input) (incSourceColumn p (-1))
                                      otherwise -> input
 
