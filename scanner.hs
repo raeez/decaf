@@ -116,22 +116,26 @@ run parser input = case parse parser "test-parser" input of
 --------------------------------------------
 --
 
-scanner :: String -> ([Token], [ParseError])
-scanner input = scanIter input input [] []
+formattedOutput scannerOutput = unlines $ map showToken $ getMixedTokenStream scannerOutput
+                                where
+                                  getMixedTokenStream (a,b,c) = c
 
-scanIter :: String -> String -> [Token] -> [ParseError] -> ([Token], [ParseError])
-scanIter input input' tokens errors = case parse tokenStream "decaf-scanner" input' of
-                                             Left err ->  scanIter input (remainingInput $ errorPos err) tokens (errors ++ [err])
-                                             Right val -> (tokens ++ val, errors)
+scanner :: String -> ([Token], [ParseError], [Token])
+scanner input = scanIter input input [] [] []
+
+scanIter :: String -> String -> [Token] -> [ParseError] -> [Token] -> ([Token], [ParseError], [Token])
+scanIter input input' tokens errors both = case parse tokenStream "decaf-scanner" input' of
+                                             Left err ->  scanIter input (remainingInput $ errorPos err) tokens (errors ++ [err]) (both ++ [(errorPos err, Fail $ show err)])
+                                             Right val -> (tokens ++ val, errors, both ++ val)
                                              where
                                                remainingInput errPos = skipTo input $ incSourceColumn errPos 1
 
 skipTo :: String -> SourcePos -> String
-skipTo input p = case (sourceLine p) == 0 of
-                   False -> skipTo ((unlines . tail . lines) input) (incSourceLine p 1)
-                   otherwise -> case (sourceColumn p) == 0 of
-                                  False -> skipTo (tail input) (incSourceColumn p 1)
-                                  otherwise -> input
+skipTo input p = case (sourceLine p) == 1 of
+                      False -> skipTo (unlines $ tail $ lines input) (incSourceLine p (-1))
+                      otherwise -> case (sourceColumn p) == 1 of
+                                     False -> skipTo (tail input) (incSourceColumn p (-1))
+                                     otherwise -> input
 
 tokenStream :: Parser [Token]
 tokenStream = do
