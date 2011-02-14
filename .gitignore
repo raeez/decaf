@@ -1,0 +1,4 @@
+scanner-bin
+scanner-repl
+*.o
+*.hi
