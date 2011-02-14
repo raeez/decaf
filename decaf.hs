@@ -3,8 +3,7 @@ where
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Expr
 
-data DecafProgram = DecafProgram [DecafField] [DecafMethod]
-                  deriving (Show, Eq)
+data DecafProgram = DecafProgram [DecafField] [DecafMethod] deriving (Show, Eq)
 
 data DecafField = DecafVarField DecafVarDecl 
                | DecafArrayField DecafArrDecl
@@ -118,13 +117,6 @@ data DCharLit = DChar Char
 data ParserErrorMessage = ParserErrorMessage String
                 | ParserErrorMessageList [ParserErrorMessage]
                 deriving (Show, Eq)
-
-
---------------------------------------------
--- scanner/parser
---
-
---------------------------------------------
 -- ws / comments
 --
 -- grammar
