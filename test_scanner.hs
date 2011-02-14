@@ -12,8 +12,7 @@ data Report a = Success a -- extract the bit we want out of the tuple
 getReport :: Report a -> a
 getReport (Success a) = a
 
-rep :: String -> [DecafToken]
-rep s = map snd (getReport $ readTokens s)
+rep s = putStrLn $ unlines $ map showToken (getReport $ readTokens s)
 
 --tests = TestList [
   --numbers,

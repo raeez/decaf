@@ -7,7 +7,7 @@ type Token = (SourcePos, DecafToken)
 
 instance Show DecafToken where
   show (StrLit s) = "STRINGLITERAL \"" ++ s ++ "\""
-  show (CharLit s) = "CHARLITERAL \'" ++ show s ++ "\'"
+  show (CharLit s) = "CHARLITERAL '" ++ show s ++ "'"
   show (DecLit s) = "INTLITERAL " ++ s
   show (HexLit s) = "INTLITERAL 0x" ++ s
   show (BoolLit s) = "BOOLEANLITERAL " ++ show s
@@ -25,6 +25,7 @@ instance Show DecafToken where
   show (Assign) = "="
   show (PlusAssign) = "+="
   show (MinusAssign) = "-="
+  show (Comma) = ","
   show (Not) = "!"
   show (OpEq) = "=="
   show (OpNEq) = "!="
@@ -39,8 +40,8 @@ instance Show DecafToken where
   show (OpMod) = "%"
   show (EOF) = "EOF"
 
-showToken :: ((String, Int, Int), DecafToken) -> String
-showToken ((name, line, column), t) = (show line) ++ " " ++ (show t)
+showToken :: (SourcePos, DecafToken) -> String
+showToken (p, t) = (show . sourceLine $ p) ++ " " ++ (show t)
 
 data DecafToken = Identf String
                 | Reserv String
@@ -55,6 +56,7 @@ data DecafToken = Identf String
                 | RBrace
                 | LBrack
                 | RBrack
+                | Comma
                 | Semi
                 | OpAnd
                 | OpOr
@@ -75,6 +77,19 @@ data DecafToken = Identf String
                 | Not
                 | EOF
                 deriving (Eq)
+
+--------------------------------------------
+-- operators
+--------------------------------------------
+--
+
+--scanner :: String -> ([Token], [String])
+--scanner input = iterativeScan input [] []
+
+iterativeScan :: String -> [Token] -> [String] -> Maybe ([Token], [String])
+iterativeScan input tokens errors = case parse tokenStream "decaf-scanner" input of
+                                      Left err -> Nothing
+                                      Right val -> Nothing
 
 tokenStream :: Parser [Token]
 tokenStream = do
@@ -108,7 +123,7 @@ singleToken = operator <|> literal <|> identifier <|> brack
 brack :: Parser Token
 brack = do
           p <- getPosition
-          b <- char '[' <|> char ']' <|> char '(' <|> char ')' <|> char '{' <|> char '}' <?> "brack <[, ], {, }, (, )>"
+          b <- char '[' <|> char ']' <|> char '(' <|> char ')' <|> char '{' <|> char '}' <|> char ',' <?> "brack <[, ], {, }, (, ) or comma>"
           return (p, mapBrack b)
           where
             mapBrack b | b == '[' = LBrack
@@ -117,6 +132,7 @@ brack = do
                        | b == ')' = RParen
                        | b == '{' = LBrace
                        | b == '}' = RBrace
+                       | b == ',' = Comma
 --------------------------------------------
 -- operators
 --------------------------------------------
