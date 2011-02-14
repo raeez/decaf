@@ -3,9 +3,10 @@ where
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Pos
 import Text.ParserCombinators.Parsec.Error
+import Text.Regex.Posix
 import Data.List
 
-type Token = (SourcePos, DecafToken)
+type Token = (SourcePos, SourcePos, DecafToken)
 
 strShow (c:cs) | c == '\t' = ('\\' : 't' : strShow cs)
              | c == '\n' = ('\\' : 'n' : strShow cs)
@@ -57,8 +58,14 @@ data Report a = Success a
               | Error ParseError
               deriving (Show)
 
-showToken :: (SourcePos, DecafToken) -> String
-showToken (p, t) = (show . sourceLine $ p) ++ " " ++ (show t)
+showToken :: (SourcePos, SourcePos, DecafToken) -> String
+showToken (p1, p2, t) = (show . sourceLine $ p1) ++ " " ++ (show t)
+
+endPos :: (SourcePos, SourcePos, DecafToken) -> SourcePos
+endPos (p1, p2, t) = p2
+
+dToken :: (SourcePos, SourcePos, DecafToken) -> DecafToken
+dToken (p1, p2, t) = t
 
 getReport (Success a) =  a
 getReport (Error e) = [(errorPos e, Fail $ show e)]
@@ -106,7 +113,7 @@ repl s = createREPL readTokens s -- a repl, for use with ghci
 createREPL c s =  putStrLn $ unlines $ map showToken $ c s
 
 readTokens input = case parse tokenStream "test-scanner" input of
-                          Left err -> [(errorPos err, Fail $ show err)]
+                          Left err -> [(errorPos err, errorPos err, Fail $ show err)]
                           Right val -> val
 --------------------------------------------
 -- scanner
@@ -117,20 +124,24 @@ scprint = putStrLn . formattedOutput . eatFirst
 formattedOutput scannerOutput = unlines $ map showToken $ scannerOutput
 
 eatNext parser input = case parse parser "decaf-scanner-eatNext" input of
-                        Left err -> [(errorPos err, Fail $ show err)] ++ (eatNext (parser' err) input)
-                        Right val -> case ((snd val) == EOF) of
+                        Left err -> case (show err) =~ "unexpected end of input" of
+                                      False -> [(errorPos err, errorPos err, Fail $ show err)] ++ (eatNext (parser' err) input)
+                                      otherwise -> [(errorPos err, errorPos err, Fail $ show err)] ++ [(errorPos err, errorPos err, EOF)]
+                        Right val -> case (dToken val == EOF) of
                                       False -> [val] ++ (eatNext (parser'' val) input)
                                       otherwise -> [val]
                         where
-                          parser' e = (eatPos input $ incSourceColumn (errorPos e) 1) >> ws >> (nToken <|> end)
-                          parser'' v = (eatPos input $ fst v) >> (nToken <|> end)
+                          parser' e = (eatPos input $ incSourceColumn (errorPos e) 0) >> ws >> (nToken <|> end)
+                          parser'' v = (eatPos input $ endPos v) >> (nToken <|> end)
 
 eatFirst input = case parse (firstToken) "decaf-scanner-eatFirst" input of
-                  Left err -> [(errorPos err, Fail $ show err)] ++ (eatNext (parser' err) input)
+                  Left err -> case (show err) =~ "unexpected end of input" of
+                                False -> [(errorPos err, errorPos err, Fail $ show err)] ++ (eatNext (parser' err) input)
+                                otherwise -> [(errorPos err, errorPos err, Fail $ show err)] ++ [(errorPos err, errorPos err, EOF)]
                   Right val -> [val] ++ (eatNext (parser'' val) input)
                   where
-                    parser' e = (eatPos input $ incSourceColumn (errorPos e) 1) >> ws >> nToken
-                    parser'' v = (eatPos input $ fst v) >> ws >> nToken
+                    parser' e = (eatPos input $ incSourceColumn (errorPos e) 0) >> ws >> nToken
+                    parser'' v = (eatPos input $ endPos v) >> ws >> nToken
 
 eatPos :: String -> SourcePos -> Parser ()
 eatPos input pos = eatN $ posCount input pos
@@ -165,9 +176,10 @@ firstToken = (ws >> singleToken) <|> singleToken
 
 end :: Parser Token
 end = do
+        p1 <- getPosition
         eof
-        p <- getPosition
-        return (p, EOF)
+        p2 <- getPosition
+        return (p1, p2, EOF)
 
 singleToken :: Parser Token
 singleToken = operator <|> literal <|> identifier <|> term
@@ -178,9 +190,10 @@ singleToken = operator <|> literal <|> identifier <|> term
 --
 term :: Parser Token
 term = do
+          p1 <- getPosition
           b <- char ';' <|> char '[' <|> char ']' <|> char '(' <|> char ')' <|> char '{' <|> char '}' <|> char ','
-          p <- getPosition
-          return (p, mapTerm b)
+          p2 <- getPosition
+          return (p1, p2, mapTerm b)
           where
             mapTerm b | b == ';' = Semi
                       | b == '[' = LBrack
@@ -204,27 +217,30 @@ operator = notOp
 
 notOp :: Parser Token
 notOp = do
+          p1 <- getPosition
           o <- (try $ string "!=") <|> string "!"
-          p <- getPosition
-          return (p, mapOp o)
+          p2 <- getPosition
+          return (p1, p2, mapOp o)
           where
             mapOp o | o == "!=" = OpNEq
                     | o == "!" = Not
 
 eqOp :: Parser Token
 eqOp = do
+        p1 <- getPosition
         o <- (try $ string "==") <|> (string "=")
-        p <- getPosition
-        return (p, mapOp o)
+        p2 <- getPosition
+        return (p1, p2, mapOp o)
         where
           mapOp o | o == "==" = OpEq
                   | o == "=" = Assign
 
 condOp :: Parser Token
 condOp = do
+          p1 <- getPosition
           o <- (string "&&") <|> (string "||")
-          p <- getPosition
-          return (p, mapOp o)
+          p2 <- getPosition
+          return (p1, p2, mapOp o)
           where
             mapOp o | o == "&&" = OpAnd
                     | o == "||" = OpOr
@@ -236,9 +252,10 @@ arithOp = plusOp
              
 unaryOp :: Parser Token
 unaryOp = do
+            p1 <- getPosition
             c <- oneOf "+-*/%"
-            p <- getPosition
-            return (p, mapOp(c))
+            p2 <- getPosition
+            return (p1, p2, mapOp(c))
             where
               mapOp c | c == '+' = OpAdd
                       | c == '-' = OpMin
@@ -248,27 +265,30 @@ unaryOp = do
 
 plusOp :: Parser Token
 plusOp = do
+          p1 <- getPosition
           o <- (try $ string "+=") <|> (string "+")
-          p <- getPosition
-          return (p, mapOp o)
+          p2 <- getPosition
+          return (p1, p2, mapOp o)
           where
             mapOp o | o == "+=" = PlusAssign
                     | o == "+" = OpAdd
 
 minOp :: Parser Token
 minOp = do
+          p1 <- getPosition
           o <- (try $ string "-+") <|> (string "-")
-          p <- getPosition
-          return (p, mapOp o)
+          p2 <- getPosition
+          return (p1, p2, mapOp o)
           where
             mapOp o | o == "-=" = MinusAssign
                     | o == "-" = OpMin
 
 relOp :: Parser Token
 relOp = do
+          p1 <- getPosition
           o <- (try $ string "<=") <|> (try $ string ">=") <|> (string "<") <|> (string ">") 
-          p <- getPosition
-          return (p, mapOp o)
+          p2 <- getPosition
+          return (p1, p2, mapOp o)
           where
             mapOp o | o == "<=" = OpLTE
                     | o == ">=" = OpGTE
@@ -308,11 +328,12 @@ makeIdentifier (t) = case (t `elem` keywords) of
 
 identifier :: Parser Token
 identifier = do
+                p1 <- getPosition
                 h <- letter <|> char '_'
                 r <- many (letter <|> digit <|> char '_')
-                p <- getPosition
+                p2 <- getPosition
                 let str = [h] ++ r
-                return $ (p, makeIdentifier(str))
+                return $ (p1, p2, makeIdentifier(str))
 
 --------------------------------------------
 -- literals
@@ -325,19 +346,21 @@ literal = chrLiteral
 
 chrLiteral :: Parser Token
 chrLiteral = do
+                p1 <- getPosition
                 char '\''
                 c <- chrQuoted
                 char '\''
-                p <- getPosition
-                return $ (p, CharLit c)
+                p2 <- getPosition
+                return $ (p1, p2, CharLit c)
 
 strLiteral :: Parser Token
 strLiteral = do
+              p1 <- getPosition
               char '"'
               s <- many (strQuoted)
               char '"'
-              p <- getPosition
-              return $ (p, StrLit s)
+              p2 <- getPosition
+              return $ (p1, p2, StrLit s)
 
 chrQuoted = try (char '\\' >> ((oneOf "\\\'\"" >>= return) <|> (char 'n' >> return '\n') <|> (char 't' >> return '\t'))) <|> noneOf "\"\'\t\n" <?> "quoted character"
 
@@ -346,14 +369,16 @@ strQuoted = try (char '\\' >> ((oneOf "\\\'\"" >>= return) <|> (char 'n' >> retu
 numLiteral :: Parser Token
 numLiteral = do
                 do
+                  p1 <- getPosition
                   try $ string "0x"
                   d <- many1 (oneOf "abcdefABCDEF0123456789")
-                  p <- getPosition
-                  return $ (p, HexLit d)
+                  p2 <- getPosition
+                  return $ (p1, p2, HexLit d)
                 <|> do
+                      p1 <- getPosition
                       d <- many1 digit
-                      p <- getPosition
-                      return $ (p, DecLit d)
+                      p2 <- getPosition
+                      return $ (p1, p2, DecLit d)
 
 --------------------------------------------
 -- whitespace

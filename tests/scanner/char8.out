@@ -1,0 +1,8 @@
+2 SCANNER ERROR: "decaf-scanner-eatFirst" (line 2, column 3):
+unexpected "b"
+expecting "'"
+2 IDENTIFIER b
+2 SCANNER ERROR: "decaf-scanner-eatNext" (line 2, column 5):
+unexpected "\n"
+expecting quoted character
+3 EOF
