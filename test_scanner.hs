@@ -27,11 +27,8 @@ rep s = map snd (getReport $ readTokens s)
 
 --main = do runTestTT tests
 
-parseTokenStream :: Parser [Token]
-parseTokenStream = many singleToken
-
 readTokens :: String -> Report [Token]
-readTokens input = case parse parseTokenStream "test-scanner" input of
+readTokens input = case parse tokenStream "test-scanner" input of
                           Left err -> Error ("Parser Error!: " ++ show err)
                           Right val -> Success val
 

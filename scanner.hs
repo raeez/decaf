@@ -37,6 +37,7 @@ instance Show DecafToken where
   show (OpMul) = "*"
   show (OpDiv) = "/"
   show (OpMod) = "%"
+  show (EOF) = "EOF"
 
 showToken :: ((String, Int, Int), DecafToken) -> String
 showToken ((name, line, column), t) = (show line) ++ " " ++ (show t)
@@ -72,16 +73,30 @@ data DecafToken = Identf String
                 | PlusAssign
                 | MinusAssign
                 | Not
+                | EOF
                 deriving (Eq)
 
 tokenStream :: Parser [Token]
-tokenStream = firstToken >> many singleToken
+tokenStream = do
+                first <- firstToken
+                ws
+                rest <- many nToken
+                return $ [first] ++ rest
 
 nToken :: Parser Token
-nToken = singleToken >> ws
+nToken = do
+          t <- singleToken
+          ws
+          return t
 
 firstToken :: Parser Token
-firstToken = ws >> singleToken
+firstToken = end <|> singleToken <|> (ws >> singleToken)
+
+end :: Parser Token
+end = do
+        p <- getPosition
+        eof
+        return (p, EOF)
 
 singleToken :: Parser Token
 singleToken = operator <|> literal <|> identifier <|> brack
@@ -247,23 +262,28 @@ numLiteral = do
 -- whitespace
 --------------------------------------------
 --
-comment :: Parser String
+comment :: Parser ()
 comment = do
             string "//"
             skipMany (noneOf "\r\n")
             eol
+            return ()
           <?> "comment"
 
-eol = try (string "\n\r") -- k = 2 lookahead
-    <|> try (string "\r\n") -- k = 2 lookahead
-    <|> string "\n"
-    <|> string "\r"
-    <?> "EOL"
+eol :: Parser ()
+eol = do
+        try (string "\n\r") <|> try (string "\r\n") <|> string "\n" <|> string "\r" <?> "EOL"
+        return ()
 
-ws :: Parser ()
-ws = skipMany whitespace
+sp :: Parser ()
+sp = do
+       char '\v' <|> char '\t'<|> char ' '
+       return ()
 
 whitespace :: Parser ()
 whitespace = do
-       space <|> comment <|> eol
+       sp <|> comment <|> eol
        <?> "ws"
+
+ws :: Parser ()
+ws = skipMany whitespace
