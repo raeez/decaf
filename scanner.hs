@@ -8,7 +8,7 @@ type Token = (SourcePos, DecafToken)
 
 instance Show DecafToken where
   show (StrLit s) = "STRINGLITERAL \"" ++ s ++ "\""
-  show (CharLit s) = "CHARLITERAL '" ++ show s ++ "'"
+  show (CharLit s) = "CHARLITERAL " ++ show s ++ ""
   show (DecLit s) = "INTLITERAL " ++ s
   show (HexLit s) = "INTLITERAL 0x" ++ s
   show (BoolLit s) = "BOOLEANLITERAL " ++ show s
@@ -291,7 +291,7 @@ strLiteral = do
               return $ (p, StrLit s)
 
 quoted = try (char '\\' >> oneOf "\'\"\t\n" >>= return)
-      <|> noneOf "\""
+      <|> noneOf "\"\'"
       <?> "quoted character"
 
 numLiteral :: Parser Token
