@@ -90,12 +90,16 @@ getReport :: Report a -> a
 getReport (Success a) = a
 
 repl s = crepl readTokens s
-crepl c s putStrLn $ unlines $ map showToken (getReport $ c s)
+crepl c s = putStrLn $ unlines $ map showToken (getReport $ c s)
 
 readTokens :: String -> Report [Token]
 readTokens input = case parse tokenStream "test-scanner" input of
                           Left err -> Error ("Parser Error!: " ++ show err)
                           Right val -> Success val
+
+run parser input = case parse parser "test-parser" input of
+                        Left err -> (putStrLn . show) err
+                        Right val -> (putStrLn . show) val
 --------------------------------------------
 -- scanner
 --------------------------------------------
@@ -106,10 +110,10 @@ scanner input = scanIter input input [] []
 
 scanIter :: String -> String -> [Token] -> [ParseError] -> ([Token], [ParseError])
 scanIter input input' tokens errors = case parse tokenStream "decaf-scanner" input' of
-                                             Left err ->  scanIter input (remainingInput err) tokens (errors ++ [err])
+                                             Left err ->  scanIter input (remainingInput $ errorPos err) tokens (errors ++ [err])
                                              Right val -> (tokens ++ val, errors)
                                              where
-                                              remainingInput err' = skipTo input (errorPos err')
+                                               remainingInput errPos = skipTo input $ incSourceColumn errPos 1
 
 skipTo :: String -> SourcePos -> String
 skipTo input p = case (sourceLine p) == 0 of
@@ -123,7 +127,9 @@ tokenStream = do
                 first <- firstToken
                 ws
                 rest <- many nToken
-                return $ [first] ++ rest
+                e <- end
+                return $ [first] ++ rest ++ [e]
+                
 
 nToken :: Parser Token
 nToken = do
@@ -141,7 +147,7 @@ end = do
         return (p, EOF)
 
 singleToken :: Parser Token
-singleToken = operator <|> literal <|> identifier <|> term <?> "operator, literal, identifier or term"
+singleToken = operator <|> literal <|> identifier <|> term
 
 --------------------------------------------
 -- terminals
@@ -150,11 +156,11 @@ singleToken = operator <|> literal <|> identifier <|> term <?> "operator, litera
 term :: Parser Token
 term = do
           p <- getPosition
-          b <- char '[' <|> char ']' <|> char '(' <|> char ')' <|> char '{' <|> char '}' <|> char ',' <?> "term <[, ], {, }, (, ) or comma>"
-          notFollowedBy
-          return (p, mapBrack b)
+          b <- char ';' <|> char '[' <|> char ']' <|> char '(' <|> char ')' <|> char '{' <|> char '}' <|> char ','
+          return (p, mapTerm b)
           where
-            mapBrack b | b == '[' = LBrack
+            mapTerm b | b == ';' = Semi
+                      | b == '[' = LBrack
                        | b == ']' = RBrack
                        | b == '(' = LParen
                        | b == ')' = RParen
@@ -172,7 +178,6 @@ operator = notOp
         <|> condOp
         <|> relOp
         <|> arithOp
-        <?> "operator"
 
 notOp :: Parser Token
 notOp = do
@@ -187,7 +192,7 @@ eqOp = do
 condOp :: Parser Token
 condOp = do
           p <- getPosition
-          (string "&&" >> return (p, OpAnd)) <|> (string "||" >> return (p, OpOr)) <?> "coditional operator: ["
+          (string "&&" >> return (p, OpAnd)) <|> (string "||" >> return (p, OpOr))
 
 arithOp :: Parser Token
 arithOp = plusOp
@@ -274,7 +279,7 @@ chrLiteral = do
                 char '\''
                 p <- getPosition
                 c <- anyChar
-                char '\'' <?> "character literal"
+                char '\''
                 return $ (p, CharLit c)
 
 strLiteral :: Parser Token
@@ -282,12 +287,11 @@ strLiteral = do
               char '"'
               p <- getPosition
               s <- many (quoted)
-              char '"' <?> "string literal"
+              char '"'
               return $ (p, StrLit s)
               where
                 quoted = try (char '\\' >> oneOf "\'\"\t\n" >>= return)
                   <|> noneOf "\""
-                  <?> "quoted character"
 
 numLiteral :: Parser Token
 numLiteral = do
@@ -300,7 +304,6 @@ numLiteral = do
                       p <- getPosition
                       d <- many1 digit
                       return $ (p, DecLit d)
-                <?> "integer literal"
 
 --------------------------------------------
 -- whitespace
@@ -312,22 +315,20 @@ comment = do
             skipMany (noneOf "\r\n")
             eol
             return ()
-          <?> "comment"
 
 eol :: Parser ()
 eol = do
-        try (string "\n\r") <|> try (string "\r\n") <|> string "\n" <|> string "\r" <?> "EOL"
+        try (string "\n\r") <|> try (string "\r\n") <|> string "\n" <|> string "\r"
         return ()
 
 sp :: Parser ()
 sp = do
-       char '\v' <|> char '\t'<|> char ' '
+       char '\t'<|> char ' '
        return ()
 
 whitespace :: Parser ()
 whitespace = do
-       sp <|> comment <|> eol
-       <?> "ws"
+              sp <|> comment <|> eol
 
 ws :: Parser ()
 ws = skipMany whitespace
