@@ -20,4 +20,4 @@ run function inputFile = do
                            where
                              outputFile = inputFile ++ ".out"
 
-frepl inp = unlines $ map showToken $ init $ getReport $ readTokens inp
+frepl inp = unlines $ map showToken $ readTokens inp

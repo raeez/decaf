@@ -50,7 +50,6 @@ instance Show DecafToken where
   show (OpMul) = "*"
   show (OpDiv) = "/"
   show (OpMod) = "%"
-  show (EOF) = "EOF"
   show (Fail s) = "SCANNER ERROR: " ++ s
 
 data Report a = Success a
@@ -96,22 +95,17 @@ data DecafToken = Fail String
                 | PlusAssign
                 | MinusAssign
                 | Not
-                | EOF
                 deriving (Eq)
 
 --------------------------------------------
 -- helper func
 --------------------------------------------
 repl s = createREPL readTokens s -- a repl, for use with ghci
-createREPL c s =  putStrLn $ unlines $ map showToken $ getReport $ c s
+createREPL c s =  putStrLn $ unlines $ map showToken $ c s
 
 readTokens input = case parse tokenStream "test-scanner" input of
-                          Left err -> Error err
-                          Right val -> Success val
-
-run parser input = case parse parser "test-parser" input of
-                        Left err -> (putStrLn . show) err
-                        Right val -> (putStrLn . show) val
+                          Left err -> [(errorPos err, Fail $ show err)]
+                          Right val -> val
 --------------------------------------------
 -- scanner
 --------------------------------------------
@@ -153,7 +147,7 @@ tokenStream = do
                 ws
                 rest <- many nToken
                 e <- end
-                return $ [first] ++ rest ++ [e]
+                return $ [first] ++ rest
 
 nToken :: Parser Token
 nToken = do
@@ -164,11 +158,9 @@ nToken = do
 firstToken :: Parser Token
 firstToken = (ws >> singleToken) <|> singleToken
 
-end :: Parser Token
+end :: Parser ()
 end = do
-        p <- getPosition
-        eof
-        return (p, EOF)
+        skipMany1 eof
 
 singleToken :: Parser Token
 singleToken = operator <|> literal <|> identifier <|> term
