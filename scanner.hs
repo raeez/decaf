@@ -40,7 +40,7 @@ instance Show DecafToken where
   show (OpDiv) = "/"
   show (OpMod) = "%"
   show (EOF) = "EOF"
-  show (Fail s) = "PARSE_ERROR: " ++ s
+  show (Fail s) = "SCANNER ERROR: " ++ s
 
 data Report a = Success a
               | Error ParseError
@@ -91,8 +91,7 @@ data DecafToken = Fail String
 --------------------------------------------
 -- helper func
 --------------------------------------------
-
-repl s = crepl readTokens s
+repl s = crepl readTokens s -- a repl, for use with ghci
 crepl c s =  putStrLn $ unlines $ map showToken $ getReport $ c s
 
 readTokens input = case parse tokenStream "test-scanner" input of
@@ -131,7 +130,6 @@ tokenStream = do
                 rest <- many nToken
                 e <- end
                 return $ [first] ++ rest ++ [e]
-                
 
 nToken :: Parser Token
 nToken = do
@@ -140,7 +138,7 @@ nToken = do
           return t
 
 firstToken :: Parser Token
-firstToken = end <|> singleToken <|> (ws >> singleToken)
+firstToken = (ws >> singleToken) <|> singleToken
 
 end :: Parser Token
 end = do
@@ -278,9 +276,9 @@ literal = chrLiteral
 
 chrLiteral :: Parser Token
 chrLiteral = do
-                char '\''
                 p <- getPosition
-                c <- anyChar
+                char '\''
+                c <- quoted
                 char '\''
                 return $ (p, CharLit c)
 
@@ -291,9 +289,10 @@ strLiteral = do
               s <- many (quoted)
               char '"'
               return $ (p, StrLit s)
-              where
-                quoted = try (char '\\' >> oneOf "\'\"\t\n" >>= return)
-                  <|> noneOf "\""
+
+quoted = try (char '\\' >> oneOf "\'\"\t\n" >>= return)
+      <|> noneOf "\""
+      <?> "quoted character"
 
 numLiteral :: Parser Token
 numLiteral = do
