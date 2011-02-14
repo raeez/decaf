@@ -115,11 +115,12 @@ createREPL c s =  putStrLn $ unlines $ map showToken $ c s
 readTokens input = case parse tokenStream "test-scanner" input of
                           Left err -> [(errorPos err, errorPos err, Fail $ show err)]
                           Right val -> val
+
+scanner = eatFirst
 --------------------------------------------
 -- scanner
 --------------------------------------------
 --
-
 scprint = putStrLn . formattedOutput . eatFirst
 formattedOutput scannerOutput = unlines $ map showToken $ scannerOutput
 
