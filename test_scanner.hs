@@ -8,8 +8,12 @@ import Text.Parsec.Pos
 data Report a = Success a -- extract the bit we want out of the tuple
               | Error String
               deriving (Show, Eq)
+
 getReport :: Report a -> a
 getReport (Success a) = a
+
+rep :: String -> [DecafToken]
+rep s = map snd (getReport $ readTokens s)
 
 --tests = TestList [
   --numbers,
@@ -24,7 +28,7 @@ getReport (Success a) = a
 --main = do runTestTT tests
 
 parseTokenStream :: Parser [Token]
-parseTokenStream = singleToken `sepEndBy` separator
+parseTokenStream = many singleToken
 
 readTokens :: String -> Report [Token]
 readTokens input = case parse parseTokenStream "test-scanner" input of

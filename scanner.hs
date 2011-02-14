@@ -15,12 +15,32 @@ instance Show DecafToken where
   show (Reserv s) = "RIDENTIFIER " ++ s
   show (LParen) = "("
   show (RParen) = ")"
-  show (RBrace) = "{"
-  show (LBrace) = "}"
-  show (semi) = ";"
+  show (RBrace) = "}"
+  show (LBrace) = "{"
+  show (LBrack) = "["
+  show (RBrack) = "]"
+  show (Semi) = ";"
+  show (OpAnd) = "&&"
+  show (OpOr) = "||"
+  show (Assign) = "="
+  show (PlusAssign) = "+="
+  show (MinusAssign) = "-="
+  show (Not) = "!"
+  show (OpEq) = "=="
+  show (OpNEq) = "!="
+  show (OpLT) = "<"
+  show (OpGT) = ">"
+  show (OpLTE) = "<="
+  show (OpGTE) = ">="
+  show (OpAdd) = "+"
+  show (OpMin) = "-"
+  show (OpMul) = "*"
+  show (OpDiv) = "/"
+  show (OpMod) = "%"
 
 showToken :: ((String, Int, Int), DecafToken) -> String
 showToken ((name, line, column), t) = (show line) ++ " " ++ (show t)
+
 data DecafToken = Identf String
                 | Reserv String
                 | StrLit String
@@ -32,13 +52,116 @@ data DecafToken = Identf String
                 | RParen
                 | LBrace
                 | RBrace
+                | LBrack
+                | RBrack
                 | Semi
+                | OpAnd
+                | OpOr
+                | OpEq
+                | OpNEq
+                | OpLT
+                | OpGT
+                | OpLTE
+                | OpGTE
+                | OpAdd
+                | OpMin
+                | OpMul
+                | OpDiv
+                | OpMod
+                | Assign
+                | PlusAssign
+                | MinusAssign
+                | Not
                 deriving (Eq)
 
-singleToken :: Parser Token
-singleToken = literal
-          <|> identifier
+tokenStream :: Parser [Token]
+tokenStream = firstToken >> many singleToken
 
+nToken :: Parser Token
+nToken = singleToken >> ws
+
+firstToken :: Parser Token
+firstToken = ws >> singleToken
+
+singleToken :: Parser Token
+singleToken = operator <|> literal <|> identifier <|> brack
+
+--------------------------------------------
+-- terminals
+--------------------------------------------
+--
+brack :: Parser Token
+brack = do
+          p <- getPosition
+          b <- char '[' <|> char ']' <|> char '(' <|> char ')' <|> char '{' <|> char '}' <?> "brack <[, ], {, }, (, )>"
+          return (p, mapBrack b)
+          where
+            mapBrack b | b == '[' = LBrack
+                       | b == ']' = RBrack
+                       | b == '(' = LParen
+                       | b == ')' = RParen
+                       | b == '{' = LBrace
+                       | b == '}' = RBrace
+--------------------------------------------
+-- operators
+--------------------------------------------
+--
+
+operator :: Parser Token
+operator = notOp
+        <|> eqOp
+        <|> condOp
+        <|> relOp
+        <|> arithOp
+        <?> "operator"
+
+notOp :: Parser Token
+notOp = do
+          p <- getPosition
+          (try (char '!' >> char '=') >> return (p, OpNEq)) <|> (char '!' >> return (p, Not))
+
+eqOp :: Parser Token
+eqOp = do
+        p <- getPosition
+        (try (char '=' >> char '=') >> return (p, OpEq)) <|> (char '=' >> return (p, Assign))
+
+condOp :: Parser Token
+condOp = do
+          p <- getPosition
+          (string "&&" >> return (p, OpAnd)) <|> (string "||" >> return (p, OpOr)) <?> "coditional operator: ["
+
+arithOp :: Parser Token
+arithOp = plusOp
+       <|> minOp
+       <|> unaryOp
+             
+unaryOp :: Parser Token
+unaryOp = do
+            p <- getPosition
+            c <- oneOf "+-*/%"
+            return (p, mapOp(c))
+            where
+              mapOp c | c == '+' = OpAdd
+                      | c == '-' = OpMin
+                      | c == '*' = OpMul
+                      | c == '/' = OpDiv
+                      | c == '%' = OpMod
+
+plusOp :: Parser Token
+plusOp = do
+          p <- getPosition
+          (try (char '+' >> char '=') >> return (p, PlusAssign)) <|> (char '+' >> return (p, OpAdd))
+
+minOp :: Parser Token
+minOp = do
+          p <- getPosition
+          (try (char '-' >> char '=') >> return (p, MinusAssign)) <|> (char '-' >> return (p, OpMin))
+
+relOp :: Parser Token
+relOp = do
+          p <- getPosition
+          (try (char '<' >> char '=') >> return (p, OpLTE)) <|> (try (char '>' >> char '=') >> return (p, OpGTE)) <|> (char '<' >> return (p, OpLT)) <|> (char '>' >> return (p, OpGT))
+            
 --------------------------------------------
 -- identifiers
 --------------------------------------------
@@ -137,14 +260,10 @@ eol = try (string "\n\r") -- k = 2 lookahead
     <|> string "\r"
     <?> "EOL"
 
-
 ws :: Parser ()
-ws = do
-       skipMany space <|> skipMany comment
-       <?> "ws"
+ws = skipMany whitespace
 
-separator :: Parser ()
-separator = do
-              skipMany1 space <|> skipMany1 comment <|> eof
-              ws
-            <?> "ws"
+whitespace :: Parser ()
+whitespace = do
+       space <|> comment <|> eol
+       <?> "ws"
