@@ -5,14 +5,14 @@ import Scanner
 import Text.ParserCombinators.Parsec
 import Text.Parsec.Pos
 
-data Report a = Success a -- extract the bit we want out of the tuple
+data Report a = Success a
               | Error String
               deriving (Show, Eq)
 
 getReport :: Report a -> a
 getReport (Success a) = a
 
-rep s = putStrLn $ unlines $ map showToken (getReport $ readTokens s)
+repl s = putStrLn $ unlines $ map showToken (getReport $ readTokens s)
 
 --tests = TestList [
   --numbers,

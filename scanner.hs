@@ -2,6 +2,7 @@ module Scanner
 where
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Pos
+import Text.ParserCombinators.Parsec.Error
 
 type Token = (SourcePos, DecafToken)
 
@@ -79,17 +80,43 @@ data DecafToken = Identf String
                 deriving (Eq)
 
 --------------------------------------------
--- operators
+-- helper func
+--------------------------------------------
+data Report a = Success a
+              | Error String
+              deriving (Show, Eq)
+
+getReport :: Report a -> a
+getReport (Success a) = a
+
+repl s = crepl readTokens s
+crepl c s putStrLn $ unlines $ map showToken (getReport $ c s)
+
+readTokens :: String -> Report [Token]
+readTokens input = case parse tokenStream "test-scanner" input of
+                          Left err -> Error ("Parser Error!: " ++ show err)
+                          Right val -> Success val
+--------------------------------------------
+-- scanner
 --------------------------------------------
 --
 
---scanner :: String -> ([Token], [String])
---scanner input = iterativeScan input [] []
+scanner :: String -> ([Token], [ParseError])
+scanner input = scanIter input input [] []
 
-iterativeScan :: String -> [Token] -> [String] -> Maybe ([Token], [String])
-iterativeScan input tokens errors = case parse tokenStream "decaf-scanner" input of
-                                      Left err -> Nothing
-                                      Right val -> Nothing
+scanIter :: String -> String -> [Token] -> [ParseError] -> ([Token], [ParseError])
+scanIter input input' tokens errors = case parse tokenStream "decaf-scanner" input' of
+                                             Left err ->  scanIter input (remainingInput err) tokens (errors ++ [err])
+                                             Right val -> (tokens ++ val, errors)
+                                             where
+                                              remainingInput err' = skipTo input (errorPos err')
+
+skipTo :: String -> SourcePos -> String
+skipTo input p = case (sourceLine p) == 0 of
+                   False -> skipTo ((unlines . tail . lines) input) (incSourceLine p 1)
+                   otherwise -> case (sourceColumn p) == 0 of
+                                  False -> skipTo (tail input) (incSourceColumn p 1)
+                                  otherwise -> input
 
 tokenStream :: Parser [Token]
 tokenStream = do
@@ -114,16 +141,17 @@ end = do
         return (p, EOF)
 
 singleToken :: Parser Token
-singleToken = operator <|> literal <|> identifier <|> brack
+singleToken = operator <|> literal <|> identifier <|> term <?> "operator, literal, identifier or term"
 
 --------------------------------------------
 -- terminals
 --------------------------------------------
 --
-brack :: Parser Token
-brack = do
+term :: Parser Token
+term = do
           p <- getPosition
-          b <- char '[' <|> char ']' <|> char '(' <|> char ')' <|> char '{' <|> char '}' <|> char ',' <?> "brack <[, ], {, }, (, ) or comma>"
+          b <- char '[' <|> char ']' <|> char '(' <|> char ')' <|> char '{' <|> char '}' <|> char ',' <?> "term <[, ], {, }, (, ) or comma>"
+          notFollowedBy
           return (p, mapBrack b)
           where
             mapBrack b | b == '[' = LBrack
