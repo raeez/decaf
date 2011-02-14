@@ -40,11 +40,20 @@ instance Show DecafToken where
   show (OpDiv) = "/"
   show (OpMod) = "%"
   show (EOF) = "EOF"
+  show (Fail s) = "PARSE_ERROR: " ++ s
+
+data Report a = Success a
+              | Error ParseError
+              deriving (Show)
 
 showToken :: (SourcePos, DecafToken) -> String
 showToken (p, t) = (show . sourceLine $ p) ++ " " ++ (show t)
 
-data DecafToken = Identf String
+getReport (Success a) =  a
+getReport (Error e) = [(errorPos e, Fail $ show e)]
+
+data DecafToken = Fail String
+                | Identf String
                 | Reserv String
                 | StrLit String
                 | HexLit String
@@ -82,19 +91,12 @@ data DecafToken = Identf String
 --------------------------------------------
 -- helper func
 --------------------------------------------
-data Report a = Success a
-              | Error String
-              deriving (Show, Eq)
-
-getReport :: Report a -> a
-getReport (Success a) = a
 
 repl s = crepl readTokens s
-crepl c s = putStrLn $ unlines $ map showToken (getReport $ c s)
+crepl c s =  putStrLn $ unlines $ map showToken $ getReport $ c s
 
-readTokens :: String -> Report [Token]
 readTokens input = case parse tokenStream "test-scanner" input of
-                          Left err -> Error ("Parser Error!: " ++ show err)
+                          Left err -> Error err
                           Right val -> Success val
 
 run parser input = case parse parser "test-parser" input of
