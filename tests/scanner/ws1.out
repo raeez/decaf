@@ -1,3 +1,0 @@
-5 SCANNER ERROR: "test-scanner" (line 5, column 6):
-unexpected '\f'
-expecting "!", "=", "&&", "||", "<", ">", "+", "-", "'", "\"", "0x", digit, letter, "_", ";", "[", "]", "(", ")", "{", "}", "," or end of input

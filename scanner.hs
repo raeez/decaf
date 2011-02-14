@@ -6,14 +6,24 @@ import Text.ParserCombinators.Parsec.Error
 
 type Token = (SourcePos, DecafToken)
 
+strShow (c:cs) | c == '\t' = ('\\' : 't' : strShow cs)
+             | c == '\n' = ('\\' : 'n' : strShow cs)
+             | c == '\"' = ('\\' : '"' : strShow cs)
+             | c == '\'' = ('\\' : '\'' : strShow cs)
+             | c == '\\' = ('\\' : '\\' : strShow cs)
+             | otherwise = (c:strShow cs)
+strShow [] = []
+
 instance Show DecafToken where
-  show (StrLit s) = "STRINGLITERAL \"" ++ s ++ "\""
-  show (CharLit s) = "CHARLITERAL " ++ show s ++ ""
+  show (StrLit s) = "STRINGLITERAL \"" ++ strShow s ++ "\""
+  show (CharLit s) | s == '"' = "CHARLITERAL '\\\"'"
+                   | otherwise  = "CHARLITERAL " ++ show s
   show (DecLit s) = "INTLITERAL " ++ s
   show (HexLit s) = "INTLITERAL 0x" ++ s
-  show (BoolLit s) = "BOOLEANLITERAL " ++ show s
+  show (BoolLit s) | s == False = "BOOLEANLITERAL false"
+                   | s == True = "BOOLEANLITERAL true"
   show (Identf s) = "IDENTIFIER " ++ s
-  show (Reserv s) = "RIDENTIFIER " ++ s
+  show (Reserv s) = s
   show (LParen) = "("
   show (RParen) = ")"
   show (RBrace) = "}"
@@ -278,7 +288,7 @@ chrLiteral :: Parser Token
 chrLiteral = do
                 p <- getPosition
                 char '\''
-                c <- quoted
+                c <- chrQuoted
                 char '\''
                 return $ (p, CharLit c)
 
@@ -286,13 +296,13 @@ strLiteral :: Parser Token
 strLiteral = do
               char '"'
               p <- getPosition
-              s <- many (quoted)
+              s <- many (strQuoted)
               char '"'
               return $ (p, StrLit s)
 
-quoted = try (char '\\' >> ((oneOf "\'\"" >>= return) <|> (char 'n' >> return '\n') <|> (char 't' >> return '\t')))
-      <|> noneOf "\"\'"
-      <?> "quoted character"
+chrQuoted = try (char '\\' >> ((oneOf "\\\'\"" >>= return) <|> (char 'n' >> return '\n') <|> (char 't' >> return '\t'))) <|> noneOf "\"\'\t\n" <?> "quoted character"
+
+strQuoted = try (char '\\' >> ((oneOf "\\\'\"" >>= return) <|> (char 'n' >> return '\n') <|> (char 't' >> return '\t'))) <|> noneOf "\"\'\t\n" <?> "quoted character"
 
 numLiteral :: Parser Token
 numLiteral = do

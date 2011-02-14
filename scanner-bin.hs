@@ -16,7 +16,8 @@ main = do
 run function inputFile = do
                            input <- readFile inputFile
                            writeFile outputFile $ function input
+                           putStrLn $ function input
                            where
                              outputFile = inputFile ++ ".out"
 
-frepl = unlines . (map showToken) . getReport . readTokens
+frepl inp = unlines $ map showToken $ init $ getReport $ readTokens inp
