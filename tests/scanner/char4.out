@@ -1,0 +1,3 @@
+2 SCANNER ERROR: "test-scanner" (line 2, column 3):
+unexpected "p"
+expecting "'"

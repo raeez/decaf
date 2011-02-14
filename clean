@@ -1,0 +1,3 @@
+rm *.hi
+rm *.o
+rm scanner-bin

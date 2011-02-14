@@ -290,7 +290,7 @@ strLiteral = do
               char '"'
               return $ (p, StrLit s)
 
-quoted = try (char '\\' >> oneOf "\'\"\t\n" >>= return)
+quoted = try (char '\\' >> ((oneOf "\'\"" >>= return) <|> (char 'n' >> return '\n') <|> (char 't' >> return '\t')))
       <|> noneOf "\"\'"
       <?> "quoted character"
 
