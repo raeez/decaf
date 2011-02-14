@@ -13,5 +13,5 @@ main = do
 
 replEval = do
             inp <- getLine
-            putStrLn $ unlines . map showToken . readTokens $ inp
+            putStrLn $ formattedOutput $ eatFirst inp
             replEval
