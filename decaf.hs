@@ -2,8 +2,6 @@ module Decaf
 where
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Expr
-import Numeric
-import Monad
 
 data DecafProgram = DecafProgram [DecafField] [DecafMethod]
                   deriving (Show, Eq)
