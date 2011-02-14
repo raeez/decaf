@@ -1,9 +1,26 @@
 module Scanner
 where
 import Text.ParserCombinators.Parsec
+import Text.ParserCombinators.Parsec.Pos
 
 type Token = (SourcePos, DecafToken)
 
+instance Show DecafToken where
+  show (StrLit s) = "STRINGLITERAL \"" ++ s ++ "\""
+  show (CharLit s) = "CHARLITERAL \'" ++ show s ++ "\'"
+  show (DecLit s) = "INTLITERAL " ++ s
+  show (HexLit s) = "INTLITERAL 0x" ++ s
+  show (BoolLit s) = "BOOLEANLITERAL " ++ show s
+  show (Identf s) = "IDENTIFIER " ++ s
+  show (Reserv s) = "RIDENTIFIER " ++ s
+  show (LParen) = "("
+  show (RParen) = ")"
+  show (RBrace) = "{"
+  show (LBrace) = "}"
+  show (semi) = ";"
+
+showToken :: ((String, Int, Int), DecafToken) -> String
+showToken ((name, line, column), t) = (show line) ++ " " ++ (show t)
 data DecafToken = Identf String
                 | Reserv String
                 | StrLit String
@@ -15,17 +32,60 @@ data DecafToken = Identf String
                 | RParen
                 | LBrace
                 | RBrace
-                deriving (Show, Eq)
+                | Semi
+                deriving (Eq)
+
+singleToken :: Parser Token
+singleToken = literal
+          <|> identifier
+
+--------------------------------------------
+-- identifiers
+--------------------------------------------
+--
+
+makeIdentifier :: String -> DecafToken
+makeIdentifier (t) = case (t `elem` keywords) of
+                                  False -> Identf t
+                                  otherwise -> case (t `elem` ["true", "false"]) of
+                                                False -> Reserv t
+                                                otherwise -> case (t == "true") of
+                                                              True -> BoolLit True
+                                                              False -> BoolLit False
+                      where
+                        keywords = [
+                          "boolean",
+                          "break",
+                          "callout",
+                          "class",
+                          "continue",
+                          "else",
+                          "false",
+                          "for",
+                          "if",
+                          "int",
+                          "return",
+                          "true",
+                          "void"
+                          ]
+                        
+
+identifier :: Parser Token
+identifier = do
+                p <- getPosition
+                h <- letter <|> char '_'
+                r <- many (letter <|> digit <|> char '_')
+                let str = [h] ++ r
+                return $ (p, makeIdentifier(str))
 
 --------------------------------------------
 -- literals
 --------------------------------------------
 --
-stream :: Parser Token
-stream = chrLiteral
+literal :: Parser Token
+literal = chrLiteral
        <|> strLiteral
        <|> numLiteral
-       <|> boolLiteral
 
 chrLiteral :: Parser Token
 chrLiteral = do
@@ -59,18 +119,6 @@ numLiteral = do
                       d <- many1 digit
                       return $ (p, DecLit d)
                 <?> "integer literal"
-
-boolLiteral :: Parser Token
-boolLiteral = do
-                do
-                  p <- getPosition
-                  string "true"
-                  return $ (p, BoolLit True)
-                <|> do
-                      p <-getPosition
-                      string "false"
-                      return $ (p, BoolLit False)
-                <?> "boolean literal"
 
 --------------------------------------------
 -- whitespace
