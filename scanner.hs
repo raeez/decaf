@@ -126,7 +126,7 @@ eatNext parser input = case parse parser "decaf-scanner-eatNext" input of
                                       False -> [val] ++ (eatNext (parser'' val) input)
                                       otherwise -> [val]
                         where
-                          parser' e = (eatPos input $ incSourceColumn (errorPos e) 1) >> (singleToken <|> end)
+                          parser' e = (eatPos input $ incSourceColumn (errorPos e) $ beforeOrAfter e) >> (singleToken <|> end)
                           parser'' e = (eatPos input $ endPos e) >> ws >> (singleToken <|> end)
 
 eatFirst input = case parse (firstToken) "decaf-scanner-eatFirst" input of
@@ -135,8 +135,12 @@ eatFirst input = case parse (firstToken) "decaf-scanner-eatFirst" input of
                                 False -> [val] ++ (eatNext (parser'' val) input)
                                 otherwise -> [val]
                   where
-                    parser' e = (eatPos input $ incSourceColumn (errorPos e) 1) >> (singleToken <|> end)
+                    parser' e = (eatPos input $ incSourceColumn (errorPos e) $ beforeOrAfter e) >> (singleToken <|> end)
                     parser'' e = (eatPos input $ endPos e) >> ws >> (singleToken <|> end)
+
+beforeOrAfter e = case show e =~ "unexpected end of input" of
+                    False -> 1
+                    otherwise -> 0
 
 eatPos :: String -> SourcePos -> Parser ()
 eatPos input pos = eatN $ posCount input pos
