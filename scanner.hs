@@ -109,12 +109,8 @@ data DecafToken = Fail String
 --------------------------------------------
 -- helper func
 --------------------------------------------
-repl s = createREPL readTokens s -- a repl, for use with ghci
+repl s = createREPL eatFirst s -- a repl, for use with ghci
 createREPL c s =  putStrLn $ unlines $ map showToken $ c s
-
-readTokens input = case parse tokenStream "test-scanner" input of
-                          Left err -> [(errorPos err, errorPos err, Fail $ show err)]
-                          Right val -> val
 
 scanner = eatFirst
 --------------------------------------------
@@ -125,24 +121,22 @@ scprint = putStrLn . formattedOutput . eatFirst
 formattedOutput scannerOutput = unlines $ map showToken $ scannerOutput
 
 eatNext parser input = case parse parser "decaf-scanner-eatNext" input of
-                        Left err -> case (show err) =~ "unexpected end of input" of
-                                      False -> [(errorPos err, errorPos err, Fail $ show err)] ++ (eatNext (parser' err) input)
-                                      otherwise -> [(errorPos err, errorPos err, Fail $ show err)] ++ [(errorPos err, errorPos err, EOF)]
+                        Left err -> [(errorPos err, errorPos err, Fail $ show err)] ++ eatNext(parser' err) input
                         Right val -> case (dToken val == EOF) of
                                       False -> [val] ++ (eatNext (parser'' val) input)
                                       otherwise -> [val]
                         where
-                          parser' e = (eatPos input $ incSourceColumn (errorPos e) 0) >> ws >> (nToken <|> end)
-                          parser'' v = (eatPos input $ endPos v) >> (nToken <|> end)
+                          parser' e = (eatPos input $ incSourceColumn (errorPos e) 1) >> (singleToken <|> end)
+                          parser'' e = (eatPos input $ endPos e) >> ws >> (singleToken <|> end)
 
 eatFirst input = case parse (firstToken) "decaf-scanner-eatFirst" input of
-                  Left err -> case (show err) =~ "unexpected end of input" of
-                                False -> [(errorPos err, errorPos err, Fail $ show err)] ++ (eatNext (parser' err) input)
-                                otherwise -> [(errorPos err, errorPos err, Fail $ show err)] ++ [(errorPos err, errorPos err, EOF)]
-                  Right val -> [val] ++ (eatNext (parser'' val) input)
+                  Left err -> [(errorPos err, errorPos err, Fail $ show err)] ++ eatNext(parser' err) input
+                  Right val -> case (dToken val == EOF) of
+                                False -> [val] ++ (eatNext (parser'' val) input)
+                                otherwise -> [val]
                   where
-                    parser' e = (eatPos input $ incSourceColumn (errorPos e) 0) >> ws >> nToken
-                    parser'' v = (eatPos input $ endPos v) >> ws >> nToken
+                    parser' e = (eatPos input $ incSourceColumn (errorPos e) 1) >> (singleToken <|> end)
+                    parser'' e = (eatPos input $ endPos e) >> ws >> (singleToken <|> end)
 
 eatPos :: String -> SourcePos -> Parser ()
 eatPos input pos = eatN $ posCount input pos
@@ -154,26 +148,21 @@ posCount input p = let line = head $ lines input in
                        otherwise -> case (sourceColumn p) == 1 of
                          False -> 1 + (posCount (tail input) (incSourceColumn p (-1)))
                          otherwise -> 0
+
 eatN :: Int -> Parser ()
 eatN 0 = (return ())
 eatN n = anyChar >> (eatN (n-1))
 
-tokenStream :: Parser [Token]
-tokenStream = do
-                first <- firstToken
-                ws
-                rest <- many nToken
-                end
-                return $ [first] ++ rest
-
-nToken :: Parser Token
-nToken = do
-          t <- singleToken
-          ws
-          return t
-
 firstToken :: Parser Token
-firstToken = (ws >> singleToken) <|> singleToken
+firstToken = (ws >> (singleToken <|> end)) <|> singleToken <|> end
+
+singleToken :: Parser Token
+singleToken = do
+                ws
+                t <- (operator <|> literal <|> identifier <|> term)
+                ws
+                return t
+
 
 end :: Parser Token
 end = do
@@ -182,8 +171,6 @@ end = do
         p2 <- getPosition
         return (p1, p2, EOF)
 
-singleToken :: Parser Token
-singleToken = operator <|> literal <|> identifier <|> term
 
 --------------------------------------------
 -- terminals
@@ -385,26 +372,21 @@ numLiteral = do
 -- whitespace
 --------------------------------------------
 --
-comment :: Parser ()
-comment = do
-            string "//"
-            skipMany (noneOf "\r\n")
-            eol
-            return ()
-
 eol :: Parser ()
-eol = do
-        try (string "\n\r") <|> try (string "\r\n") <|> string "\n" <|> string "\r"
-        return ()
+eol = (try eof) <|> (char '\n' >> return ())
+
+comment = do
+          header <- try $ string "//"
+          comment'
+
+comment' :: Parser ()
+comment' = eol <|> (eatN 1 >> comment')
 
 sp :: Parser ()
-sp = do
-       char '\t'<|> char ' '
-       return ()
+sp = ((try $ space) >> eol) <|> (space >> return ()) <|> (char '\n' >> return ())
 
 whitespace :: Parser ()
-whitespace = do
-              sp <|> comment <|> eol
+whitespace = comment <|> (space >> return ())
 
 ws :: Parser ()
 ws = skipMany whitespace

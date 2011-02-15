@@ -1,0 +1,2 @@
+ghc -package parsec -o scanner scanner.hs scanner-output.hs
+ghc -package parsec -o parser scanner.hs parser.hs
