@@ -3,7 +3,10 @@ where
 import Text.ParserCombinators.Parsec
 import Scanner
 
-data DecafProgram = DecafProgram [DecafField] [DecafMethod] deriving (Show, Eq)
+data DecafProgram = DecafProgram {
+                                  fields :: [DecafField],
+                                  methods :: [DecafMethod]
+                                  }
 
 data DecafField = DecafVarField DecafVarDecl 
                | DecafArrayField DecafArrDecl
@@ -127,14 +130,137 @@ dtoken test = token showTok posTok testTok
                 posTok (p1, p2, t) = p1
                 testTok (p1, p2, t) = test t
 
-identifier :: DecafParser String
-identifier = dtoken (\tok -> case tok of
+ident name = dtoken (\tok -> case tok of
                               Identf name -> Just name
                               other       -> Nothing)
 
-reserved :: DecafParser ()
-reserved name = dtoken (\tok -> case tok of
-                                  Reserv s | s == name -> Just ()
-                                  other                  -> Nothing)
+reserv name = dtoken (\tok -> case tok of
+                                  Reserv s | s == name -> Just name
+                                  other                -> Nothing)
 
-parser
+strlit = dtoken (\tok -> case tok of
+                          StrLit s -> Just s
+                          other    -> Nothing)
+
+hexlit = dtoken (\tok -> case tok of
+                          HexLit s -> Just s
+                          other    -> Nothing)
+
+declit = dtoken (\tok -> case tok of
+                            DecLit s -> Just s
+                            other    -> Nothing)
+
+chrlit = dtoken (\tok -> case tok of
+                            CharLit c -> Just c
+                            other -> Nothing)
+
+boollit = dtoken (\tok -> case tok of
+                            BoolLit b -> Just b
+                            other -> Nothing)
+
+lparen = dtoken (\tok -> case tok of
+                          LParen -> Just ()
+                          other -> Nothing)
+rparen = dtoken (\tok -> case tok of
+                          RParen -> Just ()
+                          other -> Nothing)
+
+lbrace = dtoken (\tok -> case tok of
+                          LBrace -> Just ()
+                          other -> Nothing)
+
+rbrace = dtoken (\tok -> case tok of
+                          RBrace -> Just ()
+                          other -> Nothing)
+
+lbrack = dtoken (\tok -> case tok of
+                            LBrack -> Just ()
+                            other -> Nothing)
+
+rbrack = dtoken (\tok -> case tok of
+                            RBrack -> Just ()
+                            other -> Nothing)
+
+comma = dtoken (\tok -> case tok of
+                            Comma -> Just ()
+                            other -> Nothing)
+
+semi = dtoken (\tok -> case tok of
+                        Semi -> Just ()
+                        other -> Nothing)
+
+opand = dtoken (\tok -> case tok of
+                          OpAnd -> Just ()
+                          other -> Nothing)
+
+opor = dtoken (\tok -> case tok of
+                          OpOr -> Just ()
+                          other -> Nothing)
+
+opeq = dtoken (\tok -> case tok of
+                          OpEq -> Just ()
+                          other -> Nothing)
+
+opneq = dtoken (\tok -> case tok of
+                          OpNEq -> Just ()
+                          other -> Nothing)
+                            
+oplt = dtoken (\tok -> case tok of
+                          OpLT -> Just ()
+                          other -> Nothing)
+
+opgt = dtoken (\tok -> case tok of
+                          OpGT -> Just ()
+                          other -> Nothing)
+
+oplte = dtoken (\tok -> case tok of
+                          OpLTE-> Just ()
+                          other -> Nothing)
+
+opgte = dtoken (\tok -> case tok of
+                          OpGTE-> Just ()
+                          other -> Nothing)
+
+opadd = dtoken (\tok -> case tok of
+                          OpAdd-> Just ()
+                          other -> Nothing)
+
+opmin = dtoken (\tok -> case tok of
+                          OpMin-> Just ()
+                          other -> Nothing)
+
+opmul = dtoken (\tok -> case tok of
+                          OpMul -> Just ()
+                          other -> Nothing)
+
+opdiv = dtoken (\tok -> case tok of
+                          OpDiv -> Just ()
+                          other -> Nothing)
+
+opmod = dtoken (\tok -> case tok of
+                          OpMod -> Just ()
+                          other -> Nothing)
+
+opnot = dtoken (\tok -> case tok of
+                          OpNot -> Just ()
+                          other -> Nothing)
+
+assign = dtoken (\tok -> case tok of
+                          Assign -> Just ()
+                          other -> Nothing)
+
+plusassign = dtoken (\tok -> case tok of
+                          PlusAssign -> Just ()
+                          other -> Nothing)
+
+minusassign = dtoken (\tok -> case tok of
+                          MinusAssign -> Just ()
+                          other -> Nothing)
+parseStream tokenStream = case parse program "decaf-parser" tokenStream of
+                            Left err -> Nothing
+                            Right val -> Just val
+program = do
+            reserv "class" >> ident "Program"
+            reserv "{"
+            reserv "}"
+            return $ DecafProgram [] []

@@ -1,8 +1,6 @@
 2 SCANNER ERROR: "decaf-scanner-eatFirst" (line 2, column 3):
 unexpected "p"
 expecting "'"
-2 IDENTIFIER p
 2 SCANNER ERROR: "decaf-scanner-eatNext" (line 2, column 5):
 unexpected "\n"
 expecting quoted character
-3 EOF

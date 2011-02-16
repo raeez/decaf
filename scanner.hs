@@ -39,7 +39,7 @@ instance Show DecafToken where
   show (PlusAssign) = "+="
   show (MinusAssign) = "-="
   show (Comma) = ","
-  show (Not) = "!"
+  show (OpNot) = "!"
   show (OpEq) = "=="
   show (OpNEq) = "!="
   show (OpLT) = "<"
@@ -102,7 +102,7 @@ data DecafToken = Fail String
                 | Assign
                 | PlusAssign
                 | MinusAssign
-                | Not
+                | OpNot
                 | EOF
                 deriving (Eq)
 
@@ -120,24 +120,27 @@ scanner = eatFirst
 scprint = putStrLn . formattedOutput . eatFirst
 formattedOutput scannerOutput = unlines $ map showToken $ scannerOutput
 
+eatNext :: Parser Token -> String -> [Token]
 eatNext parser input = case parse parser "decaf-scanner-eatNext" input of
                         Left err -> [(errorPos err, errorPos err, Fail $ show err)] ++ eatNext(parser' err) input
                         Right val -> case (dToken val == EOF) of
                                       False -> [val] ++ (eatNext (parser'' val) input)
-                                      otherwise -> [val]
+                                      otherwise -> []
                         where
                           parser' e = (eatPos input $ incSourceColumn (errorPos e) $ beforeOrAfter e) >> (singleToken <|> end)
-                          parser'' e = (eatPos input $ endPos e) >> ws >> (singleToken <|> end)
+                          parser'' e = (eatPos input $ endPos e) >> (singleToken <|> end)
 
+eatFirst :: String -> [Token]
 eatFirst input = case parse (firstToken) "decaf-scanner-eatFirst" input of
                   Left err -> [(errorPos err, errorPos err, Fail $ show err)] ++ eatNext(parser' err) input
                   Right val -> case (dToken val == EOF) of
                                 False -> [val] ++ (eatNext (parser'' val) input)
-                                otherwise -> [val]
+                                otherwise -> []
                   where
                     parser' e = (eatPos input $ incSourceColumn (errorPos e) $ beforeOrAfter e) >> (singleToken <|> end)
-                    parser'' e = (eatPos input $ endPos e) >> ws >> (singleToken <|> end)
+                    parser'' e = (eatPos input $ endPos e) >> (singleToken <|> end)
 
+beforeOrAfter :: ParseError -> Int
 beforeOrAfter e = case show e =~ "unexpected end of input" of
                     False -> 1
                     otherwise -> 0
@@ -158,7 +161,7 @@ eatN 0 = (return ())
 eatN n = anyChar >> (eatN (n-1))
 
 firstToken :: Parser Token
-firstToken = (ws >> (singleToken <|> end)) <|> singleToken <|> end
+firstToken = singleToken <|> end
 
 singleToken :: Parser Token
 singleToken = do
@@ -170,6 +173,7 @@ singleToken = do
 
 end :: Parser Token
 end = do
+        ws
         p1 <- getPosition
         eof
         p2 <- getPosition
@@ -215,7 +219,7 @@ notOp = do
           return (p1, p2, mapOp o)
           where
             mapOp o | o == "!=" = OpNEq
-                    | o == "!" = Not
+                    | o == "!" = OpNot
 
 eqOp :: Parser Token
 eqOp = do

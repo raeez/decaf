@@ -4,4 +4,3 @@ expecting quoted character
 3 SCANNER ERROR: "decaf-scanner-eatNext" (line 3, column 2):
 unexpected "\n"
 expecting quoted character
-4 EOF
