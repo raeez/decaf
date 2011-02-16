@@ -113,6 +113,17 @@ repl s = createREPL eatFirst s -- a repl, for use with ghci
 createREPL c s =  putStrLn $ unlines $ map showToken $ c s
 
 scanner = eatFirst
+
+numLexErrorsIn s = numErrors tokens 0
+                   where
+                     tokens = map dToken $ scanner s
+
+numErrors (t:ts) eCount = numErrors ts eCount'
+                          where
+                            eCount' = case t of
+                                        (Fail s) -> eCount + 1
+                                        otherwise -> eCount
+numErrors [] eCount = eCount
 --------------------------------------------
 -- scanner
 --------------------------------------------
@@ -127,18 +138,18 @@ eatNext parser input = case parse parser "decaf-scanner-eatNext" input of
                                       False -> [val] ++ (eatNext (parser'' val) input)
                                       otherwise -> []
                         where
-                          parser' e = (eatPos input $ incSourceColumn (errorPos e) $ beforeOrAfter e) >> (singleToken <|> end)
-                          parser'' e = (eatPos input $ endPos e) >> (singleToken <|> end)
+                          parser' e = (eatPos input $ incSourceColumn (errorPos e) $ beforeOrAfter e) >> (singleToken)
+                          parser'' e = (eatPos input $ endPos e) >> (singleToken)
 
 eatFirst :: String -> [Token]
-eatFirst input = case parse (firstToken) "decaf-scanner-eatFirst" input of
+eatFirst input = case parse (singleToken) "decaf-scanner-eatFirst" input of
                   Left err -> [(errorPos err, errorPos err, Fail $ show err)] ++ eatNext(parser' err) input
                   Right val -> case (dToken val == EOF) of
                                 False -> [val] ++ (eatNext (parser'' val) input)
                                 otherwise -> []
                   where
-                    parser' e = (eatPos input $ incSourceColumn (errorPos e) $ beforeOrAfter e) >> (singleToken <|> end)
-                    parser'' e = (eatPos input $ endPos e) >> (singleToken <|> end)
+                    parser' e = (eatPos input $ incSourceColumn (errorPos e) $ beforeOrAfter e) >> (singleToken)
+                    parser'' e = (eatPos input $ endPos e) >> (singleToken)
 
 beforeOrAfter :: ParseError -> Int
 beforeOrAfter e = case show e =~ "unexpected end of input" of
@@ -160,25 +171,20 @@ eatN :: Int -> Parser ()
 eatN 0 = (return ())
 eatN n = anyChar >> (eatN (n-1))
 
-firstToken :: Parser Token
-firstToken = singleToken <|> end
-
 singleToken :: Parser Token
 singleToken = do
                 ws
-                t <- (operator <|> literal <|> identifier <|> term)
+                t <- (operator <|> literal <|> identifier <|> term <|> end)
                 ws
                 return t
 
 
 end :: Parser Token
 end = do
-        ws
         p1 <- getPosition
         eof
         p2 <- getPosition
         return (p1, p2, EOF)
-
 
 --------------------------------------------
 -- terminals
@@ -272,7 +278,7 @@ plusOp = do
 minOp :: Parser Token
 minOp = do
           p1 <- getPosition
-          o <- (try $ string "-+") <|> (string "-")
+          o <- (try $ string "-=") <|> (string "-")
           p2 <- getPosition
           return (p1, p2, mapOp o)
           where

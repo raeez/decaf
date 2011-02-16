@@ -1,3 +1,4 @@
 sh clean
-ghc -package parsec -o scanner-bin scanner.hs scanner-bin.hs
-ghc -package parsec -o scanner-repl scanner.hs scanner-repl.hs
+ghc --make  -o scanner-bin scanner-bin.hs
+ghc --make  -o scanner-repl scanner-repl.hs
+ghc --make  -o parser-bin parser-bin.hs

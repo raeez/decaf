@@ -3,29 +3,26 @@ where
 import Text.ParserCombinators.Parsec
 import Scanner
 
-data DecafProgram = DecafProgram {
-                                  fields :: [DecafField],
-                                  methods :: [DecafMethod]
-                                  }
+data DecafProgram = DecafProgram [DecafField] [DecafMethod]
+                  deriving (Show, Eq)
 
-data DecafField = DecafVarField DecafVarDecl 
-               | DecafArrayField DecafArrDecl
+data DecafField = DecafVarField DecafVar
+               | DecafArrField DecafArr
                deriving (Show, Eq)
 
-data DecafMethod = DecafMethod DecafType DecafIdentifier (Maybe [DecafVarDecl]) DecafBlock
+data DecafMethod = DecafMethod DecafType DecafIdentifier [DecafVar] DecafBlock
                  deriving (Show, Eq)
 
-data DecafBlock = DecafBlock [DecafVarDecl] [DecafStm]
+data DecafVar = DecafVar DecafType DecafIdentifier
+                  deriving (Show, Eq)
+
+data DecafBlock = DecafBlock [DecafVar] [DecafStm]
                 deriving (Show, Eq)
 
-data DecafVarDecl = DecafVarDecl DecafType DecafIdentifier 
-                  | DecafVarListDecl DecafType [DecafIdentifier]
+data DecafArr = DecafArr DecafType DecafIdentifier DInt
                   deriving (Show, Eq)
 
-data DecafArrDecl = DecafArrDecl DecafType DecafIdentifier DNumLit 
-                  deriving (Show, Eq)
-
-data DecafType = DInt
+data DecafType = DInteger
                | DBoolean
                | DVoid
                deriving (Show, Eq)
@@ -45,25 +42,30 @@ data DecafAssignOp = DecafEq
                    | DecafMinusEq
                    deriving (Show, Eq)
 
-data DecafMethodCall = DecafMethodCall DecafIdentifier (Maybe [DecafExpr])
-                     | DecafMethodCallout DStrLit (Maybe [DecafCalloutArg])
+data DecafMethodCall = DecafMethodCall DecafIdentifier [DecafExpr]
+                     | DecafMethodCallout DStr [DecafCalloutArg]
                      deriving (Show, Eq)
 
-data DecafLoc = DecafVar DecafIdentifier
-              | DecafArr DecafIdentifier DecafExpr
+data DecafLoc = DecafVarLoc DecafIdentifier
+              | DecafArrLoc DecafIdentifier DecafExpr
               deriving (Show, Eq)
 
-data DecafExpr = DecafFieldExpr DecafField
-               | DecafMethodExpr DecafMethodCall
-               | DecafLitExpr DecafLiteral
-               | DecafOpExpr DecafExpr DecafBinOp DecafExpr
-               | DecafMinExpr DecafExpr
-               | DecafBangExpr DecafExpr
-               | DecafParenExpr DecafExpr
+data DecafExpr = DecafExpr' DecafExpr' (Maybe [(DecafBinOp, DecafExpr')])
                deriving (Show, Eq)
 
+data DecafExpr' = DecafTermExpr DecafTermExpr
+                | DecafParenExpr DecafExpr
+                | DecafNotExpr DecafExpr'
+                | DecafMinExpr DecafExpr'
+                deriving (Show, Eq)
+
+data DecafTermExpr = DecafLocExpr DecafLoc
+                   | DecafMethodExpr DecafMethodCall
+                   | DecafLitExpr DecafLiteral
+                   deriving (Show, Eq)
+
 data DecafCalloutArg = DecafCalloutArgExpr DecafExpr
-                     | DecafCalloutArgStr DStrLit
+                     | DecafCalloutArgStr DStr
                      deriving (Show, Eq)
 
 data DecafBinOp = DecafBinArithOp DecafArithOp
@@ -81,45 +83,45 @@ data DecafArithOp = DecafPlusOp
 
 data DecafRelOp = DecafLTOp
                 | DecafGTOp
-                | DecafLTEqOp
-                | DecafGTEqOp
+                | DecafLTEOp
+                | DecafGTEOp
                 deriving (Show, Eq)
 
 data DecafEqOp = DecafEqOp
-               | DecafNotEqOp
+               | DecafNEqOp
                deriving (Show, Eq)
 
 data DecafCondOp = DecafAndOp
                  | DecafOrOp
                  deriving (Show, Eq)
 
-data DecafIdentifier = DecafID String
+data DecafIdentifier = DecafIdentifier String
                      | DecafKeyword String
                      deriving (Show, Eq)
 
-data DecafLiteral = DNumLit DNumLit
-               | DBoolLit DBoolLit
-               | DStrLit DStrLit 
-               | DCharLit DCharLit
+data DecafLiteral = DecafIntLit DInt
+               | DecafBoolLit Bool 
+               | DecafStrLit  DStr
+               | DecafCharLit  DChar
                deriving (Show, Eq)
 
-data DStrLit = DStr String
-             deriving (Show, Eq)
+data DStr = DStr String
+          deriving (Show, Eq)
 
-data DNumLit = DDec Int
-             | DHex Int
-             deriving (Show, Eq)
+data DInt = DDec String
+          | DHex  String
+          deriving (Show, Eq)
 
-data DBoolLit = DTrue 
-              | DFalse
-              deriving (Show, Eq)
+data DBool = DTrue 
+           | DFalse
+           deriving (Show, Eq)
 
-data DCharLit = DChar Char
-              deriving (Show, Eq)
+data DChar = DChar Char
+           deriving (Show, Eq)
 
 data ParserErrorMessage = ParserErrorMessage String
-                | ParserErrorMessageList [ParserErrorMessage]
-                deriving (Show, Eq)
+                        | ParserErrorMessageList [ParserErrorMessage]
+                        deriving (Show, Eq)
 
 type DecafParser a = GenParser Token () a
 
@@ -131,8 +133,14 @@ dtoken test = token showTok posTok testTok
                 testTok (p1, p2, t) = test t
 
 ident name = dtoken (\tok -> case tok of
-                              Identf name -> Just name
-                              other       -> Nothing)
+                              Identf n -> case n == name of
+                                             False -> Nothing
+                                             True  -> Just name
+                              other                  -> Nothing)
+
+varident = dtoken (\tok -> case tok of
+                            Identf name -> Just name
+                            other -> Nothing)
 
 reserv name = dtoken (\tok -> case tok of
                                   Reserv s | s == name -> Just name
@@ -141,6 +149,8 @@ reserv name = dtoken (\tok -> case tok of
 strlit = dtoken (\tok -> case tok of
                           StrLit s -> Just s
                           other    -> Nothing)
+
+int = (hexlit >>= return . DHex) <|> (declit >>= return . DDec)
 
 hexlit = dtoken (\tok -> case tok of
                           HexLit s -> Just s
@@ -155,7 +165,8 @@ chrlit = dtoken (\tok -> case tok of
                             other -> Nothing)
 
 boollit = dtoken (\tok -> case tok of
-                            BoolLit b -> Just b
+                            BoolLit True -> Just True
+                            BoolLit False -> Just False
                             other -> Nothing)
 
 lparen = dtoken (\tok -> case tok of
@@ -256,11 +267,232 @@ plusassign = dtoken (\tok -> case tok of
 minusassign = dtoken (\tok -> case tok of
                           MinusAssign -> Just ()
                           other -> Nothing)
-parseStream tokenStream = case parse program "decaf-parser" tokenStream of
-                            Left err -> Nothing
-                            Right val -> Just val
+
+parser = ps program
+
+ps p i = case parse p "decaf-parser" (eatFirst i) of
+        Left err -> show err
+        Right val -> show val
+
+
 program = do
             reserv "class" >> ident "Program"
-            reserv "{"
-            reserv "}"
-            return $ DecafProgram [] []
+            lbrace
+            f <- many $ (try $ fielddecl)
+            m <- many $ ( methoddecl)
+            rbrace
+            return $ DecafProgram (foldr (++) [] f) m
+
+fielddecl = do
+              t <- vartype
+              fd <- (fdecl t) `sepBy` comma
+              semi
+              return fd
+
+fdecl t = (try $ adecl t) <|> (vdecl t)
+
+vdecl t = do
+            i <- identvar
+            return $ DecafVarField $ DecafVar t i
+
+adecl t = do
+            i <- identvar
+            lbrack
+            s <- int
+            rbrack
+            return $ DecafArrField $ DecafArr t i s
+
+methoddecl = do
+              t <- rettype
+              i <- identvar
+              lparen
+              p <- pdecl `sepBy` comma
+              rparen
+              b <- block
+              return $ DecafMethod t i p b
+
+pdecl = do
+          t <- vartype
+          i <- identvar
+          return $ DecafVar t i
+
+block = do
+          lbrace
+          v <- many vardecl
+          s <- many statement
+          rbrace
+          return $ DecafBlock (foldr (++) [] v) s
+
+vardecl = do
+            t <- vartype
+            i <- identvar `sepBy` comma
+            semi
+            return $ (map (DecafVar t) i)
+
+identvar = (varident >>= return . DecafIdentifier)
+
+voidtype = (reserv "void" >> return DVoid)
+
+integertype = (reserv "int" >> return DInteger)
+booleantype = (reserv "boolean" >> return DBoolean)
+vartype = integertype <|> booleantype
+rettype = vartype <|> voidtype
+
+statement =  try (do
+               l <- location
+               o <- assignop
+               e <- expr
+               semi
+               return $ DecafAssignStm l o e)
+         <|> try (do
+               m <- methodcall
+               semi
+               return $ DecafMethodStm m)
+         <|> (do
+               reserv "if"
+               lparen
+               e <- expr
+               rparen
+               b1 <- block
+               b <- mayb (reserv "else" >> block)
+               return $ DecafIfStm e b1 b)
+         <|> (do
+                reserv "for"
+                i <- identvar
+                aseq
+                e1 <- expr
+                comma
+                e2 <- expr
+                b <- block
+                return $ DecafForStm i e1 e2 b)
+         <|> (do
+                reserv "return"
+                e <- mayb expr
+                semi
+                return $ DecafRetStm e)
+         <|> (reserv "break" >> semi >> return DecafBreakStm)
+         <|> (reserv "continue" >> semi >> return DecafContStm)
+         <|> (block >>= return . DecafBlockStm)
+
+methodcall = (do
+                reserv "callout"
+                lparen
+                s <- slit
+                comma <|> (notFollowedBy eof)
+                p <- calloutarg `sepBy` comma
+                rparen
+                return $ DecafMethodCallout s p)
+          <|> (do
+                i <- identvar
+                lparen
+                p <- expr `sepBy` comma
+                rparen
+                return $ DecafMethodCall i p)
+
+-- left associative, right recursive
+
+mayb x = do
+          (x >>= return . Just) <|> (return Nothing)
+
+maybl x = do
+          m <- many x
+          return $ case (length m > 0) of
+                    True -> Just m
+                    False -> Nothing
+expr = do
+      e <- try expr'
+      t <- maybl exprTail
+      return $ DecafExpr' e t
+
+exprTail = do
+            b <- binop
+            e <- expr'
+            return (b, e)
+
+expr' = (terminal >>= return . DecafTermExpr)
+  <|> (do 
+         lparen
+         e <- expr
+         rparen
+         return $ DecafParenExpr e)
+
+ <|> (do
+        opnot
+        e <- expr'
+        return $ DecafNotExpr e)
+ <|> (do
+        opmin
+        e <- expr'
+        return $ DecafMinExpr e)
+
+terminal = try (methodcall >>= return . DecafMethodExpr)
+    <|> (location >>= return . DecafLocExpr)
+    <|> (lit >>= return . DecafLitExpr)
+
+binop = (arithop >>= return . DecafBinArithOp)
+     <|> (relop >>= return . DecafBinRelOp)
+     <|> (eqop >>= return . DecafBinEqOp)
+     <|> (condop >>= return . DecafBinCondOp)
+
+arithop = addop
+       <|> subop
+       <|> mulop
+       <|> divop
+       <|> modop
+
+addop = (opadd >> return DecafPlusOp)
+subop = (opmin >> return DecafMinOp)
+mulop = (opmul >> return DecafMulOp)
+divop = (opdiv >> return DecafDivOp)
+modop = (opmod >> return DecafModOp)
+
+relop = ltop
+     <|> gtop
+     <|> lteop
+     <|> gteop
+
+ltop = (oplt >> return DecafLTOp)
+gtop = (opgt >> return DecafGTOp)
+lteop = (oplte >> return DecafLTEOp)
+gteop = (opgte >> return DecafGTEOp)
+
+eqop = oeq
+    <|> oneq
+
+oeq = (opeq >> return DecafEqOp)
+oneq = (opneq >> return DecafNEqOp)
+
+condop = andop
+      <|> orop
+
+andop = (opand >> return DecafAndOp)
+orop = (opor >> return DecafOrOp)
+
+assignop = aseq
+        <|> mineq
+        <|> pluseq
+
+aseq = (assign >> return DecafEq)
+mineq = (minusassign >> return DecafMinusEq)
+pluseq = (plusassign >> return DecafPlusEq)
+
+lit = ilit <|> clit  <|> blit
+slit = (strlit >>= return . DStr)
+ilit = (int >>= return . DecafIntLit)
+blit = (boollit >>= return . DecafBoolLit)
+clit = (chrlit >>= return . DecafCharLit . DChar)
+
+location = (try arrlocation) <|> varlocation
+
+varlocation = do
+                i <- identvar
+                return $ DecafVarLoc i
+
+arrlocation = do
+                i <- identvar
+                lbrack
+                e <- expr
+                rbrack
+                return $ DecafArrLoc i e
+
+calloutarg = (expr >>= return . DecafCalloutArgExpr) <|> (slit >>= return . DecafCalloutArgStr)
