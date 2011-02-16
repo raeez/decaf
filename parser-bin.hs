@@ -3,21 +3,24 @@ where
 import Scanner
 import Parser
 import Data.List
+import Text.Regex.Posix
 import System.Environment
+import System.Exit
 
 main :: IO ()
 main = do
         args <- getArgs
         case args of
-          [inputFile] -> Main.run f inputFile
+          [inputFile] -> (readFile inputFile) >>= (execute inputFile)
           otherwise -> putStrLn "error, must specify the input file as the first and only arg"
-        where
-          f = parser
 
-run function inputFile = do
-                           input <- readFile inputFile
-                           case (numLexErrorsIn input == 0) of
-                             False -> (putStrLn ("Decaf Compiler\nFile " ++ inputFile ++ " has lex errors!\nToken Stream:\n\n")) >> (scprint input)
-                             otherwise -> (writeFile outputFile $ function input) >> (putStrLn $ function input)
+execute inputFile input = do
+                            case (numLexErrorsIn input == 0) of
+                               False -> (putStrLn ("Decaf Compiler\nFile " ++ inputFile ++ " has lex errors!\nToken Stream:\n\n")) >> (scprint input) >> exitFailure
+                               otherwise -> (writeFile outputFile output) >> (putStrLn output) >> (case parserErrors of
+                                                                                                  False ->exitSuccess
+                                                                                                  True -> exitFailure)
                              where
                                outputFile = inputFile ++ ".out"
+                               output = parser input
+                               parserErrors = containsErrors $ qs program input

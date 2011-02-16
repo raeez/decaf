@@ -269,10 +269,18 @@ minusassign = dtoken (\tok -> case tok of
                           other -> Nothing)
 
 parser = ps program
+internalParser = qs program
+
+containsErrors (Just a)= False
+containsErrors Nothing = True
 
 ps p i = case parse p "decaf-parser" (eatFirst i) of
         Left err -> show err
         Right val -> show val
+
+qs p i = case parse p "internal-decaf-parser" (eatFirst i) of
+        Left err -> Nothing
+        Right val -> Just val
 
 
 program = do

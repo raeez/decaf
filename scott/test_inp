@@ -3,12 +3,12 @@ class Program {
      int xy,z[3],g;
 
      boolean test_one[2], test_two, testthree;
-      int main() {int;boolean test(){}}
+      int main() {}
      int test_function(int manlyness){
          int x, y, z, d; boolean three_hundred;
          x = 0x300;
          }
-
+'a'
      void test_func ()
      
      
