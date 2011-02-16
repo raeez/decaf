@@ -318,14 +318,14 @@ pdecl = do
 
 block = do
           lbrace
-          v <- many vardecl
+          v <- many (try vardecl)
           s <- many statement
           rbrace
           return $ DecafBlock (foldr (++) [] v) s
 
 vardecl = do
             t <- vartype
-            i <- identvar `sepBy` comma
+            i <- identvar `sepBy1` comma
             semi
             return $ (map (DecafVar t) i)
 
@@ -391,8 +391,8 @@ methodcall = (do
 
 -- left associative, right recursive
 
-mayb x = do
-          (x >>= return . Just) <|> (return Nothing)
+mayb p = do
+          (p >>= return . Just) <|> (return Nothing)
 
 maybl x = do
           m <- many x
