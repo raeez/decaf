@@ -8,10 +8,8 @@ class Program {
          int x, y, z, d; boolean three_hundred;
          x = 0x300;
          }
-'a'
+
      void test_func ()
-     
-     
 //natoeusatoeusaoeuhaostneuhoaestnu     
 //nsaoeuhaostneuhoasetu 
 //asnetuh
@@ -55,6 +53,5 @@ class Program {
 
 {{{}}}
          }
-
 
 }
