@@ -1,3 +1,5 @@
 TODO:
 error out on bad parse
   - keywords/identifiers start with a number/end with an invalid character/have an invalid character
+  - major refactoring
+  - merge this repo with scott's work.
