@@ -1,15 +1,18 @@
 module Decaf.AST
 where
 
+-- entire program
 data DecafProgram = DecafProgram {
     fields :: [DecafField],
     methods :: [DecafMethod]
 } deriving (Show, Eq)
 
+-- field declaration :: Variable or Array
 data DecafField = DecafVarField DecafVar
                | DecafArrField DecafArray
                deriving (Show, Eq)
 
+-- method declaration
 data DecafMethod = DecafMethod {
     methodType :: DecafType,
     methodID :: DecafIdentifier,
@@ -17,22 +20,27 @@ data DecafMethod = DecafMethod {
     methodBody :: DecafBlock
 } deriving (Show, Eq)
 
+-- variable declaration
 data DecafVar = DecafVar {
     varType :: DecafType,
     varID :: DecafIdentifier
 } deriving (Show, Eq)
 
-data DecafBlock = DecafBlock {
-    blockVars :: [DecafVar],
-    blockStms :: [DecafStm]
-} deriving (Show, Eq)
-
+-- array declaration
 data DecafArray = DecafArray {
     arrayType :: DecafType,
     arrayID :: DecafIdentifier,
     arrayLength :: DInt
 } deriving (Show, Eq)
 
+-- block body
+data DecafBlock = DecafBlock {
+    blockVars :: [DecafVar],
+    blockStms :: [DecafStm]
+} deriving (Show, Eq)
+
+-- types : consider differentiating the two kinds of types
+-- (one is an expression type (int|bool) and the other is method return type (int|bool|void))
 data DecafType = DInteger
                | DBoolean
                | DVoid
