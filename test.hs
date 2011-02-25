@@ -22,11 +22,14 @@ main = do runTestTT tests
 --
 scanTokens :: Parser [DecafLiteral]
 scanTokens = token `sepEndBy` separator
+             
+separator = ws       -- don't know if it is right -J 
 
 readTokens :: String -> Report [DecafLiteral]
 readTokens input = case parse scanTokens "literal-test-scanner" input of
                       Left err -> Error ("Parser Error!: " ++ show err)
                       Right val -> Success val
+{-
 literalTests = TestList [
   numbers,
   bools,
@@ -34,6 +37,8 @@ literalTests = TestList [
   characters,
   comments
   ]
+-- 2nd copy -J
+-}
 
 --------------------------------------------
 -- literalTests
@@ -152,21 +157,49 @@ arithmeticExpressions = TestList [
 -- Semantics Checking Test
 --
 
+{-
 
+
+semanticCheck :: String -> Report Bool   -- right now just pass or fail
+semanticCheck input = False
+  --case parse parseExpressionStream "decaf-semantic-checker" input of
+  --                        Left err -> Error ("Parser Error!: " ++ show err)
+  --                        Right val -> Success val
+
+
+
+
+semanticTests = TestList [
+  smt1_no_decl_twice,
+  
+  
+  
+  ]
+                
+                
+                
+-- 1. No identifier is declared twice in the same scope.
+smr1_no_decl_twice = TestList [
+  TestLabel "case-given-by-TA" (semanticCheck "class Program {\n void main() { \n int x; boolean x;  // identifier declared twice \n }\n}"
+                                == False)
+  ]
+
+
+-- 2. No identifier is used before it is declared.
+smr2_use_after_decl = TestList [
+  
+  
+  ]
+
+
+-}
 
 {-
-1. No identifier is declared twice in the same scope.
-
-class Program {
-  void main() {
-    int x;
-    boolean x;  // identifier declared twice
-  }
-}
 
 
 
-2. No identifier is used before it is declared.
+
+
 3. The program contains a definition for a method called main that has no parameters (note
 that since execution starts at method main, any methods defined after main will never be
 executed).
