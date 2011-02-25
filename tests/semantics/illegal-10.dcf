@@ -1,0 +1,7 @@
+class Program {
+  int a[10];
+
+  void main() {
+    a[1] = a;	// bad type, rhs should be an int
+  }								
+}

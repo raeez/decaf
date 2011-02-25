@@ -1,0 +1,8 @@
+class Program {
+  int a[10];
+  int i;
+
+  void main() {
+    a[3] = i < 35;	// rhs should be an int expression
+  }								
+}

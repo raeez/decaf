@@ -1,0 +1,10 @@
+class Program {
+  int foo(int i, boolean b) {
+    return 3;
+  }
+
+  void main() {
+    int x;
+    x = foo(34, 35);	// types don't match signature
+  }								
+}	
