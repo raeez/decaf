@@ -189,7 +189,7 @@ adecl t = do
             lbrack
             s <- int
             rbrack
-            return $ DecafArrField $ DecafArr t i s
+            return $ DecafArrField $ DecafArray t i s
 
 methoddecl = do
               t <- rettype

@@ -1,24 +1,37 @@
 module Decaf.HIR
 where
 
-data DecafProgram = DecafProgram [DecafField] [DecafMethod]
-                  deriving (Show, Eq)
+data DecafProgram = DecafProgram {
+    fields :: [DecafField],
+    methods :: [DecafMethod]
+} deriving (Show, Eq)
 
 data DecafField = DecafVarField DecafVar
-               | DecafArrField DecafArr
+               | DecafArrField DecafArray
                deriving (Show, Eq)
 
-data DecafMethod = DecafMethod DecafType DecafIdentifier [DecafVar] DecafBlock
-                 deriving (Show, Eq)
+data DecafMethod = DecafMethod {
+    methodType :: DecafType,
+    methodID :: DecafIdentifier,
+    methodArg :: [DecafVar],
+    methodBody :: DecafBlock
+} deriving (Show, Eq)
 
-data DecafVar = DecafVar DecafType DecafIdentifier
-                  deriving (Show, Eq)
+data DecafVar = DecafVar {
+    varType :: DecafType,
+    varID :: DecafIdentifier
+} deriving (Show, Eq)
 
-data DecafBlock = DecafBlock [DecafVar] [DecafStm]
-                deriving (Show, Eq)
+data DecafBlock = DecafBlock {
+    blockVars :: [DecafVar],
+    blockStms :: [DecafStm]
+} deriving (Show, Eq)
 
-data DecafArr = DecafArr DecafType DecafIdentifier DInt
-                  deriving (Show, Eq)
+data DecafArray = DecafArray {
+    arrayType :: DecafType,
+    arrayID :: DecafIdentifier,
+    arrayLength :: DInt
+} deriving (Show, Eq)
 
 data DecafType = DInteger
                | DBoolean
@@ -40,8 +53,8 @@ data DecafAssignOp = DecafEq
                    | DecafMinusEq
                    deriving (Show, Eq)
 
-data DecafMethodCall = DecafMethodCall DecafIdentifier [DecafExpr]
-                     | DecafMethodCallout DStr [DecafCalloutArg]
+data DecafMethodCall = DecafMethodCall { methodCallID :: DecafIdentifier, methodCallArgs :: [DecafExpr] }
+                     | DecafMethodCallout { methodCalloutID :: DStr, methodCalloutArgs :: [DecafCalloutArg] }
                      deriving (Show, Eq)
 
 data DecafLoc = DecafVarLoc DecafIdentifier
