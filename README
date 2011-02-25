@@ -1,3 +1,9 @@
+/bin
+  compiled binaries
+
+/src
+  compiler source
+
 TODO:
 error out on bad parse
   - keywords/identifiers start with a number/end with an invalid character/have an invalid character

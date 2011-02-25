@@ -188,6 +188,8 @@ scanString input pos = thing
                    "eof" -> []
                    otherwise -> t : scanString input (fst t)
 
+scan = beginScanString
+
                    
 -- not used
 readExpr :: String -> [Token]

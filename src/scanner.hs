@@ -7,18 +7,12 @@ import Text.Regex.Posix
 import Data.List
 import Tokens
 
-data Report a = Success a
-              | Error ParseError
-              deriving (Show)
-
-getReport (Success a) =  a
-getReport (Error e) = [(errorPos e, Fail $ show e)]
-
 --------------------------------------------
--- helper func
+-- helper functions
 --------------------------------------------
+--
 repl s = createREPL eatFirst s -- a repl, for use with ghci
-createREPL c s =  putStrLn $ unlines $ map showToken $ c s
+createREPL c s = putStrLn $ unlines $ map showToken $ c s
 
 scanner = eatFirst
 
@@ -36,7 +30,9 @@ numErrors [] eCount = eCount
 -- scanner
 --------------------------------------------
 --
+scprint :: String -> IO ()
 scprint = putStrLn . formattedOutput . eatFirst
+
 formattedOutput scannerOutput = unlines $ map showToken $ scannerOutput
 
 eatNext :: Parser Token -> String -> [Token]
