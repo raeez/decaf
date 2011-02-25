@@ -1,13 +1,19 @@
 In order to build, we're using cabal:
 
-runhaskell Setup configure
-runhaskell Setup build
+./Setup.lhs configure
+./Setup.lhs build
+./Setup.lhs install
+
+Or you can run the binaries yourself from within dist/build/
 
 dist/
-  compiled binaries
+  compiled binaries, documentation etc.
 
 src/
-  compiler source
+  source for binaries + utilities
+
+Decaf/
+  compiler codebase
 
 testsuite/
   tests
