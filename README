@@ -1,8 +1,16 @@
-/bin
+In order to build, we're using cabal:
+
+runhaskell Setup configure
+runhaskell Setup build
+
+dist/
   compiled binaries
 
-/src
+src/
   compiler source
+
+testsuite/
+  tests
 
 TODO:
 error out on bad parse

@@ -1,6 +1,0 @@
-2 SCANNER ERROR: "decaf-scanner-eatFirst" (line 2, column 2):
-unexpected "\""
-expecting quoted character
-2 SCANNER ERROR: "decaf-scanner-eatNext" (line 2, column 4):
-unexpected "\n"
-expecting quoted character

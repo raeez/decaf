@@ -1,6 +1,3 @@
-scanner-bin
-scanner-repl
-parser-bin
 *.o
 *.hi
-tests
+dist/
