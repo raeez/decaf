@@ -17,7 +17,7 @@ tests = TestList [
 
 main = do runTestTT tests
 
---------------------------------------------
+------------------------------------------
 -- scannerTests
 --
 scanTokens :: Parser [DecafLiteral]
