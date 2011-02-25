@@ -2,7 +2,7 @@ module Decaf.Parser
 where
 import Text.ParserCombinators.Parsec
 import Decaf.Tokens
-import Decaf.HIR
+import Decaf.AST
 import Decaf.Scanner
 
 type DecafParser a = GenParser Token () a

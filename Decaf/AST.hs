@@ -1,4 +1,4 @@
-module Decaf.HIR
+module Decaf.AST
 where
 
 data DecafProgram = DecafProgram {
