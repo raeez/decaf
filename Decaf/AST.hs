@@ -77,7 +77,7 @@ data DecafExpr = DecafExpr Term Expr' -- used for parsing, but removed at tree r
                | DecafLocExpr DecafLoc
                | DecafMethodExpr DecafMethodCall
                | DecafLitExpr DecafLiteral
-               | DecafBinExpr DecafBinOp DecafExpr
+               | DecafBinExpr DecafBinOp DecafExpr DecafExpr  
                | DecafNotExpr DecafExpr
                | DecafMinExpr DecafExpr
                | DecafParenExpr DecafExpr
