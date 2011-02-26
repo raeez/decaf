@@ -14,14 +14,15 @@ extra-source-files: README LICENCSE
 cabal-version:      >= 1.2
 build-type:         Simple
 tested-with:        GHC == 6.12.3
-Hs-Source-Dirs:     src/
 
 flag testing
     description: Testing mode, only build minimal components
     default: False
 
 executable scanner
-    main-is:            src/ScannerBin.hs
+    hs-source-dirs:     src/
+
+    main-is:            ScannerBin.hs
     other-modules:      Decaf
                         Decaf.Tokens
                         Decaf.AST
@@ -47,7 +48,9 @@ executable scanner
 
 
 executable parser
-    main-is:            src/ParserBin.hs
+    hs-source-dirs:     src/
+
+    main-is:            ParserBin.hs
     other-modules:      Decaf
                         Decaf.Tokens
                         Decaf.AST
@@ -72,7 +75,9 @@ executable parser
         ghc-options:    -Werror
 
 executable scanner-repl
-    main-is:            src/ScannerREPL.hs
+    hs-source-dirs:     src/
+
+    main-is:            ScannerREPL.hs
     other-modules:      Decaf
                         Decaf.Tokens
                         Decaf.AST
@@ -96,7 +101,9 @@ executable scanner-repl
         ghc-options:    -Werror
 
 executable parser-repl
-    main-is:            src/ParserREPL.hs
+    hs-source-dirs:     src/
+
+    main-is:            ParserREPL.hs
     other-modules:      Decaf
                         Decaf.Tokens
                         Decaf.AST
