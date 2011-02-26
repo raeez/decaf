@@ -189,17 +189,3 @@ scanString input pos = thing
                    otherwise -> t : scanString input (fst t)
 
 scan = beginScanString
-
-                   
--- not used
-readExpr :: String -> [Token]
-readExpr input = case parse (sepBy parseToken spaces) "" input of
-                   Left err -> [(errorPos err, Error $show err)]
-                   Right val -> val
-
-
--- old main
-
---main :: IO ()
---main = getArgs >>= putStrLn.(foldl (++) "").(intersperse "\n").init.(map (showToken)).beginScanString.(!! 0)
---main = getArgs >>= putStrLn.show.doSpaces.(!! 0)

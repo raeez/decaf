@@ -86,11 +86,12 @@ instance Show DecafToken where
   show (EOF) = "EOF"
 
 showToken :: (SourcePos, SourcePos, DecafToken) -> String
-showToken (p1, p2, t) = (show . sourceLine $ p1) ++ " " ++ (show t)
+showToken (p1, p2, t) = "[L" ++ (show . sourceLine $ p1) ++ ":C" ++ (show . sourceColumn $ p1) ++ "-" ++ (show . sourceColumn $ p2) ++ "] " ++ (show t)
 
-endPos :: (SourcePos, SourcePos, DecafToken) -> SourcePos
+startPos :: (SourcePos, SourcePos, DecafToken) -> SourcePos
+startPos (p1, p2, t) = p1
+
 endPos (p1, p2, t) = p2
 
 dToken :: (SourcePos, SourcePos, DecafToken) -> DecafToken
 dToken (p1, p2, t) = t
-

@@ -8,107 +8,150 @@ import Data.List
 import Decaf.Tokens
 
 --------------------------------------------
--- helper functions
+-- interface functions
 --------------------------------------------
 --
-repl s = createREPL eatFirst s -- a repl, for use with ghci
-createREPL c s = putStrLn $ unlines $ map showToken $ c s
-
+scanner :: String -> [Token]
 scanner = eatFirst
 
+repl s = createREPL scanner s -- a repl, for use with ghci
+createREPL c s = putStrLn $ unlines $ map showToken $ c s
+
+scprint :: String -> IO ()
+scprint = putStrLn . formatScannerOutput . scanner
+
+formatScannerOutput = unlines . (map showToken)
+
+numLexErrorsIn :: String -> Int
 numLexErrorsIn s = numErrors tokens 0
                    where
                      tokens = map dToken $ scanner s
 
+numErrors :: [DecafToken] -> Int -> Int
 numErrors (t:ts) eCount = numErrors ts eCount'
                           where
                             eCount' = case t of
                                         (Fail s) -> eCount + 1
                                         otherwise -> eCount
 numErrors [] eCount = eCount
+
 --------------------------------------------
--- scanner
+-- general
 --------------------------------------------
 --
-scprint :: String -> IO ()
-scprint = putStrLn . formattedOutput . eatFirst
-
-formattedOutput scannerOutput = unlines $ map showToken $ scannerOutput
-
-eatNext :: Parser Token -> String -> [Token]
-eatNext parser input = case parse parser "decaf-scanner-eatNext" input of
-                        Left err -> [(errorPos err, errorPos err, Fail $ show err)] ++ eatNext(parser' err) input
-                        Right val -> case (dToken val == EOF) of
-                                      False -> [val] ++ (eatNext (parser'' val) input)
-                                      otherwise -> []
-                        where
-                          parser' e = (eatPos input $ incSourceColumn (errorPos e) $ beforeOrAfter e) >> (singleToken)
-                          parser'' e = (eatPos input $ endPos e) >> (singleToken)
-
-eatFirst :: String -> [Token]
-eatFirst input = case parse (singleToken) "decaf-scanner-eatFirst" input of
-                  Left err -> [(errorPos err, errorPos err, Fail $ show err)] ++ eatNext(parser' err) input
-                  Right val -> case (dToken val == EOF) of
-                                False -> [val] ++ (eatNext (parser'' val) input)
-                                otherwise -> []
-                  where
-                    parser' e = (eatPos input $ incSourceColumn (errorPos e) $ beforeOrAfter e) >> (singleToken)
-                    parser'' e = (eatPos input $ endPos e) >> (singleToken)
-
-beforeOrAfter :: ParseError -> Int
-beforeOrAfter e = case show e =~ "unexpected end of input" of
-                    False -> 1
-                    otherwise -> 0
-
-eatPos :: String -> SourcePos -> Parser ()
-eatPos input pos = eatN $ posCount input pos
-
-posCount :: String -> SourcePos -> Int
-posCount input p = let line = head $ lines input in
-                     case (sourceLine p) == 1 of
-                       False -> (length line) + 1 + (posCount (unlines $ tail $ lines input) (incSourceLine p (-1)))
-                       otherwise -> case (sourceColumn p) == 1 of
-                         False -> 1 + (posCount (tail input) (incSourceColumn p (-1)))
-                         otherwise -> 0
-
 eatN :: Int -> Parser ()
 eatN 0 = (return ())
 eatN n = anyChar >> (eatN (n-1))
 
-singleToken :: Parser Token
-singleToken = do
-                ws
-                t <- (operator <|> literal <|> identifier <|> term <|> end)
-                ws
-                return t
-
-
-end :: Parser Token
-end = do
-        p1 <- getPosition
-        eof
-        p2 <- getPosition
-        return (p1, p2, EOF)
-
 --------------------------------------------
--- terminals
+-- whitespace
 --------------------------------------------
 --
-term :: Parser Token
-term = do
-          p1 <- getPosition
-          b <- char ';' <|> char '[' <|> char ']' <|> char '(' <|> char ')' <|> char '{' <|> char '}' <|> char ','
-          p2 <- getPosition
-          return (p1, p2, mapTerm b)
-          where
-            mapTerm b | b == ';' = Semi
-                      | b == '[' = LBrack
-                       | b == ']' = RBrack
-                       | b == '(' = LParen
-                       | b == ')' = RParen
-                       | b == '{' = LBrace
-                       | b == '}' = RBrace
-                       | b == ',' = Comma
+eol :: Parser ()
+eol = (try eof) <|> (char '\n' >> return ())
+
+comment' :: Parser ()
+comment' = eol <|> (eatN 1 >> comment')
+
+whitespace :: Parser ()
+whitespace = try (string "//" >> comment') <|> (space >> return ())
+
+ws :: Parser ()
+ws = skipMany whitespace
+
+--------------------------------------------
+-- literals
+--------------------------------------------
+--
+literal :: Parser Token
+literal = chrLiteral
+       <|> strLiteral
+       <|> numLiteral
+       <?> "literal"
+
+chrLiteral :: Parser Token
+chrLiteral = do
+                p1 <- getPosition
+                char '\''
+                c <- quoted
+                char '\''
+                p2 <- getPosition
+                return $ (p1, p2, CharLit c)
+          <?> "character literal"
+
+strLiteral :: Parser Token
+strLiteral = do
+              p1 <- getPosition
+              char '"'
+              s <- many quoted
+              char '"'
+              p2 <- getPosition
+              return $ (p1, p2, StrLit s)
+
+quoted = try (char '\\' >> ((oneOf "\\\'\"" >>= return)
+                          <|> (char 'n' >> return '\n')
+                          <|> (char 't' >> return '\t')))
+         <|> noneOf "\"\'\t\n"
+         <?> "quoted character"
+
+numLiteral :: Parser Token
+numLiteral = do
+                do
+                  p1 <- getPosition
+                  try $ string "0x"
+                  d <- many1 (oneOf "abcdefABCDEF0123456789")
+                  p2 <- getPosition
+                  return $ (p1, p2, HexLit d)
+                <|> do
+                      p1 <- getPosition
+                      d <- many1 digit
+                      p2 <- getPosition
+                      return $ (p1, p2, DecLit d)
+
+--------------------------------------------
+-- identifiers
+--------------------------------------------
+--
+
+makeIdentifier :: String -> DecafToken
+makeIdentifier (t) = case (t `elem` keywords) of
+                                  False -> Identf t
+                                  otherwise -> case (t `elem` bools) of
+                                                False -> Reserv t
+                                                otherwise -> case (t == "true") of
+                                                              True -> BoolLit True
+                                                              False -> BoolLit False
+                      where
+                        bools = [
+                          "true",
+                          "false"
+                          ]
+                        keywords = [
+                          "boolean",
+                          "break",
+                          "callout",
+                          "class",
+                          "continue",
+                          "else",
+                          "false",
+                          "for",
+                          "if",
+                          "int",
+                          "return",
+                          "true",
+                          "void"
+                          ]
+                        
+
+identifier :: Parser Token
+identifier = do
+                p1 <- getPosition
+                h <- letter <|> char '_'
+                r <- many (letter <|> digit <|> char '_')
+                p2 <- getPosition
+                let str = [h] ++ r
+                return $ (p1, p2, makeIdentifier(str))
+
 --------------------------------------------
 -- operators
 --------------------------------------------
@@ -202,109 +245,80 @@ relOp = do
                     | o == ">" = OpGT
             
 --------------------------------------------
--- identifiers
+-- terminals
 --------------------------------------------
 --
-
-makeIdentifier :: String -> DecafToken
-makeIdentifier (t) = case (t `elem` keywords) of
-                                  False -> Identf t
-                                  otherwise -> case (t `elem` ["true", "false"]) of
-                                                False -> Reserv t
-                                                otherwise -> case (t == "true") of
-                                                              True -> BoolLit True
-                                                              False -> BoolLit False
-                      where
-                        keywords = [
-                          "boolean",
-                          "break",
-                          "callout",
-                          "class",
-                          "continue",
-                          "else",
-                          "false",
-                          "for",
-                          "if",
-                          "int",
-                          "return",
-                          "true",
-                          "void"
-                          ]
-                        
-
-identifier :: Parser Token
-identifier = do
-                p1 <- getPosition
-                h <- letter <|> char '_'
-                r <- many (letter <|> digit <|> char '_')
-                p2 <- getPosition
-                let str = [h] ++ r
-                return $ (p1, p2, makeIdentifier(str))
+term :: Parser Token
+term = do
+          p1 <- getPosition
+          b <- char ';' <|> char '[' <|> char ']' <|> char '(' <|> char ')' <|> char '{' <|> char '}' <|> char ','
+          p2 <- getPosition
+          return (p1, p2, mapTerm b)
+          where
+            mapTerm b | b == ';' = Semi
+                      | b == '[' = LBrack
+                       | b == ']' = RBrack
+                       | b == '(' = LParen
+                       | b == ')' = RParen
+                       | b == '{' = LBrace
+                       | b == '}' = RBrace
+                       | b == ',' = Comma
 
 --------------------------------------------
--- literals
+-- Navigation
 --------------------------------------------
 --
-literal :: Parser Token
-literal = chrLiteral
-       <|> strLiteral
-       <|> numLiteral
+beforeOrAfter :: ParseError -> Int
+beforeOrAfter e = case show e =~ "unexpected end of input" of
+                    False -> 1
+                    otherwise -> 0
 
-chrLiteral :: Parser Token
-chrLiteral = do
-                p1 <- getPosition
-                char '\''
-                c <- chrQuoted
-                char '\''
-                p2 <- getPosition
-                return $ (p1, p2, CharLit c)
+eatPos :: String -> SourcePos -> Parser ()
+eatPos input pos = eatN $ posCount input pos
 
-strLiteral :: Parser Token
-strLiteral = do
-              p1 <- getPosition
-              char '"'
-              s <- many (strQuoted)
-              char '"'
-              p2 <- getPosition
-              return $ (p1, p2, StrLit s)
+posCount :: String -> SourcePos -> Int
+posCount input p = let line = head $ lines input in
+                     case (sourceLine p) == 1 of
+                       False -> (length line) + 1 + (posCount (unlines $ tail $ lines input) (incSourceLine p (-1)))
+                       otherwise -> case (sourceColumn p) == 1 of
+                         False -> 1 + (posCount (tail input) (incSourceColumn p (-1)))
+                         otherwise -> 0
 
-chrQuoted = try (char '\\' >> ((oneOf "\\\'\"" >>= return) <|> (char 'n' >> return '\n') <|> (char 't' >> return '\t'))) <|> noneOf "\"\'\t\n" <?> "quoted character"
+singleToken :: Parser Token
+singleToken = do
+                ws
+                t <- (operator <|> literal <|> identifier <|> term <|> end)
+                ws
+                return t
 
-strQuoted = try (char '\\' >> ((oneOf "\\\'\"" >>= return) <|> (char 'n' >> return '\n') <|> (char 't' >> return '\t'))) <|> noneOf "\"\'\t\n" <?> "quoted character"
 
-numLiteral :: Parser Token
-numLiteral = do
-                do
-                  p1 <- getPosition
-                  try $ string "0x"
-                  d <- many1 (oneOf "abcdefABCDEF0123456789")
-                  p2 <- getPosition
-                  return $ (p1, p2, HexLit d)
-                <|> do
-                      p1 <- getPosition
-                      d <- many1 digit
-                      p2 <- getPosition
-                      return $ (p1, p2, DecLit d)
+end :: Parser Token
+end = do
+        p1 <- getPosition
+        eof
+        p2 <- getPosition
+        return (p1, p2, EOF)
 
 --------------------------------------------
--- whitespace
+-- scanner
 --------------------------------------------
 --
-eol :: Parser ()
-eol = (try eof) <|> (char '\n' >> return ())
+eatNext :: Parser Token -> String -> [Token]
+eatNext parser input = case parse parser "decaf-scanner-eatNext" input of
+                        Left err -> [(errorPos err, incSourceColumn (errorPos err) (1 + beforeOrAfter err), Fail $ show err)] ++ eatNext(parser' err) input
+                        Right val -> case (dToken val == EOF) of
+                                      False -> [val] ++ (eatNext (parser'' val) input)
+                                      otherwise -> []
+                        where
+                          parser' e = (eatPos input $ incSourceColumn (errorPos e) $ beforeOrAfter e) >> (singleToken)
+                          parser'' e = (eatPos input $ endPos e) >> (singleToken)
 
-comment = do
-          header <- try $ string "//"
-          comment'
-
-comment' :: Parser ()
-comment' = eol <|> (eatN 1 >> comment')
-
-sp :: Parser ()
-sp = ((try $ space) >> eol) <|> (space >> return ()) <|> (char '\n' >> return ())
-
-whitespace :: Parser ()
-whitespace = comment <|> (space >> return ())
-
-ws :: Parser ()
-ws = skipMany whitespace
+eatFirst :: String -> [Token]
+eatFirst input = case parse (singleToken) "decaf-scanner-eatFirst" input of
+                  Left err -> [(errorPos err, incSourceColumn (errorPos err) (1 + (beforeOrAfter err)), Fail $ show err)] ++ eatNext(parser' err) input
+                  Right val -> case (dToken val == EOF) of
+                                False -> [val] ++ (eatNext (parser'' val) input)
+                                otherwise -> []
+                  where
+                    parser' e = (eatPos input $ incSourceColumn (errorPos e) $ beforeOrAfter e) >> (singleToken)
+                    parser'' e = (eatPos input $ endPos e) >> (singleToken)
