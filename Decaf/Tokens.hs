@@ -101,6 +101,14 @@ dToken (p1, p2, t) = t
 -- Report  moved from Parser.hs -J
 data Report a = RSuccess a
               | RError String
+                deriving (Show,Eq)
+
+{-
+instance Show Report a where
+  show (RSuccess a) = "Success" ++ show a
+  show (RError str) = "Error" ++ str
+  -}
+                    
 getSuccess (RSuccess a) = a
 
 getReport (RSuccess a) = show a

@@ -16,6 +16,7 @@ build-type:         Simple
 tested-with:        GHC == 6.12.3
 Hs-Source-Dirs:     src/
 
+
 flag testing
     description: Testing mode, only build minimal components
     default: False
@@ -95,5 +96,31 @@ executable scanner-repl
         hs-source-dirs: . tests/
         build-depends:  QuickCheck < 2
         ghc-options:    -Werror
+
+
+executable test
+    main-is:            testsuite/Test/testScanner.hs
+    other-modules:      Decaf
+                        Decaf.Tokens
+                        Decaf.AST
+                        Decaf.Scanner
+                        Decaf.Parser
+
+    build-depends:  base, parsec, regex-posix, hunit
+
+
+    if flag(testing)
+        hs-source-dirs: . Decaf/ testsuite/Test
+        ghc-options:    -Werror -v
+        buildable:      True
+    else
+        buildable:      False
+
+    if true 
+        ghc-options:    -funbox-strict-fields -Wall
+    if impl(ghc >= 6.12.1)
+        ghc-options:    -fno-warn-unused-do-bind
+    ghc-prof-options:   -prof -auto-all
+
 
 
