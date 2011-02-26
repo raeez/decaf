@@ -1,5 +1,0 @@
-2 IDENTIFIER foo
-2 SCANNER ERROR: "decaf-scanner-eatNext" (line 2, column 4):
-unexpected '.'
-expecting "//", space, "!=", "!", "==", "=", "&&", "||", "<=", ">=", "<", ">", "+=", "+", "-+", "-", "'", "\"", "0x", digit, letter, "_", ";", "[", "]", "(", ")", "{", "}", "," or end of input
-2 IDENTIFIER bar

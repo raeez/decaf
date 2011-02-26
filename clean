@@ -1,3 +1,0 @@
-rm *.hi
-rm *.o
-rm scanner-bin parser-bin scanner-repl
