@@ -5,8 +5,7 @@ import Decaf.Tokens
 import Decaf.AST
 import Decaf.Scanner
 
--- Aux functions
-
+-- custom token parser
 type DecafParser a = GenParser Token () a
 
 decafToken :: (DecafToken -> Maybe a) -> DecafParser a
@@ -152,28 +151,17 @@ minusassign = decafToken (\tok -> case tok of
                           MinusAssign -> Just ()
                           other -> Nothing)
 
-
--- Parser interface
-
 containsErrors (Just a)= False
 containsErrors Nothing = True
 
-{- moved to Tokens, because Scanner.hs also needs it 
 data Report a = RSuccess a
               | RError String
 getSuccess (RSuccess a) = a
 
 getReport (RSuccess a) = show a
 getReport (RError s) = s
--}
 
 parser i = getReport $ ps program i
-
--- try to find an interface to testSemanticsChecker
--- will use parseStringProgram  -J
-parseToksProgram :: [Token] -> Report DecafProgram
-parseToksProgram intokstream = ps program intokstream
-
 
 ps p i = case parse p "decaf-parser" (eatFirst i) of
           Left err -> RError $ show err
@@ -182,9 +170,6 @@ ps p i = case parse p "decaf-parser" (eatFirst i) of
 qs p i = case parse p "internal-decaf-parser" (eatFirst i) of
         Left err -> Nothing
         Right val -> Just val
-
-
--- Grammer declaration
 
 program = do
             reserv "class" >> ident "Program"

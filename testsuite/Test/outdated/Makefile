@@ -1,6 +1,6 @@
 all: runtests
 
-SRC = runtests.hs ScannerParserTests.hs SemanticsTests.hs TestRoot.hs ../Decaf/AST.hs ../Decaf/Parser.hs ../Decaf/Scanner.hs ../Decaf/Tokens.hs
+SRC =  Tokens.hs Scanner.hs AST.hs Parser.hs TestRoot.hs ScannerParserTests.hs SemanticsTests.hs runtests.hs
 
 OPS = -package parsec
 

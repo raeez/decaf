@@ -95,13 +95,3 @@ endPos (p1, p2, t) = p2
 
 dToken :: (SourcePos, SourcePos, DecafToken) -> DecafToken
 dToken (p1, p2, t) = t
-
-
-
--- Report  moved from Parser.hs -J
-data Report a = RSuccess a
-              | RError String
-getSuccess (RSuccess a) = a
-
-getReport (RSuccess a) = show a
-getReport (RError s) = s

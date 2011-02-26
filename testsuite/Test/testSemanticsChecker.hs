@@ -1,10 +1,20 @@
 module SemanticsTests
 where
 import Test.HUnit
-import Scanner
-import Parser
-import TestRoot
+import Decaf.Scanner
+import Decaf.Parser
+--import TestRoot
 import Text.ParserCombinators.Parsec hiding (spaces)
+
+
+semanticCheck :: String -> Report Bool   -- right now just pass or fail
+semanticCheck input = False
+  --case parse parseExpressionStream "decaf-semantic-checker" input of
+  --                        Left err -> Error ("Parser Error!: " ++ show err)
+  --                        Right val -> Success val
+
+
+
 
 
 
@@ -33,18 +43,10 @@ semanticsTestList = TestList [
   ]
                 
 
+
 --------------------------------------------
 -- Semantics Checking Test
 --
-
-
-semanticCheck :: String -> Report Bool   -- right now just pass or fail
-semanticCheck input = False
-  --case parse parseExpressionStream "decaf-semantic-checker" input of
-  --                        Left err -> Error ("Parser Error!: " ++ show err)
-  --                        Right val -> Success val
-
-
 
 
                                 
