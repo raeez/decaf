@@ -11,9 +11,8 @@ dist/
 
 src/
   source for binaries + utilities
-
-Decaf/
-  compiler codebase
+  Decaf/
+    compiler codebase
 
 testsuite/
   tests
