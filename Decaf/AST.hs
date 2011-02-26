@@ -185,7 +185,7 @@ put_binop n _ = (put_spaces n) ++ "___\n"
 put_term n (Term factor term')= (put_spaces n) ++ "-->Term\n" ++ (put_factor (n+gap) factor) ++ (put_term' (n+gap) term')
 
 --term'
-put_term' n (Term' binop factor term') = (put_binop n binop) ++ (put_term' (n+gap) term')
+put_term' n (Term' binop factor term') = (put_binop n binop) ++ (put_factor (n+gap) factor) ++ (put_term' (n+gap) term')
 put_term' n (EmptyTerm') = (put_spaces n) ++ "-->NULL\n"
 
 --factor
