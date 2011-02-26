@@ -20,6 +20,9 @@ testsuite/
 
 TODO:
 error out on bad parse
-  - keywords/identifiers start with a number/end with an invalid character/have an invalid character
-  - major refactoring
-  - merge this repo with scott's work.
+    - multiple error reporting for parser
+    - pretty printing of AST
+    - graphing of AST
+    - flattened AST
+    - symbol tables
+    - semantic checks
