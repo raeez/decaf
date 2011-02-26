@@ -172,7 +172,12 @@ parser i = getReport $ ps program i
 -- try to find an interface to testSemanticsChecker
 -- will use parseStringProgram  -J
 parseToksProgram :: [Token] -> Report DecafProgram
-parseToksProgram intokstream = ps program intokstream
+parseToksProgram intokstream = ps_ program intokstream
+                               where ps_ p s = case parse p "decaf-parser" s of
+                                       Left err -> RError $ show err
+                                       Right val -> RSuccess val
+
+
 
 
 ps p i = case parse p "decaf-parser" (eatFirst i) of

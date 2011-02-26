@@ -17,7 +17,8 @@ scanner = eatFirst
 -- try to find an interface to testSemanticsChecker
 -- will use scanStringProgram  -J
 scanStringProgram :: String -> Report [Token]
-scanStringProgram instr = RSuccess eatFirst instr
+scanStringProgram instr = RSuccess $ eatFirst instr
+
 
 
 repl s = createREPL scanner s -- a repl, for use with ghci

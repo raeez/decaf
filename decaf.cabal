@@ -71,6 +71,7 @@ executable parser
         build-depends:  QuickCheck < 2
         ghc-options:    -Werror
 
+
 executable scanner-repl
     main-is:            src/ScannerREPL.hs
     other-modules:      Decaf
@@ -95,27 +96,4 @@ executable scanner-repl
         build-depends:  QuickCheck < 2
         ghc-options:    -Werror
 
-executable parser-repl
-    main-is:            src/ParserREPL.hs
-    other-modules:      Decaf
-                        Decaf.Tokens
-                        Decaf.AST
-                        Decaf.Scanner
-                        Decaf.Parser
-
-    Build-Depends:      base, parsec, regex-posix
-    if true 
-        ghc-options:    -funbox-strict-fields -Wall
-
-    if impl(ghc >= 6.12.1)
-        ghc-options:    -fno-warn-unused-do-bind
-
-    ghc-prof-options:   -prof -auto-all
-    extensions:         CPP
-
-    if flag(testing)
-        cpp-options:    -DTESTING
-        hs-source-dirs: . tests/
-        build-depends:  QuickCheck < 2
-        ghc-options:    -Werror
 
