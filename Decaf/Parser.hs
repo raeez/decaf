@@ -161,6 +161,8 @@ getSuccess (RSuccess a) = a
 getReport (RSuccess a) = show a
 getReport (RError s) = s
 
+parser i = getReport $ ps program i
+
 ps p i = case parse p "decaf-parser" (eatFirst i) of
           Left err -> RError $ show err
           Right val -> RSuccess val
@@ -272,7 +274,7 @@ methodcall = (do
                 reserv "callout"
                 lparen
                 s <- slit
-                comma
+                comma <|> (notFollowedBy eof)
                 p <- calloutarg `sepBy` comma
                 rparen
                 return $ DecafMethodCallout s p)
@@ -281,7 +283,7 @@ methodcall = (do
                 lparen
                 p <- expr `sepBy` comma
                 rparen
-                return $ DecafMethodCall i p)
+                return $ DecafPureMethodCall i p)
 
 -- left associative, right recursive
 

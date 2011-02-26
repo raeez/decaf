@@ -323,7 +323,7 @@ eatNext parser input = case parse parser "decaf-scanner-eatNext" input of
                           parser'' e = (eatPos input $ endPos e) >> (singleToken)
 
 eatFirst :: String -> [Token]
-eatFirst input = case parse (singleToken) "decaf-scanner-eatFirst" input of
+eatFirst inp = case parse (singleToken) "decaf-scanner-eatFirst" input of
                   Left err -> let errHead = [(errorPos err,
                                              incSourceColumn (errorPos err) (1 + (beforeOrAfter err)),
                                              Fail $ show err)] in
@@ -332,5 +332,9 @@ eatFirst input = case parse (singleToken) "decaf-scanner-eatFirst" input of
                                 False -> [val] ++ (eatNext (parser'' val) input)
                                 otherwise -> []
                   where
+                    input = clean
+                    clean = map fix inp
+                    fix c | c == '\t' = ' '
+                          | otherwise = c
                     parser' e = (eatPos input $ incSourceColumn (errorPos e) $ beforeOrAfter e) >> (singleToken)
                     parser'' e = (eatPos input $ endPos e) >> (singleToken)

@@ -61,7 +61,7 @@ data DecafAssignOp = DecafEq
                    | DecafMinusEq
                    deriving (Show, Eq)
 
-data DecafMethodCall = DecafMethodCall { methodCallID :: DecafIdentifier, methodCallArgs :: [DecafExpr] }
+data DecafMethodCall = DecafPureMethodCall { methodCallID :: DecafIdentifier, methodCallArgs :: [DecafExpr] }
                      | DecafMethodCallout { methodCalloutID :: DStr, methodCalloutArgs :: [DecafCalloutArg] }
                      deriving (Show, Eq)
 
