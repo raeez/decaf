@@ -69,23 +69,38 @@ data DecafLoc = DecafVarLoc DecafIdentifier
               | DecafArrLoc DecafIdentifier DecafExpr
               deriving (Show, Eq)
 
-data DecafExpr = DecafExpr' DecafExpr' (Maybe [(DecafBinOp, DecafExpr')])
-               deriving (Show, Eq)
-
-data DecafExpr' = DecafTermExpr DecafTermExpr
-                | DecafParenExpr DecafExpr
-                | DecafNotExpr DecafExpr'
-                | DecafMinExpr DecafExpr'
-                deriving (Show, Eq)
-
-data DecafTermExpr = DecafLocExpr DecafLoc
-                   | DecafMethodExpr DecafMethodCall
-                   | DecafLitExpr DecafLiteral
-                   deriving (Show, Eq)
-
 data DecafCalloutArg = DecafCalloutArgExpr DecafExpr
                      | DecafCalloutArgStr DStr
                      deriving (Show, Eq)
+
+data DecafExpr = DecafExpr Term Expr' -- used for parsing, but removed at tree rewrite
+               | DecafLocExpr DecafLoc
+               | DecafMethodExpr DecafMethodCall
+               | DecafLiteral
+               | DecafBinExpr DecafBinOp DecafExpr
+               | DecafNotExpr DecafExpr
+               | DecafMinExpr DecafExpr
+               | DecafParenExpr DecafExpr
+               deriving (Show, Eq)
+
+data Expr' = Expr' DecafBinOp Term Expr'
+           | EmptyExpr'
+           deriving (Show, Eq)
+
+data Term = Term Factor Term'
+          deriving (Show, Eq)
+
+data Term' = Term' DecafBinOp Factor Term'
+           | EmptyTerm'
+           deriving (Show, Eq)
+
+data Factor = DecafParenExpr' DecafExpr
+            | DecafNotExpr' DecafExpr
+            | DecafMinExpr' DecafExpr
+            | DecafLocExpr' DecafLoc
+            | DecafMethodExpr' DecafMethodCall
+            | DecafLitExpr' DecafLiteral
+            deriving (Show, Eq)
 
 data DecafBinOp = DecafBinArithOp DecafArithOp
                 | DecafBinRelOp DecafRelOp

@@ -1,4 +1,4 @@
-module ScannerBin
+module Main
 where
 
 import Decaf.Scanner

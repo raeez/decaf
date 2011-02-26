@@ -253,8 +253,8 @@ relOp = do
 -- terminals
 --------------------------------------------
 --
-term :: Parser Token
-term = do
+terminal :: Parser Token
+terminal = do
           p1 <- getPosition
           b <- char ';' <|> char '[' <|> char ']' <|> char '(' <|> char ')' <|> char '{' <|> char '}' <|> char ','
           p2 <- getPosition
@@ -293,7 +293,7 @@ posCount input p = let line = head $ lines input in
 singleToken :: Parser Token
 singleToken = do
                 ws
-                t <- (operator <|> literal <|> identifier <|> term <|> end)
+                t <- (operator <|> literal <|> identifier <|> terminal <|> end)
                 ws
                 return t
 

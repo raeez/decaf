@@ -284,51 +284,43 @@ methodcall = (do
 mayb p = do
           (p >>= return . Just) <|> (return Nothing)
 
-maybl x = do
-          m <- many x
-          return $ case (not $ null m) of
-                    True -> Just m
-                    False -> Nothing
 expr = do
-      e <- try expr'
-      t <- maybl exprTail
-      return $ DecafExpr' e t
-
-exprTail = do
-            b <- binop
-            e <- expr'
-            return (b, e)
-
-expr' = (terminal >>= return . DecafTermExpr)
-  <|> (do 
-         lparen
-         e <- expr
-         rparen
-         return $ DecafParenExpr e)
-
- <|> (do
-        opnot
+        t <- term
         e <- expr'
-        return $ DecafNotExpr e)
- <|> (do
-        opmin
-        e <- expr'
-        return $ DecafMinExpr e)
+        return $ DecafExpr t e
 
-terminal = try (methodcall >>= return . DecafMethodExpr)
-    <|> (location >>= return . DecafLocExpr)
-    <|> (lit >>= return . DecafLitExpr)
+expr' = (do
+          b <- toplevelOp
+          t <- term
+          e <- expr'
+          return $ Expr' b t e)
+     <|> (return $ EmptyExpr')
 
-binop = (arithop >>= return . DecafBinArithOp)
-     <|> (relop >>= return . DecafBinRelOp)
-     <|> (eqop >>= return . DecafBinEqOp)
-     <|> (condop >>= return . DecafBinCondOp)
+term = do
+         f <- factor
+         t <- term'
+         return $ Term f t
 
-arithop = addop
-       <|> subop
-       <|> mulop
-       <|> divop
-       <|> modop
+term' = (do
+          b <- botlevelOp
+          f <- factor
+          t <- term'
+          return $ Term' b f t)
+     <|> (return $ EmptyTerm')
+
+factor = (try methodcall >>= return . DecafMethodExpr')
+      <|> (location >>= return . DecafLocExpr')
+      <|> (lit >>= return . DecafLitExpr')
+      <|> (opnot >> expr >>= return . DecafNotExpr')
+      <|> (opmin >> expr >>= return . DecafMinExpr')
+      <|> (do
+            lparen
+            e <- expr
+            rparen
+            return $ DecafParenExpr' e)
+
+toplevelOp = ((addop <|> subop) >>= return . DecafBinArithOp) <|> relop <|> eqop <|> condop
+botlevelOp = (mulop <|> divop <|> modop) >>= return . DecafBinArithOp
 
 addop = (opadd >> return DecafPlusOp)
 subop = (opmin >> return DecafMinOp)
@@ -336,24 +328,19 @@ mulop = (opmul >> return DecafMulOp)
 divop = (opdiv >> return DecafDivOp)
 modop = (opmod >> return DecafModOp)
 
-relop = ltop
-     <|> gtop
-     <|> lteop
-     <|> gteop
+relop = (ltop <|> gtop <|> lteop <|> gteop) >>= return . DecafBinRelOp
 
 ltop = (oplt >> return DecafLTOp)
 gtop = (opgt >> return DecafGTOp)
 lteop = (oplte >> return DecafLTEOp)
 gteop = (opgte >> return DecafGTEOp)
 
-eqop = oeq
-    <|> oneq
+eqop = (oeq <|> oneq) >>= return . DecafBinEqOp
 
 oeq = (opeq >> return DecafEqOp)
 oneq = (opneq >> return DecafNEqOp)
 
-condop = andop
-      <|> orop
+condop = (andop <|> orop) >>= return . DecafBinCondOp
 
 andop = (opand >> return DecafAndOp)
 orop = (opor >> return DecafOrOp)
