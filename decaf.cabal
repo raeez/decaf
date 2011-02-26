@@ -14,7 +14,7 @@ extra-source-files: README LICENCSE
 cabal-version:      >= 1.2
 build-type:         Simple
 tested-with:        GHC == 6.12.3
-hs-source-dirs:     src
+Hs-Source-Dirs:     src/
 
 flag testing
     description: Testing mode, only build minimal components
@@ -27,9 +27,9 @@ executable scanner
                         Decaf.AST
                         Decaf.Scanner
                         Decaf.Parser
-    Build-Depends:      base,
-                        parsec,
-                        regex-posix
+
+    Build-Depends:      base, parsec, regex-posix
+
     if true 
         ghc-options:    -funbox-strict-fields -Wall
 
@@ -53,9 +53,9 @@ executable parser
                         Decaf.AST
                         Decaf.Scanner
                         Decaf.Parser
-    Build-Depends:      base,
-                        parsec,
-                        regex-posix
+
+    Build-Depends:      base, parsec, regex-posix
+
     if true 
         ghc-options:    -funbox-strict-fields -Wall
 
@@ -78,9 +78,8 @@ executable scanner-repl
                         Decaf.AST
                         Decaf.Scanner
                         Decaf.Parser
-    Build-Depends:      base,
-                        parsec,
-                        regex-posix
+
+    Build-Depends:      base, parsec, regex-posix
     if true 
         ghc-options:    -funbox-strict-fields -Wall
 
@@ -104,10 +103,7 @@ executable parser-repl
                         Decaf.Scanner
                         Decaf.Parser
 
-    Build-Depends:      base,
-                        parsec,
-                        regex-posix,
-                        graphviz
+    Build-Depends:      base, parsec, regex-posix
     if true 
         ghc-options:    -funbox-strict-fields -Wall
 

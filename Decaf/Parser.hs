@@ -274,7 +274,7 @@ methodcall = (do
                 reserv "callout"
                 lparen
                 s <- slit
-                comma <|> (notFollowedBy eof)
+                comma <|> (return ())
                 p <- calloutarg `sepBy` comma
                 rparen
                 return $ DecafMethodCallout s p)
