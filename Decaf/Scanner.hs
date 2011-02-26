@@ -305,7 +305,10 @@ end = do
 --
 eatNext :: Parser Token -> String -> [Token]
 eatNext parser input = case parse parser "decaf-scanner-eatNext" input of
-                        Left err -> [(errorPos err, incSourceColumn (errorPos err) (1 + beforeOrAfter err), Fail $ show err)] ++ eatNext(parser' err) input
+                        Left err -> let errHead = [(errorPos err,
+                                                  incSourceColumn (errorPos err) (1 + beforeOrAfter err),
+                                                  Fail $ show err)] in
+                                        errHead ++ eatNext(parser' err) input
                         Right val -> case (dToken val == EOF) of
                                       False -> [val] ++ (eatNext (parser'' val) input)
                                       otherwise -> []
@@ -315,7 +318,10 @@ eatNext parser input = case parse parser "decaf-scanner-eatNext" input of
 
 eatFirst :: String -> [Token]
 eatFirst input = case parse (singleToken) "decaf-scanner-eatFirst" input of
-                  Left err -> [(errorPos err, incSourceColumn (errorPos err) (1 + (beforeOrAfter err)), Fail $ show err)] ++ eatNext(parser' err) input
+                  Left err -> let errHead = [(errorPos err,
+                                             incSourceColumn (errorPos err) (1 + (beforeOrAfter err)),
+                                             Fail $ show err)] in
+                                  errHead ++ eatNext(parser' err) input
                   Right val -> case (dToken val == EOF) of
                                 False -> [val] ++ (eatNext (parser'' val) input)
                                 otherwise -> []
