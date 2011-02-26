@@ -1,8 +1,6 @@
 module Main
 where
 import Decaf.Scanner
-import Data.List
-import System.Environment
 
 main :: IO ()
 main = do
@@ -11,7 +9,8 @@ main = do
         putStrLn "Enter your token stream at the prompt\n"
         replEval
 
+replEval :: IO ()
 replEval = do
             inp <- getLine
-            putStrLn $ formattedOutput $ eatFirst inp
+            putStrLn $ formatScannerOutput $ eatFirst inp
             replEval

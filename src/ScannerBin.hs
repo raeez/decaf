@@ -16,10 +16,11 @@ main = do
 
 execute function inputFile input = do
    case (numLexErrorsIn input == 0) of
-     False -> (putStrLn ("Decaf Compiler\nFile " ++ input ++ " has lex errors!\nToken Stream:\n\n")) >> (scprint input) >> exitFailure
-     True -> (writeFile outputFile output) >> (putStrLn output) >> exitSuccess
+     False -> let errorMessage = ("Decaf Compiler\nFile " ++ input ++ " has lex errors!\nToken Stream:\n\n") in
+              putStrLn errorMessage >> scprint input >> exitFailure
+     True -> writeFile outputFile output >> putStrLn output >> exitSuccess
      where
        outputFile = inputFile ++ ".out"
        output = function input
 
-frepl inp = formattedOutput $ eatFirst inp
+frepl inp = formatScannerOutput $ eatFirst inp
