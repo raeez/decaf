@@ -8,7 +8,7 @@ description:
 category:           System
 license:            MIT
 license-file:       LICENSE
-author:             Raeez Lorgat, Scott Kovach, Justin
+author:             Raeez Lorgat, Scott Kovach, Justin Zhang
 maintainer:         raeez@mit.edu
 extra-source-files: README LICENCSE
 cabal-version:      >= 1.2
@@ -102,6 +102,34 @@ executable parser-repl
                         Decaf.AST
                         Decaf.Scanner
                         Decaf.Parser
+
+    Build-Depends:      base, parsec, regex-posix
+    if true 
+        ghc-options:    -funbox-strict-fields -Wall
+
+    if impl(ghc >= 6.12.1)
+        ghc-options:    -fno-warn-unused-do-bind
+
+    ghc-prof-options:   -prof -auto-all
+    extensions:         CPP
+
+    if flag(testing)
+        cpp-options:    -DTESTING
+        hs-source-dirs: . tests/
+        build-depends:  QuickCheck < 2
+        ghc-options:    -Werror
+
+executable runtests
+    main-is:            testsuite/runtests
+    other-modules:      Decaf
+                        Decaf.Tokens
+                        Decaf.AST
+                        Decaf.Scanner
+                        Decaf.Parser
+                        Testsuite
+                        Testsuite.ScannerParserTests
+                        Testsuite.SemanticsTests
+                        Testsuite.TestRoot
 
     Build-Depends:      base, parsec, regex-posix
     if true 
