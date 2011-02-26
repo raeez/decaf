@@ -151,15 +151,19 @@ minusassign = decafToken (\tok -> case tok of
                           MinusAssign -> Just ()
                           other -> Nothing)
 
-parser = ps program
-internalParser = qs program
-
 containsErrors (Just a)= False
 containsErrors Nothing = True
 
+data Report a = RSuccess a
+              | RError String
+getSuccess (RSuccess a) = a
+
+getReport (RSuccess a) = show a
+getReport (RError s) = s
+
 ps p i = case parse p "decaf-parser" (eatFirst i) of
-        Left err -> show err
-        Right val -> show val
+          Left err -> RError $ show err
+          Right val -> RSuccess val
 
 qs p i = case parse p "internal-decaf-parser" (eatFirst i) of
         Left err -> Nothing

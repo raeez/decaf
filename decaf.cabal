@@ -103,9 +103,11 @@ executable parser-repl
                         Decaf.AST
                         Decaf.Scanner
                         Decaf.Parser
+
     Build-Depends:      base,
                         parsec,
-                        regex-posix
+                        regex-posix,
+                        graphviz
     if true 
         ghc-options:    -funbox-strict-fields -Wall
 
@@ -120,5 +122,3 @@ executable parser-repl
         hs-source-dirs: . tests/
         build-depends:  QuickCheck < 2
         ghc-options:    -Werror
-
-
