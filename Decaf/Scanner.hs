@@ -49,15 +49,18 @@ eatN n = anyChar >> (eatN (n-1))
 --
 eol :: Parser ()
 eol = (try eof) <|> (char '\n' >> return ())
+   <?> "end of line"
 
 comment' :: Parser ()
 comment' = eol <|> (eatN 1 >> comment')
+        <?> "comment"
 
 whitespace :: Parser ()
 whitespace = try (string "//" >> comment') <|> (space >> return ())
 
 ws :: Parser ()
 ws = skipMany whitespace
+  <?> "whitespace"
 
 --------------------------------------------
 -- literals
@@ -95,18 +98,18 @@ quoted = try (char '\\' >> ((oneOf "\\\'\"" >>= return)
          <?> "quoted character"
 
 numLiteral :: Parser Token
-numLiteral = do
-                do
-                  p1 <- getPosition
-                  try $ string "0x"
-                  d <- many1 (oneOf "abcdefABCDEF0123456789")
-                  p2 <- getPosition
-                  return $ (p1, p2, HexLit d)
-                <|> do
-                      p1 <- getPosition
-                      d <- many1 digit
-                      p2 <- getPosition
-                      return $ (p1, p2, DecLit d)
+numLiteral = (do
+                p1 <- getPosition
+                try $ string "0x"
+                d <- many1 hexDigit
+                p2 <- getPosition
+                return $ (p1, p2, HexLit d))
+          <|> (do
+                 p1 <- getPosition
+                 d <- many1 digit
+                 p2 <- getPosition
+                 return $ (p1, p2, DecLit d))
+          <?> "integer literal"
 
 --------------------------------------------
 -- identifiers
@@ -151,6 +154,7 @@ identifier = do
                 p2 <- getPosition
                 let str = [h] ++ r
                 return $ (p1, p2, makeIdentifier(str))
+          <?> "identifier"
 
 --------------------------------------------
 -- operators
@@ -163,6 +167,7 @@ operator = notOp
         <|> condOp
         <|> relOp
         <|> arithOp
+        <?> "operator"
 
 notOp :: Parser Token
 notOp = do
@@ -268,6 +273,7 @@ term = do
 -- Navigation
 --------------------------------------------
 --
+--determine whether to start before or after the detected error
 beforeOrAfter :: ParseError -> Int
 beforeOrAfter e = case show e =~ "unexpected end of input" of
                     False -> 1
