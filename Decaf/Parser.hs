@@ -5,148 +5,149 @@ import Decaf.Tokens
 import Decaf.AST
 import Decaf.Scanner
 
+-- custom token parser
 type DecafParser a = GenParser Token () a
 
-dtoken :: (DecafToken -> Maybe a) -> DecafParser a
-dtoken test = token showTok posTok testTok
-              where
-                showTok (p1, p2, t) = show t
-                posTok (p1, p2, t) = p1
-                testTok (p1, p2, t) = test t
+decafToken :: (DecafToken -> Maybe a) -> DecafParser a
+decafToken test = token showToken posToken testToken
+                  where
+                    showToken (p1, p2, t) = show t
+                    posToken (p1, p2, t) = p1
+                    testToken (p1, p2, t) = test t
 
-ident name = dtoken (\tok -> case tok of
+ident name = decafToken (\tok -> case tok of
                               Identf n -> case n == name of
                                              False -> Nothing
                                              True  -> Just name
                               other                  -> Nothing)
 
-varident = dtoken (\tok -> case tok of
+varident = decafToken (\tok -> case tok of
                             Identf name -> Just name
                             other -> Nothing)
 
-reserv name = dtoken (\tok -> case tok of
+reserv name = decafToken (\tok -> case tok of
                                   Reserv s | s == name -> Just name
                                   other                -> Nothing)
 
-strlit = dtoken (\tok -> case tok of
+strlit = decafToken (\tok -> case tok of
                           StrLit s -> Just s
                           other    -> Nothing)
 
 int = (hexlit >>= return . DHex) <|> (declit >>= return . DDec)
 
-hexlit = dtoken (\tok -> case tok of
+hexlit = decafToken (\tok -> case tok of
                           HexLit s -> Just s
                           other    -> Nothing)
 
-declit = dtoken (\tok -> case tok of
+declit = decafToken (\tok -> case tok of
                             DecLit s -> Just s
                             other    -> Nothing)
 
-chrlit = dtoken (\tok -> case tok of
+chrlit = decafToken (\tok -> case tok of
                             CharLit c -> Just c
                             other -> Nothing)
 
-boollit = dtoken (\tok -> case tok of
+boollit = decafToken (\tok -> case tok of
                             BoolLit True -> Just True
                             BoolLit False -> Just False
                             other -> Nothing)
 
-lparen = dtoken (\tok -> case tok of
+lparen = decafToken (\tok -> case tok of
                           LParen -> Just ()
                           other -> Nothing)
-rparen = dtoken (\tok -> case tok of
+rparen = decafToken (\tok -> case tok of
                           RParen -> Just ()
                           other -> Nothing)
 
-lbrace = dtoken (\tok -> case tok of
+lbrace = decafToken (\tok -> case tok of
                           LBrace -> Just ()
                           other -> Nothing)
 
-rbrace = dtoken (\tok -> case tok of
+rbrace = decafToken (\tok -> case tok of
                           RBrace -> Just ()
                           other -> Nothing)
 
-lbrack = dtoken (\tok -> case tok of
+lbrack = decafToken (\tok -> case tok of
                             LBrack -> Just ()
                             other -> Nothing)
 
-rbrack = dtoken (\tok -> case tok of
+rbrack = decafToken (\tok -> case tok of
                             RBrack -> Just ()
                             other -> Nothing)
 
-comma = dtoken (\tok -> case tok of
+comma = decafToken (\tok -> case tok of
                             Comma -> Just ()
                             other -> Nothing)
 
-semi = dtoken (\tok -> case tok of
+semi = decafToken (\tok -> case tok of
                         Semi -> Just ()
                         other -> Nothing)
 
-opand = dtoken (\tok -> case tok of
+opand = decafToken (\tok -> case tok of
                           OpAnd -> Just ()
                           other -> Nothing)
 
-opor = dtoken (\tok -> case tok of
+opor = decafToken (\tok -> case tok of
                           OpOr -> Just ()
                           other -> Nothing)
 
-opeq = dtoken (\tok -> case tok of
+opeq = decafToken (\tok -> case tok of
                           OpEq -> Just ()
                           other -> Nothing)
 
-opneq = dtoken (\tok -> case tok of
+opneq = decafToken (\tok -> case tok of
                           OpNEq -> Just ()
                           other -> Nothing)
                             
-oplt = dtoken (\tok -> case tok of
+oplt = decafToken (\tok -> case tok of
                           OpLT -> Just ()
                           other -> Nothing)
 
-opgt = dtoken (\tok -> case tok of
+opgt = decafToken (\tok -> case tok of
                           OpGT -> Just ()
                           other -> Nothing)
 
-oplte = dtoken (\tok -> case tok of
+oplte = decafToken (\tok -> case tok of
                           OpLTE-> Just ()
                           other -> Nothing)
 
-opgte = dtoken (\tok -> case tok of
+opgte = decafToken (\tok -> case tok of
                           OpGTE-> Just ()
                           other -> Nothing)
 
-opadd = dtoken (\tok -> case tok of
+opadd = decafToken (\tok -> case tok of
                           OpAdd-> Just ()
                           other -> Nothing)
 
-opmin = dtoken (\tok -> case tok of
+opmin = decafToken (\tok -> case tok of
                           OpMin-> Just ()
                           other -> Nothing)
 
-opmul = dtoken (\tok -> case tok of
+opmul = decafToken (\tok -> case tok of
                           OpMul -> Just ()
                           other -> Nothing)
 
-opdiv = dtoken (\tok -> case tok of
+opdiv = decafToken (\tok -> case tok of
                           OpDiv -> Just ()
                           other -> Nothing)
 
-opmod = dtoken (\tok -> case tok of
+opmod = decafToken (\tok -> case tok of
                           OpMod -> Just ()
                           other -> Nothing)
 
-opnot = dtoken (\tok -> case tok of
+opnot = decafToken (\tok -> case tok of
                           OpNot -> Just ()
                           other -> Nothing)
 
-assign = dtoken (\tok -> case tok of
+assign = decafToken (\tok -> case tok of
                           Assign -> Just ()
                           other -> Nothing)
 
-plusassign = dtoken (\tok -> case tok of
+plusassign = decafToken (\tok -> case tok of
                           PlusAssign -> Just ()
                           other -> Nothing)
 
-minusassign = dtoken (\tok -> case tok of
+minusassign = decafToken (\tok -> case tok of
                           MinusAssign -> Just ()
                           other -> Nothing)
 
