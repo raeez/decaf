@@ -1,26 +1,19 @@
-module Decaf.Checker where
+module Main where
 import System.Environment
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Text.ParserCombinators.Parsec.Pos
 import System.Exit
 import Monad
-import Decaf.AST
 
-data SymbolRecord = VarRec {symbol :: DecafVar }
-                  | MethodRec {symbol :: DecafMethod}
-                  | ArrayRec {symbol :: DecafArray}
+data Statement = Ass {targetID :: Identifier, sourceID :: Identifier}
+               | Dec {newID :: Identifier}
+               | Expr {exprID :: Identifier}
+               | Block {contents :: [Statement]}
+                 deriving Show
+
+data SymbolRecord = VarRec {iden :: Identifier }
                     deriving Show 
-
-
--- access just the ID, for declaration checking
-symID (VarRec v) = varID v
-symID (MethodRec m) = methodID m
-symID (ArrayRec a) = arrayID a
-
--- access just the type for type checking
-symType (VarRec v) = varType v
-symType (MethodRec m) = methodType m
-symType (ArrayRec a) = arrayType a
+--                  | MethodRec Identifier [VarRec]  -- name, parameter list
 
 
 newtype SymbolTable = SymbolTable {symbolRecords :: [SymbolRecord]}
