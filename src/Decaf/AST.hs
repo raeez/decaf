@@ -42,7 +42,7 @@ data DecafBlock = DecafBlock {
 -- types : consider differentiating the two kinds of types
 -- (one is an expression type (int|bool) and the other is method return type (int|bool|void))
 data DecafType = DecafInteger
-               | DecafBooleanean
+               | DecafBoolean
                | DecafVoid
                deriving (Show, Eq)
 
@@ -129,8 +129,7 @@ data DecafCondOp = DecafAndOp
                  | DecafOrOp
                  deriving (Show, Eq)
 
-data DecafIdentifier = DecafIdentifier String
-                     deriving (Show, Eq)
+type DecafIdentifier = String
 
 data DecafLiteral = DecafIntLit DecafInteger
                | DecafBoolLit Bool 
@@ -138,8 +137,7 @@ data DecafLiteral = DecafIntLit DecafInteger
                | DecafCharLit  DecafCharacter
                deriving (Show, Eq)
 
-data DecafString = DecafString String
-                 deriving (Show, Eq)
+type DecafString = String
 
 data DecafInteger = DecafDec String
                   | DecafHex  String
@@ -149,8 +147,7 @@ data DecafBoolean = DecafTrue
                   | DecafFalse
                   deriving (Show, Eq)
 
-data DecafCharacter = DecafCharacter Char
-                    deriving (Show, Eq)
+type DecafCharacter = Char
 
 -- spaces
 gap = 5
@@ -223,3 +220,5 @@ pretty_print_factor n (DecafLitExpr' dl) = (pretty_print_spaces n) ++ "-->LITERA
 --flatten n (DecafNEqOp dneo) = []
 --flatten n (DecafAndOp dao) = []
 --flatten n (DecafOrOp doo) = []
+--
+--

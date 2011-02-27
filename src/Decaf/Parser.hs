@@ -225,12 +225,12 @@ vardecl = do
             semi
             return $ (map (DecafVar t) i)
 
-identvar = (varident >>= return . DecafIdentifier)
+identvar = (varident >>= return)
 
 voidtype = (reserv "void" >> return DecafVoid)
 
 integertype = (reserv "int" >> return DecafInteger)
-booleantype = (reserv "boolean" >> return DecafBooleanean)
+booleantype = (reserv "boolean" >> return DecafBoolean)
 vartype = integertype <|> booleantype
 rettype = vartype <|> voidtype
 
@@ -360,10 +360,10 @@ mineq = (minusassign >> return DecafMinusEq)
 pluseq = (plusassign >> return DecafPlusEq)
 
 lit = ilit <|> clit  <|> blit
-slit = (strlit >>= return . DecafString)
+slit = (strlit >>= return)
 ilit = (int >>= return . DecafIntLit)
 blit = (boollit >>= return . DecafBoolLit)
-clit = (chrlit >>= return . DecafCharLit . DecafCharacter)
+clit = (chrlit >>= return . DecafCharLit)
 
 location = (try arrlocation) <|> varlocation
 
