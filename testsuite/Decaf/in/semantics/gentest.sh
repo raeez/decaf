@@ -16,3 +16,7 @@ echo >> buffer
 echo >> buffer
 echo >> buffer
 done < l
+cd in
+rm -f *.out
+cd ..
+rm -f temp l 

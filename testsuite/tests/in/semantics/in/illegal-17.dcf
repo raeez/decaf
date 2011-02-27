@@ -1,7 +1,0 @@
-class Program {
-  boolean b;
-
-  void main() {
-    b += true;	// lhs and rhs of += must be int
-  }								
-}

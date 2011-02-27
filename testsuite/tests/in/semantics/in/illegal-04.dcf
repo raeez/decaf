@@ -1,5 +1,0 @@
-class Program {
-  int a[0];	// bad array size
-  void main() {
-  }							
-}
