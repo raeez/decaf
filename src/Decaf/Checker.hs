@@ -15,8 +15,6 @@ data SymbolRecord = VarRec {iden :: Identifier }
                     deriving Show 
 --                  | MethodRec Identifier [VarRec]  -- name, parameter list
 
-{- newtype is like data, but usable only when the new type has only
- one member, and is supposedly more efficient somehow -}
 
 newtype SymbolTable = SymbolTable {symbolRecords :: [SymbolRecord]}
     deriving Show
