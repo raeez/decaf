@@ -29,7 +29,7 @@ executable scanner
                         Decaf.Scanner
                         Decaf.Parser
 
-    Build-Depends:      base, parsec, regex-posix,  graphviz
+    Build-Depends:      base, parsec, regex-posix
 
     if true 
         ghc-options:    -funbox-strict-fields -Wall
@@ -57,7 +57,7 @@ executable parser
                         Decaf.Scanner
                         Decaf.Parser
 
-    Build-Depends:      base, parsec, regex-posix,  graphviz
+    Build-Depends:      base, parsec, regex-posix
 
     if true 
         ghc-options:    -funbox-strict-fields -Wall
@@ -84,7 +84,7 @@ executable scanner-repl
                         Decaf.Scanner
                         Decaf.Parser
 
-    Build-Depends:      base, parsec, regex-posix,  graphviz
+    Build-Depends:      base, parsec, regex-posix
     if true 
         ghc-options:    -funbox-strict-fields -Wall
 
@@ -100,17 +100,17 @@ executable scanner-repl
         build-depends:  QuickCheck < 2
         ghc-options:    -Werror
 
-executable parser-repl
+executable grapher
     hs-source-dirs:     src/
 
-    main-is:            ParserREPL.hs
+    main-is:            GrapherBin.hs
     other-modules:      Decaf
                         Decaf.Tokens
                         Decaf.AST
                         Decaf.Scanner
                         Decaf.Parser
 
-    Build-Depends:      base, parsec, regex-posix,  graphviz
+    Build-Depends:      base, parsec, regex-posix, fgl, graphviz
     if true 
         ghc-options:    -funbox-strict-fields -Wall
 
