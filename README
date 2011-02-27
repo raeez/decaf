@@ -1,6 +1,6 @@
 In order to build, we're using cabal:
 
-cabal configure --user
+cabal configure
 cabal build
 cabal install
 
