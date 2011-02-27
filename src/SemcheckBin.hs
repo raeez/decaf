@@ -7,11 +7,6 @@ import Text.Regex.Posix
 import System.Environment
 import System.Exit
 
--- this is same as parser except it output $ show ouput
--- used to automatically generate test cases
--- the output is included into test scripts  -j 
-
-
 main :: IO ()
 main = do
         args <- getArgs
@@ -30,5 +25,5 @@ execute inputFile input = do
                                                                           True -> exitFailure)
      where
        outputFile = inputFile ++ ".out"
-       output = show $ parser input  -- show
+       output = parser input
        parserErrors = containsErrors $ qs program input

@@ -1,0 +1,6 @@
+class Program {
+  void main() {
+    for x = false, 10 {   //initial condition must be an int
+    }
+  }							
+}

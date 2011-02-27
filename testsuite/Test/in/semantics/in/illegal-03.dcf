@@ -1,0 +1,7 @@
+// No main method
+class Program {
+  void foo() {
+  }
+  void bar() {
+  }
+}	

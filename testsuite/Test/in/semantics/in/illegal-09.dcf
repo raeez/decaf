@@ -1,0 +1,8 @@
+class Program {
+  int a[10];
+  boolean b;
+
+  void main() {
+    a[b] = 25;	// array index has wrong type
+  }								
+}
