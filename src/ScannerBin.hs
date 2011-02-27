@@ -12,7 +12,7 @@ main = do
           [inputFile] -> (readFile inputFile) >>= (execute f inputFile)
           otherwise -> putStrLn "error, must specify the input file as the first and only arg"
         where
-          f = frepl
+          f = scannerShow 
 
 execute function inputFile input = do
    case (numLexErrorsIn input == 0) of
@@ -23,4 +23,6 @@ execute function inputFile input = do
        outputFile = inputFile ++ ".out"
        output = function input
 
-frepl inp = formatScannerOutput $ eatFirst inp
+-- frepl inp = formatScannerOutput $ eatFirst inp
+-- moved into Scanner.hs, because tests need it  -j
+-- renamed as scannerShow
