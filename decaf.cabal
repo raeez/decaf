@@ -29,7 +29,7 @@ executable scanner
                         Decaf.Scanner
                         Decaf.Parser
 
-    Build-Depends:      base, parsec, regex-posix
+    Build-Depends:      base, parsec, regex-posix,  graphviz
 
     if true 
         ghc-options:    -funbox-strict-fields -Wall
@@ -57,7 +57,7 @@ executable parser
                         Decaf.Scanner
                         Decaf.Parser
 
-    Build-Depends:      base, parsec, regex-posix
+    Build-Depends:      base, parsec, regex-posix,  graphviz
 
     if true 
         ghc-options:    -funbox-strict-fields -Wall
@@ -84,7 +84,7 @@ executable scanner-repl
                         Decaf.Scanner
                         Decaf.Parser
 
-    Build-Depends:      base, parsec, regex-posix
+    Build-Depends:      base, parsec, regex-posix,  graphviz
     if true 
         ghc-options:    -funbox-strict-fields -Wall
 
@@ -110,7 +110,7 @@ executable parser-repl
                         Decaf.Scanner
                         Decaf.Parser
 
-    Build-Depends:      base, parsec, regex-posix
+    Build-Depends:      base, parsec, regex-posix,  graphviz
     if true 
         ghc-options:    -funbox-strict-fields -Wall
 

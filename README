@@ -1,8 +1,8 @@
 In order to build, we're using cabal:
 
-./Setup.lhs configure
-./Setup.lhs build
-./Setup.lhs install
+cabal configure --user
+cabal build
+cabal install
 
 Or you can run the binaries yourself from within dist/build/
 
