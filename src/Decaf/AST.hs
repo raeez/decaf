@@ -52,7 +52,7 @@ instance ASTNode DecafMethod where
   treeify meth@(DecafMethod ty identf args body) = (Node $ pp meth) (Just $ [treeify body])
 
 instance Location DecafMethod where
-  ident (DecafMethod ty identf args body) = ident
+  ident (DecafMethod ty identf args body) = identf
 
 -- variable declaration
 data DecafVar = DecafVar {
@@ -65,7 +65,7 @@ instance ASTNode DecafVar where
   treeify var@(DecafVar ty identf) = Node (pp var) Nothing
 
 instance Location DecafVar where
-  ident (DecafVar ty identf) = ident
+  ident (DecafVar ty identf) = identf
 
 -- array declaration
 data DecafArr = DecafArr {
@@ -78,7 +78,7 @@ instance ASTNode DecafArr where
   pp (DecafArr ty identf len) = "ARR " ++ pp ty ++ " " ++ identf ++"["++ pp len ++ "]"
 
 instance Location DecafArr where
-  ident (DecafArr ty identf len) = ident
+  ident (DecafArr ty identf len) = identf
 
 -- block body
 data DecafBlock = DecafBlock {
