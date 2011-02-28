@@ -100,7 +100,7 @@ ids = TestList [
   TestLabel "non-keywords" ((scanTokens "iF If BooLeaN booLean breaK foR For VoiD InTTruE truE inT Class CLASS CONTINuE BreAK fi callouT elsE reTurN") ~?= RSuccess [Identf "iF",Identf "If",Identf "BooLeaN",Identf "booLean",Identf "breaK",Identf "foR",Identf "For",Identf "VoiD",Identf "InTTruE",Identf "truE",Identf "inT",Identf "Class",Identf "CLASS",Identf "CONTINuE",Identf "BreAK",Identf "fi",Identf "callouT",Identf "elsE",Identf "reTurN"]),
   TestLabel "keywords" ((scanTokens "break break callout boolean if if int return true void void false else class continue for") ~?= RSuccess [Reserv "break",Reserv "break",Reserv "callout",Reserv "boolean",Reserv "if",Reserv "if",Reserv "int",Reserv "return",BoolLit True,Reserv "void",Reserv "void",BoolLit False,Reserv "else",Reserv "class",Reserv "continue",Reserv "for"]),
   TestLabel "mixed" ((scanTokens "breakbreak break callout_ boolean if if int return true void void false eLse clasS continue f0r") ~?= RSuccess [Identf "breakbreak",Reserv "break",Identf "callout_",Reserv "boolean",Reserv "if",Reserv "if",Reserv "int",Reserv "return",BoolLit True,Reserv "void",Reserv "void",BoolLit False,Identf "eLse",Identf "clasS",Reserv "continue",Identf "f0r"]),
-  TestLabel "invalid-!" ((scanTokens "break!") ~?= RError ""),
+  TestLabel "invalid-!" ((scanTokens "break!") ~?= RSuccess [Reserv "break", OpNot]),
   TestLabel "invalid-3" ((scanTokens "3l3t3") ~?= RError "")  
                ]
 
