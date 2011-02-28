@@ -181,7 +181,7 @@ data DecafExpr = DecafExpr Term Expr' -- used for parsing, but removed at tree r
                | DecafNotExpr DecafExpr
                | DecafMinExpr DecafExpr
                | DecafParenExpr DecafExpr
-               | DecafNullExpr -- not sure if this is needed?
+               | DecafNullExpr
                deriving (Show, Eq)
 
 instance ASTNode DecafExpr where
