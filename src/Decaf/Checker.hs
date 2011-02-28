@@ -4,11 +4,14 @@ import Text.ParserCombinators.Parsec hiding (spaces)
 import Text.ParserCombinators.Parsec.Pos
 import System.Exit
 import Monad
+import Data.List
+import Numeric
 import Decaf.AST
 
-data SymbolRecord = VarRec {symbol :: DecafVar }
-                  | MethodRec {symbol :: DecafMethod}
-                  | ArrayRec {symbol :: DecafArray}
+
+data SymbolRecord = VarRec DecafVar 
+                  | MethodRec DecafMethod
+                  | ArrayRec DecafArray
                     deriving (Show,Eq)
 
 
@@ -23,29 +26,33 @@ symType (MethodRec m) = methodType m
 symType (ArrayRec a) = arrayType a
 
 
-newtype SymbolTable = SymbolTable {symbolRecords :: [SymbolRecord]
-                                  , blockType :: BlockType}
-    deriving Show, Eq
+{- Symbol table type -}
+data SymbolTable = SymbolTable {symbolRecords :: [SymbolRecord]
+                               , blockType :: BlockType}
+    deriving (Show, Eq)
 
 data BlockType = ForBlock | IfBlock | MethodBlock DecafType | GlobalBlock | TrivialBlock
                  deriving (Show,Eq)
 
+-- See tree implementation at bottom
 type SymbolTree = Tree SymbolTable
 
 
+{- Semantic checking monad -}
 newtype Checker a = Checker {runChecker :: (String, SymbolTree) -> (a, (String, SymbolTree))}
-
 
 instance Monad Checker where
 
     return a = Checker (\s -> (a, s))
     m >>= f = Checker (\s -> let (a,(e,t)) = runChecker m s in runChecker (f a) (e,t))
 
-pushError :: String -> Checker ()
-pushError str = (Checker (\(e,t) -> ((),(e++str++"\n",t)))) >> (return False)
 
-addSymbol :: SymbolRecord -> Checker ()
-addSymbol sr = Checker (\(e,t) -> ((), (e, modifyTreeCnt g t))) 
+-- Monad manipulation functions
+pushError :: String -> Checker Bool
+pushError str = Checker (\(e,t) -> (False,(e++str++"\n",t)))
+
+addSymbol :: SymbolRecord -> Checker Bool
+addSymbol sr = Checker (\(e,t) -> (True, (e, modifyTreeCnt g t))) 
     where g (SymbolTable rs bt) = SymbolTable (sr : rs) bt
 
 local :: BlockType -> Checker a -> Checker a
@@ -54,95 +61,97 @@ local tp m = Checker (\(e,t)-> let (a,(e',t')) = runChecker m (e, addChild (Symb
 getST :: Checker SymbolTree
 getST  = Checker (\(e,t) -> (t,(e,t)))
 
-lookNear :: DecafIdentifier -> Checker SymbolRecord
+
+-- symbol table access functions
+lookNear :: DecafIdentifier -> Checker (Maybe SymbolRecord)
 lookNear id = do st <- getST
                  let recs = symbolRecords.getContent $ st
-                 return (find id (zip (map symID recs) recs))
+                 return (lookup id (zip (map symID recs) recs))
 
-lookFar :: DecafIdentifier -> Checker SymbolRecord
+lookFar :: DecafIdentifier -> Checker (Maybe SymbolRecord)
 lookFar id = do st <- getST
                 return $ exists st
     where exists st = let recs = symbolRecords.getContent $ st in
-                      case (find id (zip (map symID recs) recs)) of
+                      case (lookup id (zip (map symID recs) recs)) of
                         Nothing -> if isRoot st
                                    then Nothing
                                    else (exists $ parent st)
                         other -> other
 
+inFor :: Checker Bool
 inFor = do st <- getST
-           return infor st
+           return $ infor st
 
     where infor st =
-              if (blockType.getContent.node $ st) == ForBlock
+              if (blockType.getContent $ st) == ForBlock
               then True
               else if isRoot st
                    then False
-                   else inFor $ parent st)
+                   else infor $ parent st
 
-inMethod :: Checker DecafType
+inMethod :: Checker (Maybe DecafType)
 inMethod = do st <- getST
               return $ inmethod st
     where inmethod st = 
-              case blockType.getContent.node $ st of
+              case blockType.getContent $ st of
                 MethodBlock t -> Just t
                 other -> if isRoot st
                          then Nothing
                          else inmethod $ parent st
 
-type Identifier = String
 
 {- to write : 
 
-  getLocType -- location type
-  checkExpr  -- returns Maybe DecafType
- 
+  error pushing code needs line numbers (pass line as argument to pushError)
 
-error pushing code needs line numbers
-  
+  function needs to make sure it has a return statement
 
 -}
+
+{- Statement-like Semantic checkers, bottom-up order -}
 checkStm :: DecafStm -> Checker Bool
-checkStm stmt = 
+checkStm stmt =                  
     case stmt of 
       DecafAssignStm loc op expr -> 
           do lhs <- lookFar (decafID loc)
-             t2 <- checkExpr expr
-             let t1 = symID lhs
-             case op of
-               DecafEq -> if (t1 == t2)
-                          then return True
-                          else pushError ("Mismatched types in assignment statement") 
-                                   >> return False
-               other -> if (t1 == DInteger && t2 == DInteger)
-                        then return True
-                        else pushError ("Mismatched types in arithmetic assignment statement") 
-                                 >> return False
+             case lhs of 
+               Nothing -> pushError ("Undeclared variable "++(decafID loc))
+               Just lhs -> 
+                   do t2 <- checkExpr expr
+                      let t1 = symType lhs
+                      case op of
+                        DecafEq -> if (t1 == t2)
+                                   then return True
+                                   else pushError ("Mismatched types in assignment statement") 
+                                            >> return False
+                        other -> if (t1 == DInteger && t2 == DInteger)
+                                 then return True
+                                 else pushError ("Mismatched types in arithmetic assignment statement") 
       DecafMethodStm (DecafPureMethodCall dID args) -> 
           do ex <- lookFar dID
              case ex of 
-               Just (MethodRec decafMethod) 
-                   -> do types <- bindCat [] (map checkExpr args)
-                         if all (== True) $ zipWith (==) types (map varType (methodArg decafMethod))
-                         then return True
-                         else pushError ("Incorrect argument type")
-               Nothing -> pushError ("Undeclared method: " ++ dId)
+               Just (MethodRec decafMethod) -> 
+                   do types <- bindCat [] (map checkExpr args)
+                      if (all (== True) $ zipWith (==) types (map varType (methodArg decafMethod)))
+                        then return True
+                        else pushError ("Incorrect argument type")
+               Nothing -> pushError ("Undeclared method: " ++ dID)
           where 
             bindCat :: [DecafType] -> [Checker DecafType] -> Checker [DecafType]
             bindCat res args = 
                 case args of
                   [] -> return res
-                        other -> do t <- (head args)
-                                    bindCat (res++t) (tail args)
+                  other -> do t <- (head args)
+                              bindCat (res++[t]) (tail args)
 
       DecafMethodStm (DecafMethodCallout id args) ->
-          foldl (>>) (return DVoid) (map checkExpr args)
+          foldl (>>) (return False) (map checkCalloutArg args) >> return True
 
       DecafIfStm expr block melse ->
-          do case checkExpr expr of
-               Just dt -> if dt == DBool
-                          then return ()
-                          else pushError ("If conditional must have type Boolean")
-               Nothing -> return ()
+          do dt <- checkExpr expr
+             if dt == DBoolean
+              then return True
+              else pushError ("If conditional must have type Boolean")
 
              case melse of
                Just e -> checkBlock block IfBlock >> checkBlock e IfBlock
@@ -153,45 +162,50 @@ checkStm stmt =
              t1 <- checkExpr expr1
              t2 <- checkExpr expr2
              if (t1 /= DInteger)
-             then pushError ("Start expression in for loop must have type Integer")
-             else return ()
+               then pushError ("Start expression in for loop must have type Integer")
+               else return True
              if (t2 /= DInteger)
-             then pushError ("End expression in for loop must have type Integer")
-             else return ()
+               then pushError ("End expression in for loop must have type Integer")
+               else return True
              checkBlock block ForBlock
 
-      DecafRetStm rv -> 
+      DecafRetStm rv ->  -- ADD CODE FOR addSymbol ret
           do t <- inMethod -- returns method type, if there is one
-                  case t of
-                    None -> pushError ("return may only be used inside a method definition")
-                    Just DVoid -> 
-                        case rv of
-                          None -> return True
-                          other -> pushError ("Function declared void cannot return a value")
-                    Just x ->
-                        case rv of
-                          None -> pushError ("Function declared to return a value must do so")
-                          Just expr -> do rt <- checkExpr expr
-                                          if rt == x
-                                          then return True
-                                          else pushError ("Function declared to return "++x++" cannot return "++rt)
+             case t of
+               Nothing -> pushError ("return may only be used inside a method definition")
+               Just DVoid -> 
+                   case rv of
+                     Nothing -> return True
+                     other -> pushError ("Function declared void cannot return a value")
+               Just x ->
+                   case rv of
+                     Nothing -> pushError ("Function declared to return a value must do so")
+                     Just expr -> do rt <- checkExpr expr
+                                     if rt == x
+                                       then return True
+                                       else pushError ("Function declared to return "++(show x)++" cannot return "++(show rt))
                                                       
 
       DecafBreakStm -> guardFor
       DecafContStm  -> guardFor
-          where guardFor = do b <- inFor
-                              if b
-                              then return True
-                              else pushError ("break and continue may only be used inside for loops")
-      BlockStm block -> checkBlock block TrivialBlock
+      DecafBlockStm block -> checkBlock block TrivialBlock
+
+    where guardFor = do b <- inFor
+                        if b
+                         then return True
+                         else pushError ("break and continue may only be used inside for loops")
 
 
 checkBlock :: DecafBlock -> BlockType -> Checker Bool
 checkBlock (DecafBlock vars stmts) btype 
-    = do (foldl (>>) (return False) (map checkVarDec vars))
-         (foldl (>>) (return False) (map checkStm stmts))
+    = local btype ((foldl (>>) (return False) (map checkVarDec vars)) >> 
+                   (foldl (>>) (return False) (map checkStm stmts)))
 
-
+checkCalloutArg :: DecafCalloutArg -> Checker Bool
+checkCalloutArg carg =
+    case carg of
+      DecafCalloutArgExpr expr -> checkExpr expr >> return True
+      DecafCalloutArgStr _ -> return True
 
 checkVarDec :: DecafVar -> Checker Bool
 checkVarDec (DecafVar t id) = 
@@ -203,19 +217,21 @@ checkVarDec (DecafVar t id) =
 
 checkFieldDec :: DecafField -> Checker Bool
 checkFieldDec (DecafVarField var) = checkVarDec var
-checkFieldDec (DecavArrField arr@(DecafArray t id len)) = 
+checkFieldDec (DecafArrField arr@(DecafArray t id len)) = 
     do rec <- lookNear id
        case rec of
-         Nothing -> if len <= 0 -- needs to be fixed once I make checkLiteral
-                    then pushError ("Arrays must have positive length")
-                    else addSymbol $ ArrayRec $ arr
+         Nothing -> do checkExpr (DecafLitExpr (DecafIntLit len))
+                       let l = readDInt len
+                       if l <= 0 -- needs to be fixed once I make checkLiteral
+                        then pushError ("Arrays must have positive length")
+                        else addSymbol $ ArrayRec $ arr
          other -> pushError ("Array "++id++" already defined at line number ")
 
 checkMethodDec :: DecafMethod -> Checker Bool
 checkMethodDec meth@(DecafMethod t id args body) = 
     do rec <- lookNear id
        case rec of
-         Nothing -> do checkBlock body (MethodBlock t)
+         Nothing -> do checkBlock body (MethodBlock t) -- ADD CODE to check for return
                        addSymbol $ MethodRec meth
          other -> pushError ("Function "++id++" already defined at line number ")
 
@@ -226,65 +242,95 @@ checkProgram (DecafProgram fields methods) =
        foldl (>>) (return False) (map checkMethodDec methods)
 
 
+
+
                           
-          
+{- Type checking -}
 
-      
+checkExpr :: DecafExpr -> Checker DecafType
+checkExpr expr = 
+
+    let lookupID id = 
+            do mrec <- lookFar id
+               case mrec of
+                 Nothing -> return DVoid
+                 Just rec -> return $ symType rec
+    in
+      case expr of
+        DecafLocExpr loc ->
+            lookupID (decafID loc)
+
+        DecafMethodExpr (DecafPureMethodCall id _) -> 
+            lookupID id
+
+        DecafLitExpr lit ->
+            case lit of
+              DecafIntLit int -> 
+                  checkInt int
+              DecafBoolLit _ -> return DBoolean
+              other -> pushError "THIS SHOULDN'T HAPPEN" >> return DVoid
+
+        DecafBinExpr expr1 op expr2 ->
+            do t1 <- checkExpr expr1
+               t2 <- checkExpr expr2
+               case op of 
+                 DecafBinArithOp _ -> 
+                     do
+                       if t1 /= DInteger
+                        then pushError "Argument of arithmetic operator must be integral"
+                        else return True -- doesn't matter
+                       if t2 /= DInteger
+                        then pushError "Argument of arithmetic operator must be integral"
+                        else return True -- doesn't matter
+                       return DInteger
+                 DecafBinRelOp _ ->
+                     do
+                       if t1 /= DInteger
+                        then pushError "Argument of relative operator must be integral"
+                        else return True
+                       if t2 /= DInteger
+                        then pushError "Argument of relative operator must be integral"
+                        else return True
+                       return DBoolean
+                 DecafBinEqOp _ -> return DBoolean
+                 DecafBinCondOp _ ->
+                     do
+                       if t1 /= DBoolean
+                        then pushError "Argument of logical operator must be boolean"
+                        else return True
+                       if t2 /= DBoolean
+                        then pushError "Argument of logical operator must be boolean"
+                        else return True
+                       return DBoolean              
+        DecafNotExpr expr  ->
+            do t <- checkExpr expr
+               if t /= DBoolean
+                then pushError "Argument of logical not must be boolean"
+                else return True
+               return DBoolean
+
+        DecafMinExpr expr ->
+            do t <- checkExpr expr
+               if t /= DInteger
+                then pushError "Can only negate an integral expression"
+                else return True
+               return DInteger
+        DecafParenExpr expr -> checkExpr expr
+
+    where checkInt int = 
+              let val = readDInt int in
+              if val > 2^31-1 || val < -2^31
+              then pushError "Integer literal too large" >> return DInteger -- maybe should be void
+              else return DInteger
+
+readDInt :: DInt -> Integer
+readDInt int = 
+    case int of 
+      DDec s -> (read s) :: Integer
+      DHex s -> fst.head.(Numeric.readHex).(drop 2) $ s
 
 
----- TEMPORARY PARSING FUNCTION -----
-
-parseID :: Parser String
-parseID = many1 (noneOf ";=!\n {}")
-
-parseStmt = (char '!' >> parseID >>= \s -> (char ';' >> (return $ Dec s)))
-            <|> (try (do t <- parseID
-                         char '='
-                         s <- parseID
-                         char ';'
-                         return $ Ass t s))
-            <|> (parseID >>= \s -> char ';' >> (return $ Expr s))
-            <|> (do char '{'
-                    stmts <- many parseStmt
-                    char '}'
-                    return $ Block stmts)
-
-
-
-
-
-
-{- failed attempt at double linked trees
-
-
-data Node a = Node (Node a) a [Node a]
-            | Root a [Node a]
-
-parent (Node x y z) = x
-parent x@(Root _ _) = x
-
-content (Node x y z) = y
-content (Root y z)  = y
-
-children (Node x y z) = z
-children (Root y z) = z
-
-
-instance (Show a) => Show (Node a) where
---show node@(Node x y z) = 
-show :: (Show a) => Node a -> String
-show node = 
-    init $ disp 0 node where
-        disp :: (Show a) => Integer -> Node a -> String
-        disp ind n = (map (\_ -> ' ') [1..2*ind]) ++ Prelude.show (content n)
-                     ++ "\n" ++ concatMap (disp (ind+1)) (children n)
-
-
-appendChild a b = Node (parent a) (content a) (children a ++ [b])
-pushChild parent content
-    =  x where x = Node (appendChild parent x) content []
-
--}
+{- Tree implementation -}
 
 data Node a = Node {content :: a, children :: [Node a]}
 data Tree a = Tree {node :: Node a, context :: [Int]}
@@ -321,14 +367,14 @@ addChild cont t = let curcontext = context t
 modify :: (Tree a -> Tree a) -> Tree a -> Tree a
 modify f t = let ctxt = context t
                  pos = head ctxt
-                 root = node t
+                 root = node t -- current location
                  nodes = children root in
-             if null ctxt
-             then f t
-             else let branch = modify f (Tree (nodes !! pos) (tail ctxt)) in
+             if null ctxt -- this is the node to be modified
+             then f t  -- modify it
+             else let branch = modify f (Tree (nodes !! pos) (tail ctxt)) in -- otherwise recurse
                   Tree (Node (content root) 
                         ((take pos nodes) 
-                         ++ [node branch] 
+                         ++ [node branch] -- insert the modified subtree in the right place
                          ++ drop (pos+1) nodes)) (pos : (context branch))
 
 addChild' cont t = modify change t where
@@ -355,26 +401,4 @@ instance (Show a) => Show (Node a) where
 instance (Show a) => Show (Tree a) where
     show t = show (node t) ++ show (context t)
 
-{-
-main = do let a = mkTree "root"
-          let a' = addChild' "child A" a
-              a'' = addChild' "child A'" a'
-          let a' = root a''
-              a''' = addChild' "child B" a'
-          putStrLn.show $ (parent a''')
-          return ()
 
--}
-
-main = do args <- getArgs 
-          str <- readFile "chinput.txt"
-          case parse parseStmt "" str of
-            Right val -> 
-                case (runChecker (checkStm val) ("", mkTree $SymbolTable [])) of
-                  (_,(e,t)) -> putStrLn $ e ++ (show t)
-            Left err -> putStrLn.show $ err
-
-
-
-
-         
