@@ -16,7 +16,7 @@ decafToken test = token showToken posToken testToken
                     posToken (p1, p2, t) = p1
                     testToken (p1, p2, t) = test t
 
-ident name = decafToken (\tok -> case tok of
+identf name = decafToken (\tok -> case tok of
                               Identf n -> case n == name of
                                              False -> Nothing
                                              True  -> Just name
@@ -192,7 +192,7 @@ qs p i = case parse p "internal-decaf-parser" (eatFirst i) of
 -- Grammer declaration
 
 program = do
-            reserv "class" >> ident "Program"
+            reserv "class" >> identf "Program"
             lbrace
             f <- many $ (try $ fielddecl)
             m <- many $ ( methoddecl)

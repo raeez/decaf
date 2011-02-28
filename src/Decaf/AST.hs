@@ -1,17 +1,44 @@
 module Decaf.AST
 where
+import Data.List
 
--- entire program
+-- type classes
+class ASTNode a where
+  pp :: a -> String -- pretty print
+  treeify :: a -> Tree String -- turn into a generic tree
+
+class Location a where
+  ident :: a -> DecafIdentifier
+
+-- generic tree
+data Tree a = Node a (Maybe [Tree a])
+            | Nil
+            deriving (Eq, Show)
+
+-- abstract syntax
 data DecafProgram = DecafProgram {
     fields :: [DecafField],
     methods :: [DecafMethod]
 } deriving (Show, Eq)
+
+instance ASTNode DecafProgram where
+  pp p = "Decaf Program" ++ "\n" ++ concat (map pp $ fields p) ++ "\n" ++ concat (map pp $ methods p)
+  treeify p  = Node ( "Program") (Just children)
+                    where
+                      fs = map treeify (fields p)
+                      ms = map treeify (methods p)
+                      children = fs ++ ms
 
 -- field declaration :: Variable or Array
 data DecafField = DecafVarField DecafVar
                | DecafArrField DecafArr
                deriving (Show, Eq)
 
+instance ASTNode DecafField where
+  pp (DecafVarField v) = "DecafVarField " ++ pp v ++ "\n"
+  pp (DecafArrField a) = "DecafArrField " ++ pp a ++ "\n"
+  treeify (DecafVarField var@(DecafVar ty identf)) = treeify var
+  treeify (DecafArrField (DecafArr ty identf len)) = Node ("ARR " ++ pp ty ++ " " ++ identf ++"["++ pp len ++ "]") Nothing
 -- method declaration
 data DecafMethod = DecafMethod {
     methodType :: DecafType,
@@ -20,11 +47,25 @@ data DecafMethod = DecafMethod {
     methodBody :: DecafBlock
 } deriving (Show, Eq)
 
+instance ASTNode DecafMethod where
+  pp (DecafMethod ty identf args body) = "METHOD " ++ pp ty ++ " " ++ identf ++ " " ++ (concat $ intersperse " " $ map pp args)
+  treeify meth@(DecafMethod ty identf args body) = (Node $ pp meth) (Just $ [treeify body])
+
+instance Location DecafMethod where
+  ident (DecafMethod ty identf args body) = identf
+
 -- variable declaration
 data DecafVar = DecafVar {
     varType :: DecafType,
     varID :: DecafIdentifier
 } deriving (Show, Eq)
+
+instance ASTNode DecafVar where
+  pp (DecafVar ty identf) = "VAR "++ pp ty++ " " ++ identf
+  treeify var@(DecafVar ty identf) = Node (pp var) Nothing
+
+instance Location DecafVar where
+  ident (DecafVar ty identf) = identf
 
 -- array declaration
 data DecafArr = DecafArr {
@@ -33,11 +74,23 @@ data DecafArr = DecafArr {
     arrayLength :: DecafInteger
 } deriving (Show, Eq)
 
+instance ASTNode DecafArr where
+  pp (DecafArr ty identf len) = "ARR " ++ pp ty ++ " " ++ identf ++"["++ pp len ++ "]"
+
+instance Location DecafArr where
+  ident (DecafArr ty identf len) = identf
+
 -- block body
 data DecafBlock = DecafBlock {
     blockVars :: [DecafVar],
     blockStms :: [DecafStm]
 } deriving (Show, Eq)
+
+instance ASTNode DecafBlock where
+  treeify (DecafBlock vars stms) = (Node "Block") (Just $ vs ++ ss)
+                                   where
+                                     vs = map treeify vars
+                                     ss = map treeify stms
 
 -- types : consider differentiating the two kinds of types
 -- (one is an expression type (int|bool) and the other is method return type (int|bool|void))
@@ -45,6 +98,11 @@ data DecafType = DecafInteger
                | DecafBoolean
                | DecafVoid
                deriving (Show, Eq)
+
+instance ASTNode DecafType where
+  pp (DecafInteger) = "int"
+  pp (DecafVoid)    = "void"
+  pp (DecafBoolean) = "bool"
 
 data DecafStm = DecafAssignStm DecafLoc DecafAssignOp DecafExpr
               | DecafMethodStm DecafMethodCall
@@ -56,43 +114,98 @@ data DecafStm = DecafAssignStm DecafLoc DecafAssignOp DecafExpr
               | DecafBlockStm DecafBlock
               deriving (Show, Eq)
 
+instance ASTNode DecafStm where
+  treeify (DecafAssignStm loc op expr) = (Node $ pp op) (Just $ [treeify loc] ++ [treeify expr])
+  treeify (DecafMethodStm m@(DecafPureMethodCall identf args)) = treeify m
+  treeify (DecafMethodStm m@(DecafMethodCallout identf args)) = treeify m
+  treeify (DecafIfStm expr block elseblock) = Node ( "if") (Just $ [treeify expr] ++ [treeify block] ++ elseblock')
+                                              where
+                                                elseblock' = case elseblock of
+                                                                Just block -> [treeify block]
+                                                                Nothing -> [Nil]
+  
+  treeify (DecafForStm identf expr expr' block) = Node ( "for") (Just $ [(Node identf) Nothing] ++ [treeify expr] ++ [treeify expr'] ++ [treeify block])
+  treeify (DecafRetStm expr) = Node ( "ret") $ convertRetExpr expr
+    where
+      convertRetExpr :: (Maybe DecafExpr) -> (Maybe [Tree String])
+      convertRetExpr (Just expr) = Just $ [treeify expr]
+      convertRetExpr Nothing = Nothing
+  treeify (DecafBreakStm) = Node ( "brk") Nothing
+  treeify (DecafContStm) = Node ( "cnt") Nothing
+  treeify (DecafBlockStm block) = Node ("blockStm") (Just $ [treeify block])
+      
+
 data DecafAssignOp = DecafEq
                    | DecafPlusEq
                    | DecafMinusEq
                    deriving (Show, Eq)
 
+instance ASTNode DecafAssignOp where
+  pp (DecafEq) = "="
+  pp (DecafPlusEq) = "+="
+  pp (DecafMinusEq) = "-="
+  
 data DecafMethodCall = DecafPureMethodCall { methodCallID :: DecafIdentifier, methodCallArgs :: [DecafExpr] }
                      | DecafMethodCallout { methodCalloutID :: DecafString, methodCalloutArgs :: [DecafCalloutArg] }
                      deriving (Show, Eq)
+
+instance ASTNode DecafMethodCall where
+  pp (DecafPureMethodCall identf args) = "PureMethodcall[" ++ identf ++ "]"
+  pp (DecafMethodCallout identf args) = "MethodCallOut[" ++ identf ++"]"
+  treeify meth@(DecafPureMethodCall identf args) = (Node $ pp meth) (Just $ map treeify args)
+  treeify meth@(DecafMethodCallout identf args) = (Node $ pp meth) (Just $ map treeify args)
 
 data DecafLoc = DecafVarLoc DecafIdentifier
               | DecafArrLoc DecafIdentifier DecafExpr
               deriving (Show, Eq)
 
+instance ASTNode DecafLoc where
+  pp (DecafVarLoc identf) = identf
+  pp (DecafArrLoc identf expr) = identf ++ "[e]"
+  treeify (DecafVarLoc identf) = (Node identf) Nothing
+  treeify (DecafArrLoc identf expr) = Node (identf ++ " []") (Just $ [treeify expr])
+
 data DecafCalloutArg = DecafCalloutArgExpr DecafExpr
                      | DecafCalloutArgStr DecafString
                      deriving (Show, Eq)
+instance ASTNode DecafCalloutArg where
+  treeify (DecafCalloutArgExpr expr) = treeify expr
+  treeify (DecafCalloutArgStr str) = (Node str) Nothing
 
 data DecafExpr = DecafExpr Term Expr' -- used for parsing, but removed at tree rewrite
                | DecafLocExpr DecafLoc
                | DecafMethodExpr DecafMethodCall
                | DecafLitExpr DecafLiteral
-               | DecafBinExpr DecafBinOp DecafExpr DecafExpr  
+               | DecafBinExpr DecafExpr DecafBinOp DecafExpr
                | DecafNotExpr DecafExpr
                | DecafMinExpr DecafExpr
                | DecafParenExpr DecafExpr
                deriving (Show, Eq)
 
+instance ASTNode DecafExpr where
+  treeify (DecafExpr term expr') = (Node "EXPR") (Just $ [treeify term] ++ [treeify expr'])
+
 data Expr' = Expr' DecafBinOp Term Expr'
            | EmptyExpr'
            deriving (Show, Eq)
 
+instance ASTNode Expr' where
+  treeify (Expr' binop term expr') = (Node $ pp binop) (Just $ [treeify term] ++ [treeify expr'])
+  treeify (EmptyExpr') = Nil
+
 data Term = Term Factor Term'
           deriving (Show, Eq)
+
+instance ASTNode Term where
+  treeify (Term factor term') = (Node "TERM") (Just $ [treeify factor] ++ [treeify term'])
 
 data Term' = Term' DecafBinOp Factor Term'
            | EmptyTerm'
            deriving (Show, Eq)
+
+instance ASTNode Term' where
+  treeify (Term' binop factor term') = (Node $ pp binop) (Just $ [treeify factor] ++ [treeify term'])
+  treeify (EmptyTerm') = Nil
 
 data Factor = DecafParenExpr' DecafExpr
             | DecafNotExpr' DecafExpr
@@ -102,11 +215,25 @@ data Factor = DecafParenExpr' DecafExpr
             | DecafLitExpr' DecafLiteral
             deriving (Show, Eq)
 
+instance ASTNode Factor where
+  treeify (DecafParenExpr' expr) = (Node "(   )") (Just [treeify expr])
+  treeify (DecafNotExpr' expr) = (Node "!") (Just [treeify expr])
+  treeify (DecafMinExpr' expr) = (Node "-") (Just [treeify expr])
+  treeify (DecafLocExpr' loc) = treeify loc
+  treeify (DecafMethodExpr' dmc) = treeify dmc
+  treeify (DecafLitExpr' dl) = treeify dl
+
 data DecafBinOp = DecafBinArithOp DecafArithOp
                 | DecafBinRelOp DecafRelOp
                 | DecafBinEqOp DecafEqOp
                 | DecafBinCondOp DecafCondOp
                 deriving (Show, Eq)
+
+instance ASTNode DecafBinOp where
+  pp (DecafBinArithOp o) = pp o
+  pp (DecafBinRelOp o) = pp o
+  pp (DecafBinEqOp o) = pp o
+  pp (DecafBinCondOp o) = pp o
 
 data DecafArithOp = DecafPlusOp
                   | DecafMinOp
@@ -115,21 +242,40 @@ data DecafArithOp = DecafPlusOp
                   | DecafModOp
                   deriving (Show, Eq)
 
+instance ASTNode DecafArithOp where
+  pp (DecafPlusOp) = "+"
+  pp (DecafMinOp)  = "-"
+  pp (DecafMulOp)  = "*"
+  pp (DecafModOp)  = "%"
+  pp (DecafDivOp)  = "/"
+
 data DecafRelOp = DecafLTOp
                 | DecafGTOp
                 | DecafLTEOp
                 | DecafGTEOp
                 deriving (Show, Eq)
 
+instance ASTNode DecafRelOp where
+  pp (DecafLTOp)  = "<"
+  pp (DecafGTOp)  = ">"
+  pp (DecafGTEOp) = ">="
+  pp (DecafLTEOp) = "<="
+  
 data DecafEqOp = DecafEqOp
                | DecafNEqOp
                deriving (Show, Eq)
+
+instance ASTNode DecafEqOp where
+  pp (DecafEqOp)   = "=="
+  pp (DecafNEqOp) = "!="
 
 data DecafCondOp = DecafAndOp
                  | DecafOrOp
                  deriving (Show, Eq)
 
-type DecafIdentifier = String
+instance ASTNode DecafCondOp where
+  pp (DecafAndOp) = "&&"
+  pp (DecafOrOp)  = "||"
 
 data DecafLiteral = DecafIntLit DecafInteger
                | DecafBoolLit Bool 
@@ -137,88 +283,26 @@ data DecafLiteral = DecafIntLit DecafInteger
                | DecafCharLit  DecafCharacter
                deriving (Show, Eq)
 
+instance ASTNode DecafLiteral where
+  pp (DecafIntLit i) = show i
+  pp (DecafBoolLit b) = show b
+  pp (DecafStrLit s) = show s
+  pp (DecafCharLit c) = show c
+  treeify (DecafIntLit i) = Node (pp i) Nothing
+  treeify (DecafBoolLit b) = Node (show b) Nothing
+  treeify (DecafStrLit s) = (Node s) Nothing
+  treeify (DecafCharLit c) = (Node $ show c) Nothing
+  
 type DecafString = String
 
 data DecafInteger = DecafDec String
                   | DecafHex  String
                   deriving (Show, Eq)
 
-data DecafBoolean = DecafTrue 
-                  | DecafFalse
-                  deriving (Show, Eq)
-
+instance ASTNode DecafInteger where
+  pp (DecafDec s) = "0d"++s
+  pp (DecafHex h) = "0x"++h
+  
+type DecafBoolean = Bool
 type DecafCharacter = Char
-
--- spaces
-gap = 5
-pretty_print_spaces n = (map (\_ -> ' ') [1..n])
-
--- expr
-pretty_print_expr n (DecafExpr term expr') = (pretty_print_spaces n) ++ "-->Expr\n" ++ (pretty_print_term (n+gap) term) ++ (pretty_print_expr' (n+gap) expr')
-
--- expr'
-pretty_print_expr' n (Expr' binop term expr') = (pretty_print_binop n binop) ++ (pretty_print_term (n+gap) term) ++ (pretty_print_expr' (n+gap) expr')
-pretty_print_expr' n (EmptyExpr') = (pretty_print_spaces n) ++ "-->NULL\n"
-
--- binary operations
-pretty_print_binop n (DecafBinArithOp (DecafPlusOp)) = (pretty_print_spaces n) ++ "+\n"
-pretty_print_binop n (DecafBinArithOp (DecafMinOp)) = (pretty_print_spaces n) ++ "-\n"
-pretty_print_binop n (DecafBinArithOp (DecafMulOp)) = (pretty_print_spaces n) ++ "*\n"
-pretty_print_binop n (DecafBinArithOp (DecafDivOp)) = (pretty_print_spaces n) ++ "/\n"
-pretty_print_binop n (DecafBinArithOp (DecafModOp)) = (pretty_print_spaces n) ++ "/\n"
-pretty_print_binop n (DecafBinRelOp (DecafLTOp)) = (pretty_print_spaces n) ++ "<\n"
-pretty_print_binop n (DecafBinRelOp (DecafGTOp)) = (pretty_print_spaces n) ++ ">\n"
-pretty_print_binop n (DecafBinRelOp (DecafLTEOp)) = (pretty_print_spaces n) ++ "<=\n"
-pretty_print_binop n (DecafBinRelOp (DecafGTEOp)) = (pretty_print_spaces n) ++ ">=\n"
-pretty_print_binop n (DecafBinEqOp (DecafEqOp)) = (pretty_print_spaces n) ++ "==\n"
-pretty_print_binop n (DecafBinEqOp (DecafNEqOp)) = (pretty_print_spaces n) ++ "==\n"
-pretty_print_binop n (DecafBinCondOp (DecafAndOp)) = (pretty_print_spaces n) ++ "&&\n"
-pretty_print_binop n (DecafBinCondOp (DecafOrOp)) = (pretty_print_spaces n) ++ "||\n"
-
---term
-pretty_print_term n (Term factor term')= (pretty_print_spaces n) ++ "-->Term\n" ++ (pretty_print_factor (n+gap) factor) ++ (pretty_print_term' (n+gap) term')
-
---term'
-pretty_print_term' n (Term' binop factor term') = (pretty_print_binop n binop) ++ (pretty_print_factor (n+gap) factor) ++ (pretty_print_term' (n+gap) term')
-pretty_print_term' n (EmptyTerm') = (pretty_print_spaces n) ++ "-->NULL\n"
-
---factor
-pretty_print_factor n (DecafParenExpr' dpe) = (pretty_print_spaces n) ++ "(  )\n" ++ (pretty_print_expr (n+gap) dpe)
-pretty_print_factor n (DecafNotExpr' dne) = (pretty_print_spaces n) ++ "!\n" ++ (pretty_print_expr (n+gap) dne)
-pretty_print_factor n (DecafMinExpr' dme) = (pretty_print_spaces n) ++ "-\n" ++ (pretty_print_expr (n+gap) dme)
-pretty_print_factor n (DecafLocExpr' dle) = (pretty_print_spaces n) ++ "-->LOCATION\n"
-pretty_print_factor n (DecafMethodExpr' dme) = (pretty_print_spaces n) ++ "-->METHODCALL\n"
-pretty_print_factor n (DecafLitExpr' dl) = (pretty_print_spaces n) ++ "-->LITERAL\n"
-
--- all of them
---flatten n (DecafExpr term expr') = []
---flatten n (Expr' binop term expr') = []
---flatten n (EmptyExpr') = []
---flatten n (Term factor term') = []
---flatten n (Term' binop factor term) = []
---flatten n (EmptyTerm') = []
---flatten n (DecafParenExpr' de) = []
---flatten n (DecafNotExpr' dne) = []
---flatten n (DecafMinExpr' dme) = []
---flatten n (DecafLocExpr' dle) = []
---flatten n (DecafMethodExpr' dme) = []
---flatten n (DecafLitExpr' dle) = []
---flatten n (DecafBinArithOp dbo) = []
---flatten n (DecafBinRelOp dbo) = []
---flatten n (DecafBinEqOp dbo) = []
---flatten n (DecafBinCondOp dco) = []
---flatten n (DecafPlusOp dpo) = []
---flatten n (DecafMinOp dmo) = []
---flatten n (DecafMulOp dmo) = []
---flatten n (DecafDivOp dvo) = []
---flatten n (DecafModOp dmo) = []
---flatten n (DecafLTOp dlto) = []
---flatten n (DecafGTOp dgto) = []
---flatten n (DecafLTEOp dlteo) = []
---flatten n (DecafGTEOp dgteo) = []
---flatten n (DecafEqOp deo) = []
---flatten n (DecafNEqOp dneo) = []
---flatten n (DecafAndOp dao) = []
---flatten n (DecafOrOp doo) = []
---
---
+type DecafIdentifier = String

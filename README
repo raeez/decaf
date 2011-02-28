@@ -20,5 +20,3 @@ testsuite/
 TODO:
 error out on bad parse
     - multiple error reporting for parser
-    - flattened AST
-    - all semantic checks
