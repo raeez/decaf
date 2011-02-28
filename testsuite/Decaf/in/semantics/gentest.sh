@@ -5,12 +5,12 @@ ls *legal* > ../l
 cd ..
 while read line 
 do
-echo "  TestLabel \"$line\" (semchecker " >> buffer
+echo "  TestLabel \"$line\" (semchecker_ " >> buffer
 ../show in/$line >> buffer
-echo "                                           ~=?" >> buffer
+echo "                                           ~=? False" >> buffer
 rm -f temp
-../../../../dist/build/semchecker/semchecker in/$line > temp 
-../show temp >> buffer
+#../../../../dist/build/semchecker/semchecker in/$line > temp 
+#../show temp >> buffer
 echo "                                            )," >> buffer
 echo >> buffer
 echo >> buffer
@@ -20,3 +20,4 @@ cd in
 rm -f *.out
 cd ..
 rm -f temp l 
+

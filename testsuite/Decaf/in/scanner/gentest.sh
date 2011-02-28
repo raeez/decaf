@@ -5,7 +5,7 @@ ls * > ../l
 cd ..
 while read line 
 do
-echo "  TestLabel \"$line\" (scannerShow " >> buffer
+echo "  TestLabel \"$line\" (scanner_ " >> buffer
 ../show in/$line >> buffer
 echo "                                           ~=?" >> buffer
 rm -f temp
