@@ -7,22 +7,15 @@ import Decaf.Parser
 import Text.ParserCombinators.Parsec hiding (spaces)
 
 
-semanticCheck :: String -> Report Bool   -- right now just pass or fail
-semanticCheck input = False
-  --case parse parseExpressionStream "decaf-semantic-checker" input of
-  --                        Left err -> Error ("Parser Error!: " ++ show err)
-  --                        Right val -> Success val
-
-
 
 -- runSemanticsTests = do runTestTT semcheckerTests
   
 -- plug in semchecker here                      
 semchecker_ :: String -> Bool                      
-semchecker_ = False
+semchecker_ instr = False
 
 
-semchekerTests = TestList [
+semcheckerTests = TestList [
   testsFromTA
   ]
                 
@@ -33,133 +26,133 @@ semchekerTests = TestList [
 --
 
 
-testFromTA = TestList [
+testsFromTA = TestList [
   TestLabel "illegal-01.dcf" (semchecker_ 
-"class Program {\n  void main() {\n    int x;\n    boolean x;\t// identifier declared twice\n  }\t\t\t\t\t\t\t\t\n}\n"
-                                           ~=? False
-                                            ),
-
-
-
+                              "class Program {\n  void main() {\n    int x;\n    boolean x;\t// identifier declared twice\n  }\t\t\t\t\t\t\t\t\n}\n"
+                              ~=? False
+                             ),
+  
+  
+  
   TestLabel "illegal-02.dcf" (semchecker_ 
-"class Program {\n  void main() {\n    a = 34;\t// identifier used before being declared\n  }\t\t\t\t\t\t\t\t\n}\t\n"
-                                           ~=? False
-                                            ),
-
-
-
+                              "class Program {\n  void main() {\n    a = 34;\t// identifier used before being declared\n  }\t\t\t\t\t\t\t\t\n}\t\n"
+                              ~=? False
+                             ),
+  
+  
+  
   TestLabel "illegal-03.dcf" (semchecker_ 
-"// No main method\nclass Program {\n  void foo() {\n  }\n  void bar() {\n  }\n}\t\n"
-                                           ~=? False
-                                            ),
-
-
-
+                              "// No main method\nclass Program {\n  void foo() {\n  }\n  void bar() {\n  }\n}\t\n"
+                              ~=? False
+                             ),
+  
+  
+  
   TestLabel "illegal-04.dcf" (semchecker_ 
-"class Program {\n  int a[0];\t// bad array size\n  void main() {\n  }\t\t\t\t\t\t\t\n}\n"
-                                           ~=? False
-                                            ),
-
-
-
+                              "class Program {\n  int a[0];\t// bad array size\n  void main() {\n  }\t\t\t\t\t\t\t\n}\n"
+                              ~=? False
+                             ),
+  
+  
+  
   TestLabel "illegal-05.dcf" (semchecker_ 
-"class Program {\n  int foo(int i, boolean b) {\n    return 4;\n  }\n\n  void main() {\n    int x;\n    x = foo(34, true, true);\t// argument mismatch\n  }\t\t\t\t\t\t\t\t\n}\t\n"
-                                           ~=? False
-                                            ),
-
-
-
+                              "class Program {\n  int foo(int i, boolean b) {\n    return 4;\n  }\n\n  void main() {\n    int x;\n    x = foo(34, true, true);\t// argument mismatch\n  }\t\t\t\t\t\t\t\t\n}\t\n"
+                              ~=? False
+                             ),
+  
+  
+  
   TestLabel "illegal-06.dcf" (semchecker_ 
-"class Program {\n  int foo(int i, boolean b) {\n    return 3;\n  }\n\n  void main() {\n    int x;\n    x = foo(34, 35);\t// types don't match signature\n  }\t\t\t\t\t\t\t\t\n}\t\n"
-                                           ~=? False
-                                            ),
-
-
-
+                              "class Program {\n  int foo(int i, boolean b) {\n    return 3;\n  }\n\n  void main() {\n    int x;\n    x = foo(34, 35);\t// types don't match signature\n  }\t\t\t\t\t\t\t\t\n}\t\n"
+                              ~=? False
+                             ),
+  
+  
+  
   TestLabel "illegal-07.dcf" (semchecker_ 
-"class Program {\n  void foo(int i, boolean b) {\n    return 3;\t// should not return value;\n  }\n  void main() {\n  }\t\t\t\t\t\t\t\t\n}\n"
-                                           ~=? False
-                                            ),
-
-
-
+                              "class Program {\n  void foo(int i, boolean b) {\n    return 3;\t// should not return value;\n  }\n  void main() {\n  }\t\t\t\t\t\t\t\t\n}\n"
+                              ~=? False
+                             ),
+  
+  
+  
   TestLabel "illegal-08.dcf" (semchecker_ 
-"class Program {\n  int foo(int i, boolean b) {\n    return true;\t// return value has wrong type\n  }\n  void main() {\n    int x;\n    x = foo(34, true);\n  }\t\t\t\t\t\t\t\n}\n"
-                                           ~=? False
-                                            ),
+                              "class Program {\n  int foo(int i, boolean b) {\n    return true;\t// return value has wrong type\n  }\n  void main() {\n    int x;\n    x = foo(34, true);\n  }\t\t\t\t\t\t\t\n}\n"
+                              ~=? False
+                             ),
+  
 
-
-
+  
   TestLabel "illegal-09.dcf" (semchecker_ 
-"class Program {\n  int a[10];\n  boolean b;\n\n  void main() {\n    a[b] = 25;\t// array index has wrong type\n  }\t\t\t\t\t\t\t\t\n}\n"
-                                           ~=? False
-                                            ),
-
-
-
+                              "class Program {\n  int a[10];\n  boolean b;\n\n  void main() {\n    a[b] = 25;\t// array index has wrong type\n  }\t\t\t\t\t\t\t\t\n}\n"
+                              ~=? False
+                             ),
+  
+  
+  
   TestLabel "illegal-10.dcf" (semchecker_ 
-"class Program {\n  int a[10];\n\n  void main() {\n    a[1] = a;\t// bad type, rhs should be an int\n  }\t\t\t\t\t\t\t\t\n}\n"
-                                           ~=? False
-                                            ),
-
-
-
+                              "class Program {\n  int a[10];\n\n  void main() {\n    a[1] = a;\t// bad type, rhs should be an int\n  }\t\t\t\t\t\t\t\t\n}\n"
+                              ~=? False
+                             ),
+  
+  
+  
   TestLabel "illegal-11.dcf" (semchecker_ 
-"class Program {\n  int a[10];\n\n  void main() {\n    if (a[3]) {}\t// condition should be a boolean\n  }\t\t\t\t\t\t\t\t\n}\n"
-                                           ~=? False
-                                            ),
-
-
-
+                              "class Program {\n  int a[10];\n\n  void main() {\n    if (a[3]) {}\t// condition should be a boolean\n  }\t\t\t\t\t\t\t\t\n}\n"
+                              ~=? False
+                             ),
+  
+  
+  
   TestLabel "illegal-12.dcf" (semchecker_ 
-"class Program {\n  void main() {\n    for x = false, 10 {   //initial condition must be an int\n    }\n  }\t\t\t\t\t\t\t\n}\n"
-                                           ~=? False
-                                            ),
-
-
-
+                              "class Program {\n  void main() {\n    for x = false, 10 {   //initial condition must be an int\n    }\n  }\t\t\t\t\t\t\t\n}\n"
+                              ~=? False
+                             ),
+  
+  
+  
   TestLabel "illegal-13.dcf" (semchecker_ 
-"class Program {\n  int a[10];\n  int i;\n\n  void main() {\n    a[3] = i < 35;\t// rhs should be an int expression\n  }\t\t\t\t\t\t\t\t\n}\n"
-                                           ~=? False
-                                            ),
+                              "class Program {\n  int a[10];\n  int i;\n\n  void main() {\n    a[3] = i < 35;\t// rhs should be an int expression\n  }\t\t\t\t\t\t\t\t\n}\n"
+                              ~=? False
+                             ),
+  
 
-
-
+  
   TestLabel "illegal-14.dcf" (semchecker_ 
-"class Program {\n  boolean b;\n\n  void main() {\n    b = true > false;\t\t// operands of > must be ints\n  }\t\t\t\t\t\t\t\t\n}\n"
-                                           ~=? False
-                                            ),
-
-
-
+                              "class Program {\n  boolean b;\n\n  void main() {\n    b = true > false;\t\t// operands of > must be ints\n  }\t\t\t\t\t\t\t\t\n}\n"
+                              ~=? False
+                             ),
+  
+  
+  
   TestLabel "illegal-15.dcf" (semchecker_ 
-"class Program {\n  boolean b;\n\n  void main() {\n    b = 5 == true;\t\t// types of operands of == must be equal\n  }\t\t\t\t\t\t\t\t\n}\n"
-                                           ~=? False
-                                            ),
-
-
-
+                              "class Program {\n  boolean b;\n\n  void main() {\n    b = 5 == true;\t\t// types of operands of == must be equal\n  }\t\t\t\t\t\t\t\t\n}\n"
+                              ~=? False
+                             ),
+  
+  
+  
   TestLabel "illegal-16.dcf" (semchecker_ 
-"class Program {\n  boolean b;\n\n  void main() {\n    b = !5;\t// operand of ! must be boolean\n  }\t\t\t\t\t\t\t\t\n}\n"
-                                           ~=? False
-                                            ),
-
-
-
+                              "class Program {\n  boolean b;\n\n  void main() {\n    b = !5;\t// operand of ! must be boolean\n  }\t\t\t\t\t\t\t\t\n}\n"
+                              ~=? False
+                             ),
+  
+  
+  
   TestLabel "illegal-17.dcf" (semchecker_ 
-"class Program {\n  boolean b;\n\n  void main() {\n    b += true;\t// lhs and rhs of += must be int\n  }\t\t\t\t\t\t\t\t\n}\n"
-                                           ~=? False
-                                            ),
-
-
-
+                              "class Program {\n  boolean b;\n\n  void main() {\n    b += true;\t// lhs and rhs of += must be int\n  }\t\t\t\t\t\t\t\t\n}\n"
+                              ~=? False
+                             ),
+  
+  
+  
   TestLabel "legal-01.dcf" (semchecker_ 
-"// a quicksort program.  set the \"length\" parameter in main() to the\n// desired size of the sorted array.  if you want to sort an array\n// bigger than 100 elements, you'll also need to adjust the declaration\n// of the global array A.\n\nclass Program\n{\n    int A[100];\n    int length;\n    \n    int partition(int p, int r) \n    {\n\tint x, i, j, t;\n        int z;\n        \n\tx = A[p];\n\ti = p - 1;\n\tj = r + 1;\n\n  \tfor z = 0, length * length {\n\t  j = j - 1;\n\t    for a = 0, length {\n\t      if (A[j] <= x) {\n\t\tbreak;\n\t      }\n\t      j = j - 1;\n\t    }\n\n\t    for a = i + 1, length {\n\t      if (A[a] >= x) {\n\t\ti = a;\n\t\tbreak;\n\t      }\n\t    }\n\n   \t    if (i < j) {\n  \t\tt = A[i];\n  \t\tA[i] = A[j];\n  \t\tA[j] = t;\n  \t    } else {\n \t\treturn j;\n  \t    }\n  \t}\n\treturn -1;\n    }\n\n    void quicksort(int p, int r)\n    {\n  \tint q;\n        \n  \tif (p < r) {\n  \t    q = partition (p, r);\n  \t    quicksort (p, q);\n  \t    quicksort (q+1, r);\n  \t}\n    }\n    \n    void main() \n    {\n\tint temp;\n        \n\tlength = 10; // adjust for sort length\n        \n        callout(\"printf\", \"creating random array of %d elements\\n\", length);\n\n        callout(\"srandom\", 17);\n        \n\tfor i = 0, length {\n            temp = callout(\"random\");\n            A[i] = temp;\n        }\n        \n        callout(\"printf\", \"\\nbefore sort:\\n\");\n\tfor i = 0, length {\n   \t    callout (\"printf\", \"%d\\n\", A[i]); \n        }\n        \n        quicksort (0, length - 1);\n\n        callout(\"printf\", \"\\nafter sort\\n\");\n\tfor i = 0, length {\n\t  callout (\"printf\", \"%d\\n\", A[i]); \n  \t}\n    }\n}\n"
-                                           ~=? True
-                                            )
-]
-
-
+                            "// a quicksort program.  set the \"length\" parameter in main() to the\n// desired size of the sorted array.  if you want to sort an array\n// bigger than 100 elements, you'll also need to adjust the declaration\n// of the global array A.\n\nclass Program\n{\n    int A[100];\n    int length;\n    \n    int partition(int p, int r) \n    {\n\tint x, i, j, t;\n        int z;\n        \n\tx = A[p];\n\ti = p - 1;\n\tj = r + 1;\n\n  \tfor z = 0, length * length {\n\t  j = j - 1;\n\t    for a = 0, length {\n\t      if (A[j] <= x) {\n\t\tbreak;\n\t      }\n\t      j = j - 1;\n\t    }\n\n\t    for a = i + 1, length {\n\t      if (A[a] >= x) {\n\t\ti = a;\n\t\tbreak;\n\t      }\n\t    }\n\n   \t    if (i < j) {\n  \t\tt = A[i];\n  \t\tA[i] = A[j];\n  \t\tA[j] = t;\n  \t    } else {\n \t\treturn j;\n  \t    }\n  \t}\n\treturn -1;\n    }\n\n    void quicksort(int p, int r)\n    {\n  \tint q;\n        \n  \tif (p < r) {\n  \t    q = partition (p, r);\n  \t    quicksort (p, q);\n  \t    quicksort (q+1, r);\n  \t}\n    }\n    \n    void main() \n    {\n\tint temp;\n        \n\tlength = 10; // adjust for sort length\n        \n        callout(\"printf\", \"creating random array of %d elements\\n\", length);\n\n        callout(\"srandom\", 17);\n        \n\tfor i = 0, length {\n            temp = callout(\"random\");\n            A[i] = temp;\n        }\n        \n        callout(\"printf\", \"\\nbefore sort:\\n\");\n\tfor i = 0, length {\n   \t    callout (\"printf\", \"%d\\n\", A[i]); \n        }\n        \n        quicksort (0, length - 1);\n\n        callout(\"printf\", \"\\nafter sort\\n\");\n\tfor i = 0, length {\n\t  callout (\"printf\", \"%d\\n\", A[i]); \n  \t}\n    }\n}\n"
+                            ~=? True
+                           )
+  ]
+             
+             
 
 
 
@@ -315,6 +308,14 @@ smr_misc = TestList [
   smr_for_type, 
   smr_break_continue, 
   smr_misc,
+
+
+semanticCheck :: String -> Report Bool   -- right now just pass or fail
+semanticCheck input = False
+  --case parse parseExpressionStream "decaf-semantic-checker" input of
+  --                        Left err -> Error ("Parser Error!: " ++ show err)
+  --                        Right val -> Success val
+
 
 
 
