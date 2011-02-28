@@ -173,7 +173,6 @@ instance ASTNode DecafCalloutArg where
   treeify (DecafCalloutArgStr str) = (Node str) Nothing
 
 data DecafExpr = DecafExpr Term Expr' -- used for parsing, but removed at tree rewrite
-               | DecafExpression DecafExpr DecafExpr
                | DecafLocExpr DecafLoc
                | DecafMethodExpr DecafMethodCall
                | DecafLitExpr DecafLiteral
@@ -181,11 +180,9 @@ data DecafExpr = DecafExpr Term Expr' -- used for parsing, but removed at tree r
                | DecafNotExpr DecafExpr
                | DecafMinExpr DecafExpr
                | DecafParenExpr DecafExpr
-               | DecafNullExpr
                deriving (Show, Eq)
 
 instance ASTNode DecafExpr where
-  treeify (DecafExpression expr expr') = (Node "EXPR") (Just $ [treeify expr] ++ [treeify expr'])
   treeify (DecafLocExpr loc) = treeify loc
   treeify (DecafMethodExpr meth) = treeify meth
   treeify (DecafLitExpr lit) = treeify lit
@@ -193,7 +190,6 @@ instance ASTNode DecafExpr where
   treeify (DecafNotExpr expr) = (Node "!") (Just $ [treeify expr])
   treeify (DecafMinExpr expr) = (Node "-") (Just $ [treeify expr])
   treeify (DecafParenExpr expr) = (Node "(   )") (Just $ [treeify expr])
-  treeify (DecafNullExpr) = Nil
 
 data Expr' = Expr' DecafBinOp Term Expr'
            | EmptyExpr'
