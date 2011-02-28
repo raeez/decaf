@@ -225,7 +225,7 @@ vardecl = do
             semi
             return $ (map (DecafVar t) i)
 
-identvar = (varident >>= return . DecafIdentifier)
+identvar = (varident >>= return )
 
 voidtype = (reserv "void" >> return DVoid)
 

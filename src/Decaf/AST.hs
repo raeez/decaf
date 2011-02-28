@@ -69,6 +69,11 @@ data DecafLoc = DecafVarLoc DecafIdentifier
               | DecafArrLoc DecafIdentifier DecafExpr
               deriving (Show, Eq)
 
+decafID :: DecafLoc -> DecafIdentifier
+decafID (DecafVarLoc id) = id
+decafID (DecafArrLoc id _) = id
+
+
 data DecafCalloutArg = DecafCalloutArgExpr DecafExpr
                      | DecafCalloutArgStr DStr
                      deriving (Show, Eq)
@@ -77,7 +82,7 @@ data DecafExpr = DecafExpr Term Expr' -- used for parsing, but removed at tree r
                | DecafLocExpr DecafLoc
                | DecafMethodExpr DecafMethodCall
                | DecafLitExpr DecafLiteral
-               | DecafBinExpr DecafBinOp DecafExpr
+               | DecafBinExpr DecafExpr DecafBinOp DecafExpr
                | DecafNotExpr DecafExpr
                | DecafMinExpr DecafExpr
                | DecafParenExpr DecafExpr
@@ -129,9 +134,7 @@ data DecafCondOp = DecafAndOp
                  | DecafOrOp
                  deriving (Show, Eq)
 
-data DecafIdentifier = DecafIdentifier String
-                     | DecafKeyword String
-                     deriving (Show, Eq)
+type DecafIdentifier = String
 
 data DecafLiteral = DecafIntLit DInt
                | DecafBoolLit Bool 
