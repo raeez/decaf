@@ -20,8 +20,5 @@ testsuite/
 TODO:
 error out on bad parse
     - multiple error reporting for parser
-    - pretty printing of AST
-    - graphing of AST
     - flattened AST
-    - symbol tables
-    - semantic checks
+    - all semantic checks
