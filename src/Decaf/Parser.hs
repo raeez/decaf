@@ -284,6 +284,43 @@ methodcall = (do
                 p <- expr `sepBy` comma
                 rparen
                 return $ DecafPureMethodCall i p)
+-- tree rewrite for expr
+
+rewriteExpr :: DecafExpr -> DecafExpr
+rewriteExpr (DecafExpr term (EmptyExpr'))                            = rewriteTerm term
+rewriteExpr (DecafExpr term (Expr' binop term' (EmptyExpr')))        = DecafBinExpr (rewriteTerm term) binop (rewriteTerm term')
+rewriteExpr (DecafExpr term (Expr' binop term' expr'))               = DecafExpression (rewriteTerm term) (DecafBinExpr (rewriteTerm term') binop (rewriteExpr' expr'))
+rewriteExpr (DecafNullExpr)                                          = DecafNullExpr
+rewriteExpr (DecafLocExpr loc)                                       = DecafLocExpr loc
+rewriteExpr (DecafMethodExpr meth)                                   = DecafMethodExpr meth
+rewriteExpr (DecafLitExpr lit)                                       = DecafLitExpr lit
+rewriteExpr (DecafBinExpr expr op expr')                             = DecafBinExpr expr op expr'
+rewriteExpr (DecafNotExpr expr)                                      = DecafNotExpr expr
+rewriteExpr (DecafMinExpr expr)                                      = DecafMinExpr expr
+rewriteExpr (DecafParenExpr expr)                                    = DecafParenExpr expr
+rewriteExpr (DecafExpression expr expr')                             = DecafExpression expr expr'
+
+rewriteExpr' :: Expr' -> DecafExpr
+rewriteExpr' (Expr' binop term expr') = DecafBinExpr (rewriteTerm term) binop (rewriteExpr' expr')
+rewriteExpr' (EmptyExpr')             = DecafNullExpr
+
+rewriteTerm :: Term -> DecafExpr
+rewriteTerm (Term factor (EmptyTerm'))                        = rewriteFactor factor
+rewriteTerm (Term factor (Term' binop factor' (EmptyTerm')))  = DecafBinExpr (rewriteFactor factor) binop (rewriteFactor factor')
+rewriteTerm (Term factor (Term' binop factor' term'))         = DecafExpression (rewriteFactor factor) (DecafBinExpr (rewriteFactor factor') binop (rewriteTerm' term'))
+
+rewriteTerm' :: Term' -> DecafExpr
+rewriteTerm' (Term' binop factor term')                      = DecafBinExpr (rewriteFactor factor) binop (rewriteTerm' term')
+rewriteTerm' (EmptyTerm')                                    = DecafNullExpr
+
+rewriteFactor :: Factor -> DecafExpr
+rewriteFactor (DecafParenExpr' expr)  = DecafParenExpr $ rewriteExpr expr
+rewriteFactor (DecafNotExpr' expr)    = DecafNotExpr $ rewriteExpr expr
+rewriteFactor (DecafMinExpr' expr)    = DecafMinExpr $ rewriteExpr expr
+rewriteFactor (DecafLocExpr' loc)     = DecafLocExpr loc
+rewriteFactor (DecafMethodExpr' meth) = DecafMethodExpr meth
+rewriteFactor (DecafLitExpr' lit)     = DecafLitExpr lit
+
 
 -- left associative, right recursive
 
@@ -293,7 +330,8 @@ mayb p = do
 expr = do
         t <- term
         e <- expr'
-        return $ DecafExpr t e
+        return $ rewriteExpr $ DecafExpr t e
+        --return $ DecafExpr t e
 
 expr' = (do
           b <- toplevelOp
