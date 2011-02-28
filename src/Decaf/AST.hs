@@ -185,15 +185,14 @@ data DecafExpr = DecafExpr Term Expr' -- used for parsing, but removed at tree r
                deriving (Show, Eq)
 
 instance ASTNode DecafExpr where
-  treeify (DecafExpr term expr') = (Node "EXPR") (Just $ [treeify term] ++ [treeify expr'])
   treeify (DecafExpression expr expr') = (Node "EXPR") (Just $ [treeify expr] ++ [treeify expr'])
-  treeify (DecafLocExpr loc) = (Node "LOCEXPR") (Just $ [treeify loc])
-  treeify (DecafMethodExpr meth) = (Node "METHODEXPR") (Just $ [treeify meth])
-  treeify (DecafLitExpr lit) = (Node "LITEXPR") (Just $ [treeify lit])
+  treeify (DecafLocExpr loc) = treeify loc
+  treeify (DecafMethodExpr meth) = treeify meth
+  treeify (DecafLitExpr lit) = treeify lit
   treeify (DecafBinExpr expr binop expr') = (Node $ pp binop) (Just $ [treeify expr] ++ [treeify expr'])
-  treeify (DecafNotExpr expr) = (Node "NOTEXPR") (Just $ [treeify expr])
-  treeify (DecafMinExpr expr) = (Node "MINEXPR") (Just $ [treeify expr])
-  treeify (DecafParenExpr expr) = (Node "PARENEXPR") (Just $ [treeify expr])
+  treeify (DecafNotExpr expr) = (Node "!") (Just $ [treeify expr])
+  treeify (DecafMinExpr expr) = (Node "-") (Just $ [treeify expr])
+  treeify (DecafParenExpr expr) = (Node "(   )") (Just $ [treeify expr])
   treeify (DecafNullExpr) = Nil
 
 data Expr' = Expr' DecafBinOp Term Expr'
