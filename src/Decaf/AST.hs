@@ -2,17 +2,20 @@ module Decaf.AST
 where
 import Data.List
 
--- generic tree
-data Tree a = Node a (Maybe [Tree a])
-            | Nil
-            deriving (Eq, Show)
-
 -- type classes
 class ASTNode a where
   pp :: a -> String -- pretty print
   treeify :: a -> Tree String -- turn into a generic tree
 
--- entire program
+class Location a where
+  ident :: a -> DecafIdentifier
+
+-- generic tree
+data Tree a = Node a (Maybe [Tree a])
+            | Nil
+            deriving (Eq, Show)
+
+-- abstract syntax
 data DecafProgram = DecafProgram {
     fields :: [DecafField],
     methods :: [DecafMethod]
@@ -34,8 +37,8 @@ data DecafField = DecafVarField DecafVar
 instance ASTNode DecafField where
   pp (DecafVarField v) = "DecafVarField " ++ pp v ++ "\n"
   pp (DecafArrField a) = "DecafArrField " ++ pp a ++ "\n"
-  treeify (DecafVarField var@(DecafVar ty ident)) = treeify var
-  treeify (DecafArrField (DecafArr ty ident len)) = Node ("ARR " ++ pp ty ++ " " ++ ident ++"["++ pp len ++ "]") Nothing
+  treeify (DecafVarField var@(DecafVar ty identf)) = treeify var
+  treeify (DecafArrField (DecafArr ty identf len)) = Node ("ARR " ++ pp ty ++ " " ++ identf ++"["++ pp len ++ "]") Nothing
 -- method declaration
 data DecafMethod = DecafMethod {
     methodType :: DecafType,
@@ -45,8 +48,11 @@ data DecafMethod = DecafMethod {
 } deriving (Show, Eq)
 
 instance ASTNode DecafMethod where
-  pp (DecafMethod ty ident args body) = "METHOD " ++ pp ty ++ " " ++ ident ++ " " ++ (concat $ intersperse " " $ map pp args)
-  treeify meth@(DecafMethod ty ident args body) = (Node $ pp meth) (Just $ [treeify body])
+  pp (DecafMethod ty identf args body) = "METHOD " ++ pp ty ++ " " ++ identf ++ " " ++ (concat $ intersperse " " $ map pp args)
+  treeify meth@(DecafMethod ty identf args body) = (Node $ pp meth) (Just $ [treeify body])
+
+instance Location DecafMethod where
+  ident (DecafMethod ty identf args body) = ident
 
 -- variable declaration
 data DecafVar = DecafVar {
@@ -55,8 +61,11 @@ data DecafVar = DecafVar {
 } deriving (Show, Eq)
 
 instance ASTNode DecafVar where
-  pp (DecafVar ty ident) = "VAR "++ pp ty++ " " ++ ident
-  treeify var@(DecafVar ty ident) = Node (pp var) Nothing
+  pp (DecafVar ty identf) = "VAR "++ pp ty++ " " ++ identf
+  treeify var@(DecafVar ty identf) = Node (pp var) Nothing
+
+instance Location DecafVar where
+  ident (DecafVar ty identf) = ident
 
 -- array declaration
 data DecafArr = DecafArr {
@@ -66,7 +75,10 @@ data DecafArr = DecafArr {
 } deriving (Show, Eq)
 
 instance ASTNode DecafArr where
-  pp (DecafArr ty ident len) = "ARR " ++ pp ty ++ " " ++ ident ++"["++ pp len ++ "]"
+  pp (DecafArr ty identf len) = "ARR " ++ pp ty ++ " " ++ identf ++"["++ pp len ++ "]"
+
+instance Location DecafArr where
+  ident (DecafArr ty identf len) = ident
 
 -- block body
 data DecafBlock = DecafBlock {
@@ -104,15 +116,15 @@ data DecafStm = DecafAssignStm DecafLoc DecafAssignOp DecafExpr
 
 instance ASTNode DecafStm where
   treeify (DecafAssignStm loc op expr) = (Node $ pp op) (Just $ [treeify loc] ++ [treeify expr])
-  treeify (DecafMethodStm m@(DecafPureMethodCall ident args)) = treeify m
-  treeify (DecafMethodStm m@(DecafMethodCallout ident args)) = treeify m
+  treeify (DecafMethodStm m@(DecafPureMethodCall identf args)) = treeify m
+  treeify (DecafMethodStm m@(DecafMethodCallout identf args)) = treeify m
   treeify (DecafIfStm expr block elseblock) = Node ( "if") (Just $ [treeify expr] ++ [treeify block] ++ elseblock')
                                               where
                                                 elseblock' = case elseblock of
                                                                 Just block -> [treeify block]
                                                                 Nothing -> [Nil]
   
-  treeify (DecafForStm ident expr expr' block) = Node ( "for") (Just $ [(Node ident) Nothing] ++ [treeify expr] ++ [treeify expr'] ++ [treeify block])
+  treeify (DecafForStm identf expr expr' block) = Node ( "for") (Just $ [(Node identf) Nothing] ++ [treeify expr] ++ [treeify expr'] ++ [treeify block])
   treeify (DecafRetStm expr) = Node ( "ret") $ convertRetExpr expr
     where
       convertRetExpr :: (Maybe DecafExpr) -> (Maybe [Tree String])
@@ -138,20 +150,20 @@ data DecafMethodCall = DecafPureMethodCall { methodCallID :: DecafIdentifier, me
                      deriving (Show, Eq)
 
 instance ASTNode DecafMethodCall where
-  pp (DecafPureMethodCall ident args) = "PureMethodcall[" ++ ident ++ "]"
-  pp (DecafMethodCallout ident args) = "MethodCallOut[" ++ ident ++"]"
-  treeify meth@(DecafPureMethodCall ident args) = (Node $ pp meth) (Just $ map treeify args)
-  treeify meth@(DecafMethodCallout ident args) = (Node $ pp meth) (Just $ map treeify args)
+  pp (DecafPureMethodCall identf args) = "PureMethodcall[" ++ identf ++ "]"
+  pp (DecafMethodCallout identf args) = "MethodCallOut[" ++ identf ++"]"
+  treeify meth@(DecafPureMethodCall identf args) = (Node $ pp meth) (Just $ map treeify args)
+  treeify meth@(DecafMethodCallout identf args) = (Node $ pp meth) (Just $ map treeify args)
 
 data DecafLoc = DecafVarLoc DecafIdentifier
               | DecafArrLoc DecafIdentifier DecafExpr
               deriving (Show, Eq)
 
 instance ASTNode DecafLoc where
-  pp (DecafVarLoc ident) = ident
-  pp (DecafArrLoc ident expr) = ident ++ "[e]"
-  treeify (DecafVarLoc ident) = (Node ident) Nothing
-  treeify (DecafArrLoc ident expr) = Node (ident ++ " []") (Just $ [treeify expr])
+  pp (DecafVarLoc identf) = identf
+  pp (DecafArrLoc identf expr) = identf ++ "[e]"
+  treeify (DecafVarLoc identf) = (Node identf) Nothing
+  treeify (DecafArrLoc identf expr) = Node (identf ++ " []") (Just $ [treeify expr])
 
 data DecafCalloutArg = DecafCalloutArgExpr DecafExpr
                      | DecafCalloutArgStr DecafString
@@ -265,8 +277,6 @@ instance ASTNode DecafCondOp where
   pp (DecafAndOp) = "&&"
   pp (DecafOrOp) = "||"
 
-type DecafIdentifier = String
-
 data DecafLiteral = DecafIntLit DecafInteger
                | DecafBoolLit Bool 
                | DecafStrLit  DecafString
@@ -293,8 +303,6 @@ instance ASTNode DecafInteger where
   pp (DecafDec s) = "0d"++s
   pp (DecafHex h) = "0x"++h
   
-data DecafBoolean = DecafTrue 
-                  | DecafFalse
-                  deriving (Show, Eq)
-
+type DecafBoolean = Bool
 type DecafCharacter = Char
+type DecafIdentifier = String
