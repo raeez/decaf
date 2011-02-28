@@ -110,7 +110,7 @@ executable grapher
                         Decaf.Scanner
                         Decaf.Parser
 
-    Build-Depends:      base, parsec, regex-posix, fgl, graphviz
+    Build-Depends:      base, parsec, regex-posix, fgl, graphviz, mtl, process
     if true 
         ghc-options:    -funbox-strict-fields -Wall
 

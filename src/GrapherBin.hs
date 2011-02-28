@@ -8,6 +8,7 @@ import System.Process
 import System.Environment
 import System.Exit
 import Data.List
+import Control.Monad.State
 
 main :: IO ()
 main = do
@@ -18,13 +19,14 @@ main = do
 
 parse inputFile input = do
           case ps program input of
-              RSuccess a -> putStrLn (show a) >> outputGraph a >> convertToPs >> (putStrLn $ show $ convertProgram a) >> exitSuccess
+              RSuccess a -> outputRaw a  >> outputGraph a >> convertToPs >> exitSuccess
               RError e -> putStrLn ("Error:\n" ++ (show e)) >> exitFailure
           where
             outputFile = inputFile ++ ".out"
             graphText =  printDotGraph . (graphToDot graphParams) . buildGraph
-            outputGraph a = (putStrLn $ graphText a) >> (writeFile outputFile $ graphText a)
+            outputGraph a = (putStrLn $ show $ (extract . numberTree 0 . convertProgram) a) >> (putStrLn $ graphText a) >> (writeFile outputFile $ graphText a) 
             convertToPs = (runCommand $ "dot -Tpng " ++ outputFile ++ " -o" ++ outputFile ++ ".png") >> (return $ putStrLn "")
+            outputRaw = putStrLn . show
 
 graphParams :: GraphvizParams String String () String
 graphParams = nonClusteredParams {
@@ -46,108 +48,147 @@ graphParams = nonClusteredParams {
     fn (n,l) = [(Label . StrLabel) l]
     fe (f,t,l) = [(Label . StrLabel) l]
 
-type Table a = [a]
+-- here we rewrite our AST -> Tree String
+-- we then number the tree Tree String -> Tree Int String
+-- finally, we convert our NumberTree into a DotGraph
+--
+data Tree a = Node a (Maybe [Tree a])
+            | Nil
+            deriving (Eq, Show)
 
- --numberTree :: Eq a => Tree a -> State (Table a) (Tree Int)
- --numberTree Nil = return Nil
- --numberTree (Node val@(i,v) t1 t2) =  do
-                                        --nv <- numberNode val
-                                        --nt1 <- numberTree t1
-                                        --nt2 <- numberTree t2
-                                        --return (Node nv nt1 nt2)
-                                      --where
-                                        --numberNode :: Eq a => a -> State (Table a) Int -- must return a tuple of (id, val)
-                                        --numberNode val@(i, v) = do 
-                                                                  --table <- get
-                                                                  --(newTable, numberedNode) <- return (nNode val table)
-                                                                  --put newTable
-                                                                  --return numberedNode
+numberTree n Nil = (n-1, [], [])
+numberTree n (Node val children) = (n', nodes, edges)
+                                    where
+                                      nodes = [(n, val)] ++ nodes'
+                                      (n', nodes', edges) = case children of
+                                                                Nothing -> (n, [], [])
+                                                                Just a -> let (n'''', nodes'''', edges'''', ch) = numberChildren (n+1) a in
+                                                                          (n'''', nodes'''', edges'''' ++ (map buildEdge ch))
+                                                            where buildEdge cid = (n, cid, "")
 
-                                        --nNode::  (Eq a) => a -> Table a -> (Table a, Int)
-                                        --nNode val@(i, v) table = (table ++ [val], length table)
+                                      numberChildren new (x:xs) = let (n'', nodes'', edges'') = numberTree (new) x
+                                                                      (n''', nodes''', edges''', ch') = numberChildren (n''+1) xs in
+                                                                  (n''', nodes'' ++ nodes''', edges'' ++ edges''', (if n'' >= new then [new] else []) ++ ch')
+                                      numberChildren new [] = (new-1, [], [], [])
 
- --numTree :: (Eq a) => Tree a -> Tree Int
- --numTree t = evalState (numberTree t) []
- --testTree = Node "Zero" (Node "One" (Node "Two" Nil Nil) (Node "One" (Node "Zero" Nil Nil) Nil)) Nil
- --numTree testTree => Node 0 (Node 1 (Node 2 Nil Nil) (Node 1 (Node 0 Nil Nil) Nil)) Nil
-
-
-
+extract (a,b,c) = (b,c)
 buildGraph d = mkGraph nodes edges :: Gr String String
                where
-                  (nodes, edges) = ([], [])
--- convert AST -> Tree a b
--- number tree
--- convert numebered tree to graph
---
-data Tree a b = Node (a, b) (Maybe [Tree a b])
-              | Nil
-              deriving (Eq, Show)
+                  (nodes, edges) = (extract . numberTree 0 . convertProgram) d
 
-pretty_var (DecafVar ty ident) = "Var("++ show ty ++ "|" ++ show ident ++ ")"
-pretty_arr (DecafArr ty ident len) = "Arr(" ++ show ty ++ "|" ++ show ident ++"["++show len ++ "])"
-pretty_meth (DecafMethod ty ident args body) = "Method(" ++ show ty ++ "|" ++ show ident ++ "|" ++ show args ++ ")"
-pretty_op (a) = show a
-pretty_arr_expr(DecafArrLoc ident expr) = "Arr(" ++ show ident ++ "[])"
-convertProgram :: DecafProgram -> Tree Int String
-convertProgram p  = Node (0, "Program") (Just children)
+pretty_type (DecafInteger) = "int"
+pretty_type (DecafVoid) = "void"
+pretty_type (DecafBoolean) = "bool"
+pretty_int (DecafDec s) = "0d"++s
+pretty_int (DecafHex h) = "0x"++h
+pretty_var (DecafVar ty ident) = "VAR "++ pretty_type ty++ " " ++ ident
+pretty_arr (DecafArr ty ident len) = "ARR " ++ pretty_type ty ++ " " ++ ident ++"["++ pretty_int len ++ "]"
+pretty_meth (DecafMethod ty ident args body) = "METHOD " ++ pretty_type ty ++ " " ++  ident ++ " " ++ (concat $ intersperse " " $ map pretty_var args)
+pretty_asop (DecafEq) = "<="
+pretty_asop (DecafPlusEq) = "<+="
+pretty_asop (DecafMinusEq) = "<-="
+pretty_binop (DecafBinArithOp (DecafPlusOp)) = "+"
+pretty_binop (DecafBinArithOp (DecafMinOp)) = "-"
+pretty_binop (DecafBinArithOp (DecafMulOp)) = "*"
+pretty_binop (DecafBinArithOp (DecafModOp)) = "%"
+pretty_binop (DecafBinArithOp (DecafDivOp)) = "/"
+pretty_binop (DecafBinRelOp (DecafLTOp)) = "<"
+pretty_binop (DecafBinRelOp (DecafGTOp)) = ">"
+pretty_binop (DecafBinRelOp (DecafGTEOp)) = ">="
+pretty_binop (DecafBinRelOp (DecafLTEOp)) = "<="
+pretty_binop (DecafBinEqOp (DecafEqOp)) = "=="
+pretty_binop (DecafBinEqOp (DecafNEqOp)) = "!="
+pretty_binop (DecafBinCondOp (DecafAndOp)) = "&&"
+pretty_binop (DecafBinCondOp (DecafOrOp)) = "||"
+pretty_arr_expr(DecafArrLoc ident expr) = ident ++ "[e]"
+convertProgram :: DecafProgram -> Tree String
+convertProgram p  = Node ( "Program") (Just children)
                     where
                       fs = map convertField (fields p)
                       ms = map convertMethod (methods p)
                       children = fs ++ ms
 
-convertField :: DecafField -> Tree Int String
+convertField :: DecafField -> Tree String
 convertField (DecafVarField var@(DecafVar ty ident)) = convertVar var
-convertField (DecafArrField arr@(DecafArr ty ident len)) = Node (0, pretty_arr arr) Nothing
+convertField (DecafArrField arr@(DecafArr ty ident len)) = Node ( pretty_arr arr) Nothing
 
-convertVar :: DecafVar -> Tree Int String
-convertVar var@(DecafVar ty ident) = Node (0, pretty_var var) Nothing
+convertVar :: DecafVar -> Tree String
+convertVar var@(DecafVar ty ident) = Node ( pretty_var var) Nothing
 
-convertMethod :: DecafMethod -> Tree Int String
-convertMethod meth@(DecafMethod ty ident args body) = Node(0, pretty_meth meth) (Just $ convertBlock body)
+convertMethod :: DecafMethod -> Tree String
+convertMethod meth@(DecafMethod ty ident args body) = Node( pretty_meth meth) (Just $ convertBlock body)
 
-convertBlock :: DecafBlock -> [Tree Int String]
+convertBlock :: DecafBlock -> [Tree String]
 convertBlock (DecafBlock vars stms) = vs ++ ss
                                       where
                                         vs = map convertVar vars
                                         ss = map convertStm stms
 
-convertStm :: DecafStm -> Tree Int String
-convertStm (DecafAssignStm loc op expr) = Node (0, pretty_op op) (Just $ [convertLoc loc] ++ [convertExpr expr])
-convertStm (DecafMethodStm (DecafPureMethodCall ident args)) = Node (0, "PureMethodcall") (Just $ [convertIdent ident] ++ (map convertExpr args))
-convertStm (DecafMethodStm (DecafMethodCallout ident args)) = Node (0, "MethodCallOut") (Just $ [convertStr ident] ++ (map convertCalloutArg args))
-convertStm (DecafIfStm expr block elseblock) = Node (0, "if") (Just $ [convertExpr expr] ++ convertBlock block ++ elseblock')
+convertMethodcall :: DecafMethodCall -> Tree String
+convertMethodcall (DecafPureMethodCall ident args) = (Node "PureMethodcall") (Just $ [convertIdent ident] ++ (map convertExpr args))
+convertMethodcall (DecafMethodCallout ident args) = (Node "MethodCallOut") (Just $ [convertStr ident] ++ (map convertCalloutArg args))
+
+convertStm :: DecafStm -> Tree String
+convertStm (DecafAssignStm loc op expr) = Node ( pretty_asop op) (Just $ [convertLoc loc] ++ [convertExpr expr])
+convertStm (DecafMethodStm m@(DecafPureMethodCall ident args)) = convertMethodcall m
+convertStm (DecafMethodStm m@(DecafMethodCallout ident args)) = convertMethodcall m
+convertStm (DecafIfStm expr block elseblock) = Node ( "if") (Just $ [convertExpr expr] ++ convertBlock block ++ elseblock')
                                               where
                                                 elseblock' = case convertElseBlock elseblock of
                                                                 Just a -> a
                                                                 Nothing -> []
-convertStm (DecafForStm ident expr expr' block) = Node (0, "for") (Just $ [convertIdent ident] ++ [convertExpr expr] ++ [convertExpr expr'] ++ convertBlock block)
-convertStm (DecafRetStm expr) = Node (0, "ret") $ convertRetExpr expr
-convertStm (DecafBreakStm) = Node (0, "brk") Nothing
-convertStm (DecafContStm) = Node (0, "cnt") Nothing
-convertStm (DecafBlockStm block) = Node (0, "blockStm") (Just $ convertBlock block)
+convertStm (DecafForStm ident expr expr' block) = Node ( "for") (Just $ [convertIdent ident] ++ [convertExpr expr] ++ [convertExpr expr'] ++ convertBlock block)
+convertStm (DecafRetStm expr) = Node ( "ret") $ convertRetExpr expr
+convertStm (DecafBreakStm) = Node ( "brk") Nothing
+convertStm (DecafContStm) = Node ( "cnt") Nothing
+convertStm (DecafBlockStm block) = Node ( "blockStm") (Just $ convertBlock block)
 
-convertRetExpr :: (Maybe DecafExpr) -> (Maybe [Tree Int String])
+convertRetExpr :: (Maybe DecafExpr) -> (Maybe [Tree String])
 convertRetExpr (Just expr) = Just $ [convertExpr expr]
 convertRetExpr Nothing = Nothing
 
-convertElseBlock :: (Maybe DecafBlock) -> (Maybe [Tree Int String])
+convertElseBlock :: (Maybe DecafBlock) -> (Maybe [Tree String])
 convertElseBlock (Just block) = Just $ convertBlock block
 convertElseBlock Nothing = Nothing
 
-convertCalloutArg :: DecafCalloutArg -> Tree Int String
+convertCalloutArg :: DecafCalloutArg -> Tree String
 convertCalloutArg (DecafCalloutArgExpr expr) = convertExpr expr
 convertCalloutArg (DecafCalloutArgStr str) = convertStr str
 
-convertIdent :: DecafIdentifier -> Tree Int String
-convertIdent (DecafIdentifier str) = Node(0, "IDENT("++ str ++")") Nothing
+convertIdent :: DecafIdentifier -> Tree String
+convertIdent str = Node( "IDENT "++ str) Nothing
 
-convertLoc :: DecafLoc -> Tree Int String
+convertLoc :: DecafLoc -> Tree String
 convertLoc var@(DecafVarLoc ident) = convertIdent ident
-convertLoc arr@(DecafArrLoc ident expr) = Node (0, pretty_arr_expr arr) (Just $ [convertExpr expr])
+convertLoc arr@(DecafArrLoc ident expr) = Node ( pretty_arr_expr arr) (Just $ [convertExpr expr])
 
-convertExpr :: DecafExpr -> Tree Int String
-convertExpr expr = Nil --fix
+convertStr :: DecafString -> Tree String
+convertStr str = Node ( "STR \""++str++"\"") Nothing
 
-convertStr :: DecafString -> Tree Int String
-convertStr (DecafString str) = Node (0, "STR("++str++")") Nothing
+convertExpr :: DecafExpr -> Tree String
+convertExpr (DecafExpr term expr') = Node "EXPR" (Just $ [convertTerm term] ++ [convertExpr' expr'])
+
+convertExpr' :: Expr' -> Tree String
+convertExpr' (Expr' binop term expr') = (Node $ pretty_binop binop) (Just $ [convertTerm term] ++ [convertExpr' expr'])
+convertExpr' (EmptyExpr') = Nil
+
+convertTerm :: Term -> Tree String
+convertTerm (Term factor term') = (Node "TERM") (Just $ [convertFactor factor] ++ [convertTerm' term'])
+
+convertTerm' :: Term' -> Tree String
+convertTerm' (Term' binop factor term') = (Node $ pretty_binop binop) (Just $ [convertFactor factor] ++ [convertTerm' term'])
+convertTerm' (EmptyTerm') = Nil
+
+convertFactor :: Factor -> Tree String
+convertFactor (DecafParenExpr' expr) = (Node "()") (Just [convertExpr expr])
+convertFactor (DecafNotExpr' expr) = (Node "!") (Just [convertExpr expr])
+convertFactor (DecafMinExpr' expr) = (Node "-") (Just [convertExpr expr])
+convertFactor (DecafLocExpr' loc) = convertLoc loc
+convertFactor (DecafMethodExpr' dmc) = convertMethodcall dmc
+convertFactor (DecafLitExpr' dl) = convertLiteral dl
+
+convertLiteral :: DecafLiteral -> Tree String
+convertLiteral (DecafIntLit i) = Node (pretty_int i) Nothing
+convertLiteral (DecafBoolLit b) = Node (show b) Nothing
+convertLiteral (DecafStrLit s) = (Node s) Nothing
+convertLiteral (DecafCharLit c) = (Node $ show c) Nothing
