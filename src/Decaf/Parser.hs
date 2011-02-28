@@ -34,7 +34,7 @@ strlit = decafToken (\tok -> case tok of
                           StrLit s -> Just s
                           other    -> Nothing)
 
-int = (hexlit >>= return . DHex) <|> (declit >>= return . DDec)
+int = (hexlit >>= return . DecafHex) <|> (declit >>= return . DecafDec)
 
 hexlit = decafToken (\tok -> case tok of
                           HexLit s -> Just s
@@ -216,7 +216,7 @@ adecl t = do
             lbrack
             s <- int
             rbrack
-            return $ DecafArrField $ DecafArray t i s
+            return $ DecafArrField $ DecafArr t i s
 
 methoddecl = do
               t <- rettype
@@ -245,12 +245,12 @@ vardecl = do
             semi
             return $ (map (DecafVar t) i)
 
-identvar = (varident >>= return . DecafIdentifier)
+identvar = (varident >>= return)
 
-voidtype = (reserv "void" >> return DVoid)
+voidtype = (reserv "void" >> return DecafVoid)
 
-integertype = (reserv "int" >> return DInteger)
-booleantype = (reserv "boolean" >> return DBoolean)
+integertype = (reserv "int" >> return DecafInteger)
+booleantype = (reserv "boolean" >> return DecafBoolean)
 vartype = integertype <|> booleantype
 rettype = vartype <|> voidtype
 
@@ -380,10 +380,10 @@ mineq = (minusassign >> return DecafMinusEq)
 pluseq = (plusassign >> return DecafPlusEq)
 
 lit = ilit <|> clit  <|> blit
-slit = (strlit >>= return . DStr)
+slit = (strlit >>= return)
 ilit = (int >>= return . DecafIntLit)
 blit = (boollit >>= return . DecafBoolLit)
-clit = (chrlit >>= return . DecafCharLit . DChar)
+clit = (chrlit >>= return . DecafCharLit)
 
 location = (try arrlocation) <|> varlocation
 

@@ -1,8 +1,8 @@
 In order to build, we're using cabal:
 
-./Setup.lhs configure
-./Setup.lhs build
-./Setup.lhs install
+cabal configure
+cabal build
+cabal install
 
 Or you can run the binaries yourself from within dist/build/
 
@@ -20,8 +20,5 @@ testsuite/
 TODO:
 error out on bad parse
     - multiple error reporting for parser
-    - pretty printing of AST
-    - graphing of AST
     - flattened AST
-    - symbol tables
-    - semantic checks
+    - all semantic checks

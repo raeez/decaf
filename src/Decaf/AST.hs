@@ -9,7 +9,7 @@ data DecafProgram = DecafProgram {
 
 -- field declaration :: Variable or Array
 data DecafField = DecafVarField DecafVar
-               | DecafArrField DecafArray
+               | DecafArrField DecafArr
                deriving (Show, Eq)
 
 -- method declaration
@@ -27,10 +27,10 @@ data DecafVar = DecafVar {
 } deriving (Show, Eq)
 
 -- array declaration
-data DecafArray = DecafArray {
+data DecafArr = DecafArr {
     arrayType :: DecafType,
     arrayID :: DecafIdentifier,
-    arrayLength :: DInt
+    arrayLength :: DecafInteger
 } deriving (Show, Eq)
 
 -- block body
@@ -41,9 +41,9 @@ data DecafBlock = DecafBlock {
 
 -- types : consider differentiating the two kinds of types
 -- (one is an expression type (int|bool) and the other is method return type (int|bool|void))
-data DecafType = DInteger
-               | DBoolean
-               | DVoid
+data DecafType = DecafInteger
+               | DecafBoolean
+               | DecafVoid
                deriving (Show, Eq)
 
 data DecafStm = DecafAssignStm DecafLoc DecafAssignOp DecafExpr
@@ -62,7 +62,7 @@ data DecafAssignOp = DecafEq
                    deriving (Show, Eq)
 
 data DecafMethodCall = DecafPureMethodCall { methodCallID :: DecafIdentifier, methodCallArgs :: [DecafExpr] }
-                     | DecafMethodCallout { methodCalloutID :: DStr, methodCalloutArgs :: [DecafCalloutArg] }
+                     | DecafMethodCallout { methodCalloutID :: DecafString, methodCalloutArgs :: [DecafCalloutArg] }
                      deriving (Show, Eq)
 
 data DecafLoc = DecafVarLoc DecafIdentifier
@@ -70,7 +70,7 @@ data DecafLoc = DecafVarLoc DecafIdentifier
               deriving (Show, Eq)
 
 data DecafCalloutArg = DecafCalloutArgExpr DecafExpr
-                     | DecafCalloutArgStr DStr
+                     | DecafCalloutArgStr DecafString
                      deriving (Show, Eq)
 
 data DecafExpr = DecafExpr Term Expr' -- used for parsing, but removed at tree rewrite
@@ -129,72 +129,66 @@ data DecafCondOp = DecafAndOp
                  | DecafOrOp
                  deriving (Show, Eq)
 
-data DecafIdentifier = DecafIdentifier String
-                     | DecafKeyword String
-                     deriving (Show, Eq)
+type DecafIdentifier = String
 
-data DecafLiteral = DecafIntLit DInt
+data DecafLiteral = DecafIntLit DecafInteger
                | DecafBoolLit Bool 
-               | DecafStrLit  DStr
-               | DecafCharLit  DChar
+               | DecafStrLit  DecafString
+               | DecafCharLit  DecafCharacter
                deriving (Show, Eq)
 
-data DStr = DStr String
-          deriving (Show, Eq)
+type DecafString = String
 
-data DInt = DDec String
-          | DHex  String
-          deriving (Show, Eq)
+data DecafInteger = DecafDec String
+                  | DecafHex  String
+                  deriving (Show, Eq)
 
-data DBool = DTrue 
-           | DFalse
-           deriving (Show, Eq)
+data DecafBoolean = DecafTrue 
+                  | DecafFalse
+                  deriving (Show, Eq)
 
-data DChar = DChar Char
-           deriving (Show, Eq)
+type DecafCharacter = Char
 
 -- spaces
 gap = 5
-put_spaces n = (map (\_ -> ' ') [1..n])
+pretty_print_spaces n = (map (\_ -> ' ') [1..n])
 
 -- expr
-put_expr n (DecafExpr term expr') = (put_spaces n) ++ "-->Expr\n" ++ (put_term (n+gap) term) ++ (put_expr' (n+gap) expr')
+pretty_print_expr n (DecafExpr term expr') = (pretty_print_spaces n) ++ "-->Expr\n" ++ (pretty_print_term (n+gap) term) ++ (pretty_print_expr' (n+gap) expr')
 
 -- expr'
-put_expr' n (Expr' binop term expr') = (put_binop n binop) ++ (put_term (n+gap) term) ++ (put_expr' (n+gap) expr')
-put_expr' n (EmptyExpr') = (put_spaces n) ++ "-->NULL\n"
+pretty_print_expr' n (Expr' binop term expr') = (pretty_print_binop n binop) ++ (pretty_print_term (n+gap) term) ++ (pretty_print_expr' (n+gap) expr')
+pretty_print_expr' n (EmptyExpr') = (pretty_print_spaces n) ++ "-->NULL\n"
 
 -- binary operations
-put_binop n (DecafBinArithOp (DecafPlusOp)) = (put_spaces n) ++ "+\n"
-put_binop n (DecafBinArithOp (DecafMinOp)) = (put_spaces n) ++ "-\n"
-put_binop n (DecafBinArithOp (DecafMulOp)) = (put_spaces n) ++ "*\n"
-put_binop n (DecafBinArithOp (DecafDivOp)) = (put_spaces n) ++ "/\n"
-put_binop n (DecafBinArithOp (DecafModOp)) = (put_spaces n) ++ "/\n"
-put_binop n (DecafBinRelOp (DecafLTOp)) = (put_spaces n) ++ "<\n"
-put_binop n (DecafBinRelOp (DecafGTOp)) = (put_spaces n) ++ ">\n"
-put_binop n (DecafBinRelOp (DecafLTEOp)) = (put_spaces n) ++ "<=\n"
-put_binop n (DecafBinRelOp (DecafGTEOp)) = (put_spaces n) ++ ">=\n"
-put_binop n (DecafBinEqOp (DecafEqOp)) = (put_spaces n) ++ "==\n"
-put_binop n (DecafBinEqOp (DecafNEqOp)) = (put_spaces n) ++ "==\n"
-put_binop n (DecafBinCondOp (DecafAndOp)) = (put_spaces n) ++ "&&\n"
-put_binop n (DecafBinCondOp (DecafOrOp)) = (put_spaces n) ++ "||\n"
-put_binop n _ = (put_spaces n) ++ "___\n"
--- do the other operators
+pretty_print_binop n (DecafBinArithOp (DecafPlusOp)) = (pretty_print_spaces n) ++ "+\n"
+pretty_print_binop n (DecafBinArithOp (DecafMinOp)) = (pretty_print_spaces n) ++ "-\n"
+pretty_print_binop n (DecafBinArithOp (DecafMulOp)) = (pretty_print_spaces n) ++ "*\n"
+pretty_print_binop n (DecafBinArithOp (DecafDivOp)) = (pretty_print_spaces n) ++ "/\n"
+pretty_print_binop n (DecafBinArithOp (DecafModOp)) = (pretty_print_spaces n) ++ "/\n"
+pretty_print_binop n (DecafBinRelOp (DecafLTOp)) = (pretty_print_spaces n) ++ "<\n"
+pretty_print_binop n (DecafBinRelOp (DecafGTOp)) = (pretty_print_spaces n) ++ ">\n"
+pretty_print_binop n (DecafBinRelOp (DecafLTEOp)) = (pretty_print_spaces n) ++ "<=\n"
+pretty_print_binop n (DecafBinRelOp (DecafGTEOp)) = (pretty_print_spaces n) ++ ">=\n"
+pretty_print_binop n (DecafBinEqOp (DecafEqOp)) = (pretty_print_spaces n) ++ "==\n"
+pretty_print_binop n (DecafBinEqOp (DecafNEqOp)) = (pretty_print_spaces n) ++ "==\n"
+pretty_print_binop n (DecafBinCondOp (DecafAndOp)) = (pretty_print_spaces n) ++ "&&\n"
+pretty_print_binop n (DecafBinCondOp (DecafOrOp)) = (pretty_print_spaces n) ++ "||\n"
 
 --term
-put_term n (Term factor term')= (put_spaces n) ++ "-->Term\n" ++ (put_factor (n+gap) factor) ++ (put_term' (n+gap) term')
+pretty_print_term n (Term factor term')= (pretty_print_spaces n) ++ "-->Term\n" ++ (pretty_print_factor (n+gap) factor) ++ (pretty_print_term' (n+gap) term')
 
 --term'
-put_term' n (Term' binop factor term') = (put_binop n binop) ++ (put_factor (n+gap) factor) ++ (put_term' (n+gap) term')
-put_term' n (EmptyTerm') = (put_spaces n) ++ "-->NULL\n"
+pretty_print_term' n (Term' binop factor term') = (pretty_print_binop n binop) ++ (pretty_print_factor (n+gap) factor) ++ (pretty_print_term' (n+gap) term')
+pretty_print_term' n (EmptyTerm') = (pretty_print_spaces n) ++ "-->NULL\n"
 
 --factor
-put_factor n (DecafParenExpr' dpe) = (put_spaces n) ++ "(  )\n" ++ (put_expr (n+gap) dpe)
-put_factor n (DecafNotExpr' dne) = (put_spaces n) ++ "!\n" ++ (put_expr (n+gap) dne)
-put_factor n (DecafMinExpr' dme) = (put_spaces n) ++ "-\n" ++ (put_expr (n+gap) dme)
-put_factor n (DecafLocExpr' dle) = (put_spaces n) ++ "-->LOCATION\n"
-put_factor n (DecafMethodExpr' dme) = (put_spaces n) ++ "-->METHODCALL\n"
-put_factor n (DecafLitExpr' dl) = (put_spaces n) ++ "-->LITERAL\n"
+pretty_print_factor n (DecafParenExpr' dpe) = (pretty_print_spaces n) ++ "(  )\n" ++ (pretty_print_expr (n+gap) dpe)
+pretty_print_factor n (DecafNotExpr' dne) = (pretty_print_spaces n) ++ "!\n" ++ (pretty_print_expr (n+gap) dne)
+pretty_print_factor n (DecafMinExpr' dme) = (pretty_print_spaces n) ++ "-\n" ++ (pretty_print_expr (n+gap) dme)
+pretty_print_factor n (DecafLocExpr' dle) = (pretty_print_spaces n) ++ "-->LOCATION\n"
+pretty_print_factor n (DecafMethodExpr' dme) = (pretty_print_spaces n) ++ "-->METHODCALL\n"
+pretty_print_factor n (DecafLitExpr' dl) = (pretty_print_spaces n) ++ "-->LITERAL\n"
 
 -- all of them
 --flatten n (DecafExpr term expr') = []
@@ -226,3 +220,5 @@ put_factor n (DecafLitExpr' dl) = (put_spaces n) ++ "-->LITERAL\n"
 --flatten n (DecafNEqOp dneo) = []
 --flatten n (DecafAndOp dao) = []
 --flatten n (DecafOrOp doo) = []
+--
+--
