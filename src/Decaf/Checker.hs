@@ -134,6 +134,9 @@ checkStm stmt =
                         other -> do t <- (head args)
                                     bindCat (res++t) (tail args)
 
+      DecafMethodStm (DecafMethodCallout id args) ->
+          foldl (>>) (return DVoid) (map checkExpr args)
+
       DecafIfStm expr block melse ->
           do case checkExpr expr of
                Just dt -> if dt == DBool
@@ -200,8 +203,27 @@ checkVarDec (DecafVar t id) =
 
 checkFieldDec :: DecafField -> Checker Bool
 checkFieldDec (DecafVarField var) = checkVarDec var
-checkFieldDec (DecavArrField (DecafArray t id len)) = 
-    do if len < 0 -- needs to be fixed
+checkFieldDec (DecavArrField arr@(DecafArray t id len)) = 
+    do rec <- lookNear id
+       case rec of
+         Nothing -> if len <= 0 -- needs to be fixed once I make checkLiteral
+                    then pushError ("Arrays must have positive length")
+                    else addSymbol $ ArrayRec $ arr
+         other -> pushError ("Array "++id++" already defined at line number ")
+
+checkMethodDec :: DecafMethod -> Checker Bool
+checkMethodDec meth@(DecafMethod t id args body) = 
+    do rec <- lookNear id
+       case rec of
+         Nothing -> do checkBlock body (MethodBlock t)
+                       addSymbol $ MethodRec meth
+         other -> pushError ("Function "++id++" already defined at line number ")
+
+
+checkProgram :: DecafProgram -> Checker Bool
+checkProgram (DecafProgram fields methods) = 
+    do foldl (>>) (return False) (map checkFieldDec fields)
+       foldl (>>) (return False) (map checkMethodDec methods)
 
 
                           
