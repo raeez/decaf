@@ -1,7 +1,7 @@
 module Main
 where
---import Data.Graph.Inductive
---import Data.GraphViz
+import Data.Graph.Inductive
+import Data.GraphViz
 import Decaf.Parser
 import Decaf.AST
 
@@ -15,18 +15,17 @@ replEval :: IO ()
 replEval = do
             inp <- getLine
             case ps expr inp of
-              RSuccess a ->  (putStrLn $ "\n\n" ++ (put_expr 0 a))
+              RSuccess a -> (putStrLn $ printDotGraph $ graphToDot graphParams ( graph a)) >> (putStrLn $ "\n\n" ++ (put_expr 0 a))
               RError e -> putStrLn $ "Error:\n" ++ e
             replEval
 
---(putStrLn $ printDotGraph $ graphToDot graphParams ( graph a))
---graph d = let (nodes, edges) = convertTree d in
-              --mkGraph nodes edges :: Gr String String
---
---convertTree d  = ( [    (1, "Collect underpants"),
-                        --(3, "Profit")   ],           [ (1, 3, "?") ] )
---class GraphViz a where
-    --toGraphViz :: a -> ((Int, String), [(Int, Int, String)])
+graph d = let (nodes, edges) = convertTree d in
+              mkGraph nodes edges :: Gr String String
+
+convertTree d  = ( [    (1, "Collect underpants"),
+                        (3, "Profit")   ],           [ (1, 3, "?") ] )
+class GraphViz a where
+    toGraphViz :: a -> ((Int, String), [(Int, Int, String)])
 
 --instance DecafExpr where
     --toGraphViz n (DecafExpr term expr') = ([this] ++ children, leaves)
@@ -70,24 +69,24 @@ replEval = do
 --flatten n (DecafAndOp dao) = []
 --flatten n (DecafOrOp doo) = []
 
---graphParams :: GraphvizParams String String () String
---graphParams = nonClusteredParams {
-		--globalAttributes = ga,
-		--fmtNode = fn,
-		--fmtEdge = fe
-	--}
-	--where
-		--ga = [
-			--GraphAttrs [
-				--RankDir FromLeft,
-				--(BgColor . X11Color) Transparent
-				--],
-			--NodeAttrs [
-				--Shape BoxShape,
-				--(FillColor . X11Color) White,
-				--Style [SItem Filled []]
-				--]
-			--]
+graphParams :: GraphvizParams String String () String
+graphParams = nonClusteredParams {
+    globalAttributes = ga,
+    fmtNode = fn,
+    fmtEdge = fe
+  }
+  where
+    ga = [
+      GraphAttrs [
+        RankDir FromLeft,
+        (BgColor . X11Color) Transparent
+        ],
+      NodeAttrs [
+        Shape BoxShape,
+        (FillColor . X11Color) White,
+        Style [SItem Filled []]
+        ]
+      ]
 
-		--fn (n,l) = [(Label . StrLabel) l]
-		--fe (f,t,l) = [(Label . StrLabel) l]
+    fn (n,l) = [(Label . StrLabel) l]
+    fe (f,t,l) = [(Label . StrLabel) l]
