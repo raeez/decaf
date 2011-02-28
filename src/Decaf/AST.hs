@@ -216,7 +216,7 @@ data Factor = DecafParenExpr' DecafExpr
             deriving (Show, Eq)
 
 instance ASTNode Factor where
-  treeify (DecafParenExpr' expr) = (Node "()") (Just [treeify expr])
+  treeify (DecafParenExpr' expr) = (Node "(   )") (Just [treeify expr])
   treeify (DecafNotExpr' expr) = (Node "!") (Just [treeify expr])
   treeify (DecafMinExpr' expr) = (Node "-") (Just [treeify expr])
   treeify (DecafLocExpr' loc) = treeify loc
@@ -244,10 +244,10 @@ data DecafArithOp = DecafPlusOp
 
 instance ASTNode DecafArithOp where
   pp (DecafPlusOp) = "+"
-  pp (DecafMinOp) = "-"
-  pp (DecafMulOp) = "*"
-  pp (DecafModOp) = "%"
-  pp (DecafDivOp) = "/"
+  pp (DecafMinOp)  = "-"
+  pp (DecafMulOp)  = "*"
+  pp (DecafModOp)  = "%"
+  pp (DecafDivOp)  = "/"
 
 data DecafRelOp = DecafLTOp
                 | DecafGTOp
@@ -256,8 +256,8 @@ data DecafRelOp = DecafLTOp
                 deriving (Show, Eq)
 
 instance ASTNode DecafRelOp where
-  pp (DecafLTOp) = "<"
-  pp (DecafGTOp) = ">"
+  pp (DecafLTOp)  = "<"
+  pp (DecafGTOp)  = ">"
   pp (DecafGTEOp) = ">="
   pp (DecafLTEOp) = "<="
   
@@ -266,7 +266,7 @@ data DecafEqOp = DecafEqOp
                deriving (Show, Eq)
 
 instance ASTNode DecafEqOp where
-  pp (DecafEqOp) = "=="
+  pp (DecafEqOp)   = "=="
   pp (DecafNEqOp) = "!="
 
 data DecafCondOp = DecafAndOp
@@ -275,7 +275,7 @@ data DecafCondOp = DecafAndOp
 
 instance ASTNode DecafCondOp where
   pp (DecafAndOp) = "&&"
-  pp (DecafOrOp) = "||"
+  pp (DecafOrOp)  = "||"
 
 data DecafLiteral = DecafIntLit DecafInteger
                | DecafBoolLit Bool 
