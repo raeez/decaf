@@ -2,6 +2,7 @@
 *.hi
 *.out
 *~
+*.un~
 *.sw[a-z]
 dist/
 testsuite/runtests
