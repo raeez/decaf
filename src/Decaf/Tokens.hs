@@ -2,27 +2,26 @@ module Decaf.Tokens
 where
 import Text.ParserCombinators.Parsec
 
--- | The 'DecafPosition' type encapsulates the start and end position of a token in the source text
-type DecafPosition = (SourcePos, SourcePos)
+-- | The 'Position' type encapsulates the start and end position of a token in the source text
+type Position = (SourcePos, SourcePos)
 
--- |The 'Token' type encapsulates a scanned token and it's corresponding DecafPosition in the source text
-type Token = (DecafPosition, DecafToken)
-
+-- |The 'Token' type encapsulates a scanned token and it's corresponding Position in the source text
+type Token = (Position, DecafToken)
 
 -- |The 'showToken' function pretty prints a Token as a singel line
-showToken :: (DecafPosition, DecafToken) -> String
+showToken :: (Position, DecafToken) -> String
 showToken ((p1, p2), t) = "[L" ++ (show . sourceLine $ p1) ++ ":C" ++ (show . sourceColumn $ p1) ++ "-" ++ (show . sourceColumn $ p2) ++ "] " ++ (show t)
 
 -- |The 'getStart' function retrieves the start position of a Token as a Parsec SourcePos
-getStart :: (DecafPosition, DecafToken) -> SourcePos
+getStart :: (Position, DecafToken) -> SourcePos
 getStart ((p1, p2), _) = p1
 
 -- |The 'getEnd' function retrieves the end position of a Token as a Parsec SourcePos
-getEnd :: (DecafPosition, DecafToken) -> SourcePos
+getEnd :: (Position, DecafToken) -> SourcePos
 getEnd ((p1, p2), _) = p2
 
 -- |The 'getToken' function retrieves the DecafToken from a 'Token' type
-getToken :: (DecafPosition, DecafToken) -> DecafToken
+getToken :: (Position, DecafToken) -> DecafToken
 getToken (_, t) = t
 
 -- |The 'DecafToken' ADT represents a single scanned Token in the Decaf language 
