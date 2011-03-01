@@ -116,6 +116,6 @@ data Report a = RSuccess a
 getSuccess (RSuccess a) = a
 getFailure (RError s) = s
 
-getReport :: Report a -> String
+getReport :: (Show a) => Report a -> String
 getReport (RSuccess a) = show a
 getReport (RError s) = s
