@@ -90,3 +90,29 @@ from this, we gained incredibly elegant tree rewriting code; this,
 however, came late in the project-again reflection of our relative
 newness to Haskell.
 
+6. Known problems - since it took a long time to get our designs working
+(and fantastically, since we embedded a lot of the problem structure in
+the type system, the various systems continue to work
+first-time-after-first-compile ;-), we were unable to generate an
+incredibly comprehensive test suite; Justin was able to ensure that we
+matched the basic feature set, but a lot of the work we have up ahead is
+individual constraint and unit tests for each functional component of
+our compiler's pipeline.
+
+Additionally, we uncovered a bug in our scanner; as a result of
+utilizing Haskell's Parsec along with it's position tracking State
+Monady, we discovered that Parsec treats tab characters as having a
+length of 8 (eight) characters—thus, whenever our scanner discovers
+a tab character, it (incorrectly) jumps forward by 8 characters,
+as opposed to the length of one token (in this case, the corresponding
+length should be one character). We are in full knowledge of this bug,
+and know that fixing it requires rolling our own monadic state tracking
+design into our error recovery mechanism (instead of utilizing Parsec's,
+which has semantics different from that which we initially expected). We
+intend to follow by implementing this design, as it will be immediately
+generalizable, and hence applicable to our parser. It is for this reason
+that our parser does not utilize error recovery (i.e. it only reports
+the first error it encounters) at this point, as once we have the more
+generic state tracking and error recovery mechanism (a design which we
+all found challenging in the last phase), we can utilize that in the
+parser, which-at this point-is also designed with Parsec.
