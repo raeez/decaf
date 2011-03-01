@@ -29,7 +29,7 @@ DEBUG
 -----
 With exception of grapher, binaries output error messages if any errors are encountered,
 otherwise they output nothing. If the '-debug' flag is supplied, then the binaries always
-output debug outpu to stdout.
+output debug output to stdout.
 
 DIRECTORIES
 -----------
