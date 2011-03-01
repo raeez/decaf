@@ -5,16 +5,18 @@ import Decaf.Tokens
 import Decaf.AST
 import Decaf.Scanner
 
--- Aux functions
-
+-- |DecafParser defines a Parser type for DecafToken
 type DecafParser a = GenParser Token () a
+
+morphPos :: SourcePos -> DecafPosition
+morphPos pos = (sourceLine pos, sourceColumn pos)
 
 decafToken :: (DecafToken -> Maybe a) -> DecafParser a
 decafToken test = token showToken posToken testToken
                   where
-                    showToken (p1, p2, t) = show t
-                    posToken (p1, p2, t) = p1
-                    testToken (p1, p2, t) = test t
+                    showToken (_, t) = show t
+                    posToken ((p1, p2), _) = p1
+                    testToken (_, t) = test t
 
 identf name = decafToken (\tok -> case tok of
                               Identf n -> case n == name of
@@ -158,27 +160,16 @@ minusassign = decafToken (\tok -> case tok of
 containsErrors (Just a)= False
 containsErrors Nothing = True
 
-{- moved to Tokens, because Scanner.hs also needs it 
-data Report a = RSuccess a
-              | RError String
-getSuccess (RSuccess a) = a
-
-getReport (RSuccess a) = show a
-getReport (RError s) = s
--}
-
 parser i = getReport $ ps program i
 
 -- try to find an interface to testSemanticsChecker
 -- will use parseStringProgram  -J
+--
 parseToksProgram :: [Token] -> Report DecafProgram
 parseToksProgram intokstream = ps_ program intokstream
                                where ps_ p s = case parse p "decaf-parser" s of
                                        Left err -> RError $ show err
                                        Right val -> RSuccess val
-
-
-
 
 ps p i = case parse p "decaf-parser" (eatFirst i) of
           Left err -> RError $ show err
@@ -188,44 +179,51 @@ qs p i = case parse p "internal-decaf-parser" (eatFirst i) of
         Left err -> Nothing
         Right val -> Just val
 
-
--- Grammer declaration
-
-program = do
+program = (do
             reserv "class" >> identf "Program"
             lbrace
             f <- many $ (try $ fielddecl)
             m <- many $ ( methoddecl)
             rbrace
-            return $ DecafProgram (concat f) m
+            p <- getPosition
+            let p' = morphPos p
+            return $ DecafProgram (concat  f) m p')
 
-fielddecl = do
+fielddecl = (do
               t <- vartype
               fd <- (fdecl t) `sepBy` comma
               semi
-              return fd
+              p <- getPosition
+              return fd)
 
 fdecl t = (try $ adecl t) <|> (vdecl t)
 
 vdecl t = do
             i <- identvar
-            return $ DecafVarField $ DecafVar t i
+            p <- getPosition
+            let p' = morphPos p
+            return $ DecafVarField (DecafVar t i p') p'
 
 adecl t = do
             i <- identvar
             lbrack
             s <- int
             rbrack
-            return $ DecafArrField $ DecafArr t i s
+            p <- getPosition
+            let p' = morphPos p
+            return $ DecafArrField (DecafArr t i s p') p'
 
-methoddecl = do
+methoddecl = (do
               t <- rettype
               i <- identvar
               lparen
               p <- pdecl `sepBy` comma
               rparen
               b <- block
-              return $ DecafMethod t i p b
+              p' <- getPosition
+              let p'' = morphPos p'
+                  mappedP = map ($p'') p
+              return $ DecafMethod t i mappedP b p'')
 
 pdecl = do
           t <- vartype
@@ -237,13 +235,18 @@ block = do
           v <- many (try vardecl)
           s <- many statement
           rbrace
-          return $ DecafBlock (concat v) s
+          p <- getPosition
+          let p' = morphPos p
+          return $ DecafBlock (concat v) s p'
 
 vardecl = do
             t <- vartype
             i <- identvar `sepBy1` comma
             semi
-            return $ (map (DecafVar t) i)
+            p <- getPosition
+            let p' = morphPos p
+                i' = map ($p') (map  (DecafVar t) i)
+            return $ i'
 
 
 identvar = (varident >>= return)
@@ -262,11 +265,15 @@ statement =  try (do
                o <- assignop
                e <- expr
                semi
-               return $ DecafAssignStm l o e)
+               p <- getPosition
+               let p' = morphPos p
+               return $ DecafAssignStm l (o p') e p')
          <|> try (do
                m <- methodcall
                semi
-               return $ DecafMethodStm m)
+               p <- getPosition
+               let p' = morphPos p
+               return $ DecafMethodStm m p')
          <|> (do
                reserv "if"
                lparen
@@ -274,7 +281,9 @@ statement =  try (do
                rparen
                b1 <- block
                b <- mayb (reserv "else" >> block)
-               return $ DecafIfStm e b1 b)
+               p <- getPosition
+               let p' = morphPos p
+               return $ DecafIfStm e b1 b p')
          <|> (do
                 reserv "for"
                 i <- identvar
@@ -283,62 +292,83 @@ statement =  try (do
                 comma
                 e2 <- expr
                 b <- block
-                return $ DecafForStm i e1 e2 b)
+                p <- getPosition
+                let p' = morphPos p
+                return $ DecafForStm i e1 e2 b p')
          <|> (do
                 reserv "return"
                 e <- mayb expr
                 semi
-                return $ DecafRetStm e)
-         <|> (reserv "break" >> semi >> return DecafBreakStm)
-         <|> (reserv "continue" >> semi >> return DecafContStm)
-         <|> (block >>= return . DecafBlockStm)
+                p <- getPosition
+                let p' = morphPos p
+                return $ DecafRetStm e p')
+         <|> (reserv "break" >> semi >> getPosition >>= return . DecafBreakStm . morphPos)
+         <|> (reserv "continue" >> semi >> getPosition >>= return . DecafContStm . morphPos)
+         <|> (block >>= \o -> getPosition >>= return . DecafBlockStm o . morphPos)
 
 methodcall = (do
                 reserv "callout"
                 lparen
                 s <- slit
                 comma <|> (return ())
-                p <- calloutarg `sepBy` comma
+                a <- calloutarg `sepBy` comma
                 rparen
-                return $ DecafMethodCallout s p)
+                p <- getPosition
+                let p' = morphPos p
+                return $ DecafMethodCallout s a p')
           <|> (do
                 i <- identvar
                 lparen
                 p <- expr `sepBy` comma
                 rparen
-                return $ DecafPureMethodCall i p)
--- tree rewrite for expr
+                p' <- getPosition
+                let p'' = morphPos p'
+                return $ DecafPureMethodCall i p p'')
 
+-- |'rewriteExpr' rewrites a parsed concrete expression tree into an abstract syntax expression tree
+-- This function utilizes the recursive rewriteExprTail, rewriteTerm, rewriteTermTail and rewriteFactor to rewrite the entire tree in-place.
 rewriteExpr :: DecafExpr -> DecafExpr
-rewriteExpr (DecafExpr term (EmptyExpr'))                            = rewriteTerm term
-rewriteExpr (DecafExpr term (Expr' binop term' (EmptyExpr')))        = DecafBinExpr (rewriteTerm term) binop (rewriteTerm term')
-rewriteExpr (DecafExpr term (Expr' binop term' expr'@(Expr' binop' _ _))) = DecafBinExpr (rewriteTerm term) binop  (DecafBinExpr (rewriteTerm term') binop' (rewriteExprTail expr'))
-rewriteExpr (DecafLocExpr loc)                                       = DecafLocExpr loc
-rewriteExpr (DecafMethodExpr meth)                                   = DecafMethodExpr meth
-rewriteExpr (DecafLitExpr lit)                                       = DecafLitExpr lit
-rewriteExpr (DecafBinExpr expr op expr')                             = DecafBinExpr expr op expr'
-rewriteExpr (DecafNotExpr expr)                                      = DecafNotExpr expr
-rewriteExpr (DecafMinExpr expr)                                      = DecafMinExpr expr
-rewriteExpr (DecafParenExpr expr)                                    = DecafParenExpr expr
+rewriteExpr (DecafExpr term (EmptyExpr') _)
+  = rewriteTerm term
 
-rewriteExprTail (Expr' _ term expr@(Expr' binop _ _)) = DecafBinExpr (rewriteTerm term) binop (rewriteExprTail expr)
-rewriteExprTail (Expr' _ term (EmptyExpr'))           = rewriteTerm term
+rewriteExpr (DecafExpr term (Expr' binop term' (EmptyExpr') p) _)
+  = DecafBinExpr (rewriteTerm term) binop (rewriteTerm term') p
+
+rewriteExpr (DecafExpr term (Expr' binop term' expr'@(Expr' binop' _ _ p) p') _)
+  = DecafBinExpr (rewriteTerm term) binop  (DecafBinExpr (rewriteTerm term') binop' (rewriteExprTail expr') p') p
+
+rewriteExpr e@(DecafLocExpr _ _)           = e
+rewriteExpr e@(DecafMethodExpr _ _)       = e
+rewriteExpr e@(DecafLitExpr _ _)           = e
+rewriteExpr e@(DecafBinExpr _ _ _ _) = e
+rewriteExpr e@(DecafNotExpr _ _)          = e
+rewriteExpr e@(DecafMinExpr _ _)          = e
+rewriteExpr e@(DecafParenExpr _ _)      = e
+
+-- |'rewriteExprTail'
+rewriteExprTail :: Expr' -> DecafExpr
+rewriteExprTail (Expr' _ term expr@(Expr' binop _ _ p) _)
+  = DecafBinExpr (rewriteTerm term) binop (rewriteExprTail expr) p
+
+rewriteExprTail (Expr' _ term (EmptyExpr') _)
+  = rewriteTerm term
 
 rewriteTerm :: Term -> DecafExpr
-rewriteTerm (Term factor (EmptyTerm'))                                               = rewriteFactor factor
-rewriteTerm (Term factor (Term' binop factor' (EmptyTerm')))                         = DecafBinExpr (rewriteFactor factor) binop (rewriteFactor factor')
-rewriteTerm (Term factor (Term' binop factor' term'@(Term' binop' _ _))) = DecafBinExpr (rewriteFactor factor) binop  (DecafBinExpr (rewriteFactor factor') binop' (rewriteTermTail term'))
+rewriteTerm (Term factor (EmptyTerm') _)                                         = rewriteFactor factor
+rewriteTerm (Term factor (Term' binop factor' (EmptyTerm') p) _)              = DecafBinExpr (rewriteFactor factor) binop (rewriteFactor factor') p
+rewriteTerm (Term factor (Term' binop factor' term'@(Term' binop' _ _ p') p) _)   = DecafBinExpr (rewriteFactor factor) binop  (DecafBinExpr (rewriteFactor factor') binop' (rewriteTermTail term') p') p
 
-rewriteTermTail (Term' _ factor term@(Term' binop _ _))                              = DecafBinExpr (rewriteFactor factor) binop (rewriteTermTail term)
-rewriteTermTail (Term' _ factor (EmptyTerm'))                                        = rewriteFactor factor
+rewriteTermTail :: Term' -> DecafExpr
+rewriteTermTail (Term' _ factor term@(Term' binop _ _ p) _)               = DecafBinExpr (rewriteFactor factor) binop (rewriteTermTail term) p
+rewriteTermTail (Term' _ factor (EmptyTerm') p)                           = rewriteFactor factor
 
 rewriteFactor :: Factor -> DecafExpr
-rewriteFactor (DecafParenExpr' expr)  = DecafParenExpr $ rewriteExpr expr
-rewriteFactor (DecafNotExpr' expr)    = DecafNotExpr $ rewriteExpr expr
-rewriteFactor (DecafMinExpr' expr)    = DecafMinExpr $ rewriteExpr expr
-rewriteFactor (DecafLocExpr' loc)     = DecafLocExpr loc
-rewriteFactor (DecafMethodExpr' meth) = DecafMethodExpr meth
-rewriteFactor (DecafLitExpr' lit)     = DecafLitExpr lit
+rewriteFactor (DecafParenExpr' expr p)  = DecafParenExpr (rewriteExpr expr) p
+rewriteFactor (DecafNotExpr' expr p)    = DecafNotExpr (rewriteExpr expr) p
+rewriteFactor (DecafMinExpr' expr p)    = DecafMinExpr (rewriteExpr expr) p
+rewriteFactor (DecafLocExpr' loc p)     = DecafLocExpr loc p
+rewriteFactor (DecafMethodExpr' meth p) = DecafMethodExpr meth p
+rewriteFactor (DecafLitExpr' lit p)     = DecafLitExpr lit p
 
 
 -- left associative, right recursive
@@ -349,61 +379,63 @@ mayb p = do
 expr = do
         t <- term
         e <- expr'
-        return $ rewriteExpr $ DecafExpr t e
+        getPosition >>= return . rewriteExpr . DecafExpr t e . morphPos
         --return $ DecafExpr t e
 
 expr' = (do
           b <- toplevelOp
           t <- term
           e <- expr'
-          return $ Expr' b t e)
+          getPosition >>= return . Expr' b t e . morphPos)
      <|> (return $ EmptyExpr')
 
 term = do
          f <- factor
          t <- term'
-         return $ Term f t
+         getPosition >>= return . Term f t . morphPos
 
 term' = (do
           b <- botlevelOp
           f <- factor
           t <- term'
-          return $ Term' b f t)
+          getPosition >>= return . Term' b f t . morphPos)
      <|> (return $ EmptyTerm')
 
-factor = (try methodcall >>= return . DecafMethodExpr')
-      <|> (location >>= return . DecafLocExpr')
-      <|> (lit >>= return . DecafLitExpr')
-      <|> (opnot >> expr >>= return . DecafNotExpr')
-      <|> (opmin >> expr >>= return . DecafMinExpr')
+factor = (try methodcall >>= \o -> getPosition >>= return . DecafMethodExpr' o . morphPos)
+      <|> (location >>= \o -> getPosition >>= return . DecafLocExpr' o . morphPos)
+      <|> (lit >>= \o -> getPosition >>= return . DecafLitExpr' o . morphPos)
+      <|> (opnot >> expr >>= \o -> getPosition >>= return . DecafNotExpr' o . morphPos)
+      <|> (opmin >> expr >>= \o -> getPosition >>= return . DecafMinExpr' o . morphPos)
       <|> (do
             lparen
             e <- expr
             rparen
-            return $ DecafParenExpr' e)
+            getPosition >>= return . DecafParenExpr' e . morphPos)
 
-toplevelOp = ((addop <|> subop) >>= return . DecafBinArithOp) <|> relop <|> eqop <|> condop
-botlevelOp = (mulop <|> divop <|> modop) >>= return . DecafBinArithOp
+toplevelOp = ((addop <|> subop) >>= \o -> getPosition >>= return . DecafBinArithOp o . morphPos) <|> relop <|> eqop <|> condop
+botlevelOp = (mulop <|> divop <|> modop) >>= \o -> getPosition >>= return . DecafBinArithOp o . morphPos
 
-addop = (opadd >> return DecafPlusOp)
-subop = (opmin >> return DecafMinOp)
-mulop = (opmul >> return DecafMulOp)
-divop = (opdiv >> return DecafDivOp)
-modop = (opmod >> return DecafModOp)
+addop = (opadd >> getPosition >>= return . DecafPlusOp . morphPos)
+subop = (opmin >> getPosition >>= return . DecafMinOp . morphPos)
+mulop = (opmul >> getPosition >>= return . DecafMulOp . morphPos)
+divop = (opdiv >> getPosition >>= return . DecafDivOp . morphPos)
+modop = (opmod >> getPosition >>= return . DecafModOp . morphPos)
 
-relop = (ltop <|> gtop <|> lteop <|> gteop) >>= return . DecafBinRelOp
+relop = (ltop <|> gtop <|> lteop <|> gteop) >>= \o -> getPosition >>= return . DecafBinRelOp o . morphPos
 
-ltop = (oplt >> return DecafLTOp)
-gtop = (opgt >> return DecafGTOp)
-lteop = (oplte >> return DecafLTEOp)
-gteop = (opgte >> return DecafGTEOp)
+ltop = (oplt >> getPosition >>= return . DecafLTOp . morphPos)
+gtop = (opgt >> getPosition >>= return . DecafGTOp . morphPos)
+lteop = (oplte >> getPosition >>=  return . DecafLTEOp . morphPos)
+gteop = (opgte >> getPosition >>= return . DecafGTEOp . morphPos)
 
-eqop = (oeq <|> oneq) >>= return . DecafBinEqOp
+eqop = (oeq <|> oneq) >>= (\o -> getPosition >>= return . DecafBinEqOp o . morphPos)
+condop = (andop <|> orop) >>= (\o -> (do
+                                        p <- getPosition
+                                        let p' = morphPos p
+                                        return $ DecafBinCondOp (o p') p'))
 
-oeq = (opeq >> return DecafEqOp)
-oneq = (opneq >> return DecafNEqOp)
-
-condop = (andop <|> orop) >>= return . DecafBinCondOp
+oeq = (opeq >> getPosition >>= return . DecafEqOp . morphPos)
+oneq = (opneq >> getPosition >>= return . DecafNEqOp . morphPos)
 
 andop = (opand >> return DecafAndOp)
 orop = (opor >> return DecafOrOp)
@@ -418,21 +450,22 @@ pluseq = (plusassign >> return DecafPlusEq)
 
 lit = ilit <|> clit  <|> blit
 slit = (strlit >>= return)
-ilit = (int >>= return . DecafIntLit)
-blit = (boollit >>= return . DecafBoolLit)
-clit = (chrlit >>= return . DecafCharLit)
+ilit = (int >>= \i -> getPosition >>= return . DecafIntLit i . morphPos)
+blit = (boollit >>= \b -> getPosition >>= return . DecafBoolLit b . morphPos)
+clit = (chrlit >>= \c -> getPosition >>= return . DecafCharLit c . morphPos)
 
 location = (try arrlocation) <|> varlocation
 
 varlocation = do
                 i <- identvar
-                return $ DecafVarLoc i
+                getPosition >>= (return . DecafVarLoc i . morphPos)
 
 arrlocation = do
                 i <- identvar
                 lbrack
                 e <- expr
                 rbrack
-                return $ DecafArrLoc i e
+                getPosition >>= (return . DecafArrLoc i e . morphPos)
 
-calloutarg = (expr >>= return . DecafCalloutArgExpr) <|> (slit >>= return . DecafCalloutArgStr)
+calloutarg = (expr >>= (\o -> getPosition >>= (return . DecafCalloutArgExpr o . morphPos)))
+          <|> (slit >>= (\o -> getPosition >>= (return . DecafCalloutArgStr o . morphPos)))
