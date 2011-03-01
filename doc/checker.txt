@@ -24,6 +24,14 @@ a hard problem, and we're deferring this implementation until later. At
 the moment, our parser reports the first error it finds, and then stops;
 this will change in the future.
 
+Finally, we assumed that we could pretty-print/vizualize our trees as we
+see fit, and so instead of implementing a complex ascii pretty-printer,
+we instead build a graphviz visualizer for our generic trees (and
+transformers for our AST to generic trees), and as such we can visualize
+symbol tables, the AST, generic trees etc. as images (specifically, our
+'grapher' binary outputs PNG files). see the viz/ directory for some
+examples.
+
 3.  For the semantic checking phase, we decided to utilizie a High Level
 IR (called the HIR for the rest of this document). As a design maxim, we
 decided to use Haskell's strengths to our advantage; we created  an algebraic
@@ -64,7 +72,7 @@ then implemented in DSL specified by the Monad.
 
 4.  We continued to learn much about haskell.  Just implementing trees
 with easy modification/access functions was something of a challenge.
-The method (Scott) settled on was storing a copy of the
+The method settled on was storing a copy of the
 tree along with a context (a list of branch choices starting at the
 root, going to the current node).  Manipulating the context is easy,
 since it's just a list (moving up one level corresponds to taking the
@@ -76,9 +84,28 @@ that Zippers are the ideal solution to this problem, where Context Trees
 are an acceptable solution for certain operations; the intention is to
 implement Zippers in the coming weeks.
 
-Scott decided to use Context Trees for the symbol table since it is well suited for
+Using Context Trees for the symbol table since it is well suited for
 performing the primary operations on environments, and it also
 automatically gives the full symbol table at the end of the scan.
+Implementing the symbol tables in tree form has the nice property of
+elegance, and decent lookup times, but we're almost certain that we may
+need to investigate more efficient and optimized forms of storage over
+the next few weeks.
+
+Continuing on the theme of manipulating trees, it proved far more
+elegant to implement a generic tree type (i.e. a tree of any type), and
+implement transformers from our custom types (AST/Symbol table etc.) to
+this 'generic tree'. Once we had our tree in the 'generic tree' format,
+we could utilize our generic algorithms for graphing and analysis; this
+proved, in hindsight, to be very useful.
+
+The design decision of implementing graph visualization as an image
+instead of ascii pretty printing proved to be a HUGE win, as
+implementing tree rewrite rules could be done *visually*; being able to
+simply view emerging visual patterns in the various trees we were
+working with followed by implementing the tree rewrite rules as pattern
+matches using haskell's patterns felt *incredibly* efficient and proved
+to be very elegant (tree rewrites never took more then a few lines).
 
 A considerable amount of time was spent rewriting our old type system
 to support some of the new features we needed.  We (Raeez and Scott) are

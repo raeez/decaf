@@ -44,6 +44,8 @@ src/
 
 testsuite/
   tests
+viz/
+  visualizations of graphs we've been working with
 
 TODO
 ----
