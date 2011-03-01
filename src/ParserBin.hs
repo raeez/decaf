@@ -11,19 +11,20 @@ main :: IO ()
 main = do
         args <- getArgs
         case args of
-          [inputFile] -> (readFile inputFile) >>= (execute inputFile)
+          [inputFile] -> (readFile inputFile) >>= (parse inputFile)
           otherwise -> putStrLn "error, must specify the input file as the first and only arg"
 
-execute inputFile input = do
-    case (numLexErrorsIn input == 0) of
-       False -> let errorMessage = ("Decaf Compiler\nFile " ++
+parse inputFile input = do
+    if numLexErrorsIn tokens > 0
+      then (let errorMessage = ("Decaf Compiler\nFile " ++
                                       inputFile ++
-                                      " has lex errors!\nToken Stream:\n\n") in
-                putStrLn errorMessage >> scprint input >> exitFailure
-       otherwise -> writeFile outputFile output >> putStrLn output >> (case parserErrors of
+                                      " has lex errors!\nToken Stream:\n\n")
+           in putStrLn errorMessage >> (putStrLn . scprint) input >> exitFailure)
+       else (writeFile outputFile output >> putStrLn output >> (case parserErrors of
                                                                           False ->exitSuccess
-                                                                          True -> exitFailure)
+                                                                          True -> exitFailure))
      where
+       tokens = scanner input
        outputFile = inputFile ++ ".out"
        output = parser input
        parserErrors = containsErrors $ qs program input

@@ -11,9 +11,9 @@ type DecafParser a = GenParser Token () a
 decafToken :: (DecafToken -> Maybe a) -> DecafParser a
 decafToken test = token showToken posToken testToken
                   where
-                    showToken (p1, p2, t) = show t
-                    posToken (p1, p2, t) = p1
-                    testToken (p1, p2, t) = test t
+                    showToken (_, t) = show t
+                    posToken ((p1, p2), t) = p1
+                    testToken (_, t) = test t
 
 identf name = decafToken (\tok -> case tok of
                               Identf n -> case n == name of
@@ -284,28 +284,31 @@ methodcall = (do
                 p <- expr `sepBy` comma
                 rparen
                 return $ DecafPureMethodCall i p)
--- tree rewrite for expr
 
+-- |'rewriteExpr' rewrites a parsed concrete expression tree into an abstract syntax expression tree
+-- This function utilizes the recursive rewriteExprTail, rewriteTerm, rewriteTermTail and rewriteFactor to rewrite the entire tree in-place.
 rewriteExpr :: DecafExpr -> DecafExpr
-rewriteExpr (DecafExpr term (EmptyExpr'))                            = rewriteTerm term
-rewriteExpr (DecafExpr term (Expr' binop term' (EmptyExpr')))        = DecafBinExpr (rewriteTerm term) binop (rewriteTerm term')
+rewriteExpr (DecafExpr term (EmptyExpr'))                                 = rewriteTerm term
+rewriteExpr (DecafExpr term (Expr' binop term' (EmptyExpr')))             = DecafBinExpr (rewriteTerm term) binop (rewriteTerm term')
 rewriteExpr (DecafExpr term (Expr' binop term' expr'@(Expr' binop' _ _))) = DecafBinExpr (rewriteTerm term) binop  (DecafBinExpr (rewriteTerm term') binop' (rewriteExprTail expr'))
-rewriteExpr (DecafLocExpr loc)                                       = DecafLocExpr loc
-rewriteExpr (DecafMethodExpr meth)                                   = DecafMethodExpr meth
-rewriteExpr (DecafLitExpr lit)                                       = DecafLitExpr lit
-rewriteExpr (DecafBinExpr expr op expr')                             = DecafBinExpr expr op expr'
-rewriteExpr (DecafNotExpr expr)                                      = DecafNotExpr expr
-rewriteExpr (DecafMinExpr expr)                                      = DecafMinExpr expr
-rewriteExpr (DecafParenExpr expr)                                    = DecafParenExpr expr
+rewriteExpr (DecafLocExpr loc)                                            = DecafLocExpr loc
+rewriteExpr (DecafMethodExpr meth)                                        = DecafMethodExpr meth
+rewriteExpr (DecafLitExpr lit)                                            = DecafLitExpr lit
+rewriteExpr (DecafBinExpr expr op expr')                                  = DecafBinExpr expr op expr'
+rewriteExpr (DecafNotExpr expr)                                           = DecafNotExpr expr
+rewriteExpr (DecafMinExpr expr)                                           = DecafMinExpr expr
+rewriteExpr (DecafParenExpr expr)                                         = DecafParenExpr expr
 
+-- |'rewriteExprTail'
 rewriteExprTail (Expr' _ term expr@(Expr' binop _ _)) = DecafBinExpr (rewriteTerm term) binop (rewriteExprTail expr)
 rewriteExprTail (Expr' _ term (EmptyExpr'))           = rewriteTerm term
 
 rewriteTerm :: Term -> DecafExpr
-rewriteTerm (Term factor (EmptyTerm'))                                               = rewriteFactor factor
-rewriteTerm (Term factor (Term' binop factor' (EmptyTerm')))                         = DecafBinExpr (rewriteFactor factor) binop (rewriteFactor factor')
+rewriteTerm (Term factor (EmptyTerm'))                                   = rewriteFactor factor
+rewriteTerm (Term factor (Term' binop factor' (EmptyTerm')))             = DecafBinExpr (rewriteFactor factor) binop (rewriteFactor factor')
 rewriteTerm (Term factor (Term' binop factor' term'@(Term' binop' _ _))) = DecafBinExpr (rewriteFactor factor) binop  (DecafBinExpr (rewriteFactor factor') binop' (rewriteTermTail term'))
 
+rewriteTermTail :: Term' -> DecafExpr
 rewriteTermTail (Term' _ factor term@(Term' binop _ _))                              = DecafBinExpr (rewriteFactor factor) binop (rewriteTermTail term)
 rewriteTermTail (Term' _ factor (EmptyTerm'))                                        = rewriteFactor factor
 

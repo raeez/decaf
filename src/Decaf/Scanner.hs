@@ -24,19 +24,19 @@ scprint = formatScannerOutput . scanner
 formatScannerOutput :: [Token] -> String
 formatScannerOutput = unlines . (map showToken)
 
--- |The 'numLexErrorsIn' function calculates the number of errors in a list of tokens
+-- |The 'numLexErrorsIn' function calculates the number of errors in a list of Token
 numLexErrorsIn :: [Token] -> Int
 numLexErrorsIn tokens = numErrors tokens' 0
                         where
                           tokens' = map getToken tokens
-
+-- |The 'numErrors' function incrementally counts the number of errors in a list of DecafToken
 numErrors :: [DecafToken] -> Int -> Int
-numErrors (t:ts) eCount = numErrors ts eCount'
-                          where
-                            eCount' = case t of
-                                        (Fail s) -> eCount + 1
-                                        otherwise -> eCount
-numErrors [] eCount = eCount
+numErrors (t:ts) count = numErrors ts err'
+                         where
+                           err' = err t
+                           err (Fail _)  = count + 1
+                           err _         = count
+numErrors [] count = count
 
 --------------------------------------------
 -- general
