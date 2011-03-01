@@ -19,7 +19,6 @@ parser        -- utilize as 'parser x', where x is the file you'd like to parse.
 grapher       -- utilize as 'grapher x', where x is the file you'd like to scan, parse and graph the resulting AST. requires the graphviz binary 'dot' installed on your system, (assuming it's on your PATH, else grapher fails) and outputs a 'outputfile.out.png', as the visuazlization of the AST.
 checker       -- utilize as 'checker x', where x is the file you'd like to scan, parse and check for semantic errors.
 
-
 DIRECTORIES
 -----------
 
@@ -34,6 +33,7 @@ src/
 testsuite/
   tests
 
-TODO:
-error out on bad parse
-    - multiple error reporting for parser
+TODO
+----
+- monadic interleaving of state for error recovery in scanner and parser.
+- multiple error reporting for parser.
