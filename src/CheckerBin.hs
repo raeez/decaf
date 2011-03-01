@@ -9,5 +9,5 @@ main = do args <- getArgs
           case ps program str of
             RSuccess prog -> 
                 case (runChecker (checkProgram prog) ("", mkTree $SymbolTable [] GlobalBlock)) of
-                  (_,(e,t)) -> putStrLn $ e ++ show t
+                  (_,(e,t)) -> putStrLn.unlines.(map (((head args)++":")++)).lines $ e
             RError str -> putStrLn str
