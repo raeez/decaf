@@ -439,9 +439,16 @@ checkMethodArgs _ = return DecafInteger
 
 readDInt :: DecafInteger -> Integer
 readDInt int = 
+    
     case int of 
-      DecafDec s -> (read s) :: Integer
-      DecafHex s -> fst.head.(Numeric.readHex) $ s
+      DecafDec s -> 
+          if head s == '-'
+          then -((read (tail s)) :: Integer)
+          else (read  s) :: Integer
+      DecafHex s -> 
+          if head s == '-'
+          then -(fst.head.(Numeric.readHex).tail $ s)
+          else fst.head.(Numeric.readHex) $ s
 
 -- system call
 

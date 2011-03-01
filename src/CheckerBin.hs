@@ -16,8 +16,9 @@ main = do args <- getArgs
             [f] -> 
                 do str <- readFile f
                    let output = checkFile str f
-                   putStrLn.snd $ output
-                   checkOutput output
+                   if not (null (snd output))
+                    then (putStrLn.snd $ output) >> exitFailure
+                    else exitSuccess
 
             other -> putStrLn "Invalid command line input" >> exitFailure
 
@@ -25,10 +26,14 @@ checkFile str file =
     case ps program str of
       RSuccess prog -> 
           case (runChecker (checkProgram prog) ("", mkTree $SymbolTable [] GlobalBlock)) of
-            (_,(e,t)) -> ((show prog)++"\n\n"++(show t),init.unlines.(map ((file++":")++)).lines $ e)
+            (_,(e,t)) -> ((show prog)++"\n\n"++(show t),safeinit.unlines.(map ((file++":")++)).lines $ e)
       RError str -> (str,str)
 
 checkOutput output = 
     if length (snd output) > 0
     then exitSuccess
     else exitFailure
+
+
+safeinit [] = []
+safeinit l@(x:xs) = init l
