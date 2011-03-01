@@ -165,6 +165,10 @@ instance ASTNode DecafLoc where
   treeify (DecafVarLoc identf) = (Node identf) Nothing
   treeify (DecafArrLoc identf expr) = Node (identf ++ " []") (Just $ [treeify expr])
 
+instance Location DecafLoc where
+  ident (DecafVarLoc identf) = identf
+  ident (DecafArrLoc identf expr) = identf
+
 
 data DecafCalloutArg = DecafCalloutArgExpr DecafExpr
                      | DecafCalloutArgStr DecafString

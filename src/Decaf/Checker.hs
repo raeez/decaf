@@ -6,12 +6,12 @@ import System.Exit
 import Monad
 import Data.List
 import Numeric
-import Decaf.AST
+import Decaf.AST hiding (Node, Tree)
 
 
 data SymbolRecord = VarRec DecafVar 
                   | MethodRec DecafMethod
-                  | ArrayRec DecafArray
+                  | ArrayRec DecafArr
                     deriving (Show,Eq)
 
 
@@ -117,7 +117,7 @@ addRet = do st <- getST
               case blockType.getContent $ st of
                 MethodBlock _ -> 
                     do setCheckerContext (context st)
-                       addSymbol $ VarRec $ DecafVar DVoid "return"
+                       addSymbol $ VarRec $ DecafVar DecafVoid "return"
                 other -> goFun $ parent st
 
 {- to write : 
@@ -133,9 +133,9 @@ checkStm :: DecafStm -> Checker Bool
 checkStm stmt =                  
     case stmt of 
       DecafAssignStm loc op expr -> 
-          do lhs <- lookFar (decafID loc)
+          do lhs <- lookFar (ident loc)
              case lhs of 
-               Nothing -> pushError ("Undeclared variable "++(decafID loc))
+               Nothing -> pushError ("Undeclared variable "++(ident loc))
                Just lhs -> 
                    do t2 <- checkExpr expr
                       let t1 = symType lhs
@@ -144,7 +144,7 @@ checkStm stmt =
                                    then return True
                                    else pushError ("Mismatched types in assignment statement") 
                                             >> return False
-                        other -> if (t1 == DInteger && t2 == DInteger)
+                        other -> if (t1 == DecafInteger && t2 == DecafInteger)
                                  then return True
                                  else pushError ("Mismatched types in arithmetic assignment statement") 
       DecafMethodStm (DecafPureMethodCall dID args) -> 
@@ -169,7 +169,7 @@ checkStm stmt =
 
       DecafIfStm expr block melse ->
           do dt <- checkExpr expr
-             if dt == DBoolean
+             if dt == DecafBoolean
               then return True
               else pushError ("If conditional must have type Boolean")
 
@@ -178,13 +178,13 @@ checkStm stmt =
                Nothing -> checkBlock block IfBlock
 
       DecafForStm id expr1 expr2 block -> 
-          do addSymbol $ VarRec $ DecafVar DInteger id
+          do addSymbol $ VarRec $ DecafVar DecafInteger id
              t1 <- checkExpr expr1
              t2 <- checkExpr expr2
-             if (t1 /= DInteger)
+             if (t1 /= DecafInteger)
                then pushError ("Start expression in for loop must have type Integer")
                else return True
-             if (t2 /= DInteger)
+             if (t2 /= DecafInteger)
                then pushError ("End expression in for loop must have type Integer")
                else return True
              checkBlock block ForBlock
@@ -193,7 +193,7 @@ checkStm stmt =
           do t <- inMethod -- returns method type, if there is one
              case t of
                Nothing -> pushError ("return may only be used inside a method definition")
-               Just DVoid -> 
+               Just DecafVoid -> 
                    case rv of
                      Nothing -> return True
                      other -> pushError ("Function declared void cannot return a value")
@@ -227,7 +227,7 @@ checkBlock (DecafBlock vars stmts) btype
                         MethodBlock t ->
                             do mrec <- lookNear "return"
                                case mrec of
-                                 Nothing -> if t == DVoid
+                                 Nothing -> if t == DecafVoid
                                             then return True
                                             else pushError "Missing return statement" -- line number of block
                                  other -> return True
@@ -249,7 +249,7 @@ checkVarDec (DecafVar t id) =
 
 checkFieldDec :: DecafField -> Checker Bool
 checkFieldDec (DecafVarField var) = checkVarDec var
-checkFieldDec (DecafArrField arr@(DecafArray t id len)) = 
+checkFieldDec (DecafArrField arr@(DecafArr t id len)) = 
     do rec <- lookNear id
        case rec of
          Nothing -> do checkExpr (DecafLitExpr (DecafIntLit len))
@@ -289,12 +289,12 @@ checkExpr expr =
     let lookupID id = 
             do mrec <- lookFar id
                case mrec of
-                 Nothing -> return DVoid
+                 Nothing -> return DecafVoid
                  Just rec -> return $ symType rec
     in
       case expr of
         DecafLocExpr loc ->
-            lookupID (decafID loc)
+            lookupID (ident loc)
 
         DecafMethodExpr (DecafPureMethodCall id _) -> 
             lookupID id
@@ -303,8 +303,8 @@ checkExpr expr =
             case lit of
               DecafIntLit int -> 
                   checkInt int
-              DecafBoolLit _ -> return DBoolean
-              other -> pushError "THIS SHOULDN'T HAPPEN" >> return DVoid
+              DecafBoolLit _ -> return DecafBoolean
+              other -> pushError "THIS SHOULDN'T HAPPEN" >> return DecafVoid
 
         DecafBinExpr expr1 op expr2 ->
             do t1 <- checkExpr expr1
@@ -312,58 +312,58 @@ checkExpr expr =
                case op of 
                  DecafBinArithOp _ -> 
                      do
-                       if t1 /= DInteger
+                       if t1 /= DecafInteger
                         then pushError "Argument of arithmetic operator must be integral"
                         else return True -- doesn't matter
-                       if t2 /= DInteger
+                       if t2 /= DecafInteger
                         then pushError "Argument of arithmetic operator must be integral"
                         else return True -- doesn't matter
-                       return DInteger
+                       return DecafInteger
                  DecafBinRelOp _ ->
                      do
-                       if t1 /= DInteger
+                       if t1 /= DecafInteger
                         then pushError "Argument of relative operator must be integral"
                         else return True
-                       if t2 /= DInteger
+                       if t2 /= DecafInteger
                         then pushError "Argument of relative operator must be integral"
                         else return True
-                       return DBoolean
-                 DecafBinEqOp _ -> return DBoolean
+                       return DecafBoolean
+                 DecafBinEqOp _ -> return DecafBoolean
                  DecafBinCondOp _ ->
                      do
-                       if t1 /= DBoolean
+                       if t1 /= DecafBoolean
                         then pushError "Argument of logical operator must be boolean"
                         else return True
-                       if t2 /= DBoolean
+                       if t2 /= DecafBoolean
                         then pushError "Argument of logical operator must be boolean"
                         else return True
-                       return DBoolean              
+                       return DecafBoolean              
         DecafNotExpr expr  ->
             do t <- checkExpr expr
-               if t /= DBoolean
+               if t /= DecafBoolean
                 then pushError "Argument of logical not must be boolean"
                 else return True
-               return DBoolean
+               return DecafBoolean
 
         DecafMinExpr expr ->
             do t <- checkExpr expr
-               if t /= DInteger
+               if t /= DecafInteger
                 then pushError "Can only negate an integral expression"
                 else return True
-               return DInteger
+               return DecafInteger
         DecafParenExpr expr -> checkExpr expr
 
     where checkInt int = 
               let val = readDInt int in
               if val > 2^31-1 || val < -2^31
-              then pushError "Integer literal too large" >> return DInteger -- maybe should be void
-              else return DInteger
+              then pushError "Integer literal too large" >> return DecafInteger -- maybe should be void
+              else return DecafInteger
 
-readDInt :: DInt -> Integer
+readDInt :: DecafInteger -> Integer
 readDInt int = 
     case int of 
-      DDec s -> (read s) :: Integer
-      DHex s -> fst.head.(Numeric.readHex) $ s
+      DecafDec s -> (read s) :: Integer
+      DecafHex s -> fst.head.(Numeric.readHex) $ s
 
 
 {- Tree implementation -}
