@@ -252,27 +252,27 @@ checkCalloutArg carg =
       DecafCalloutArgStr _ pos -> return True
 
 checkVarDec :: DecafVar -> Checker Bool
-checkVarDec (DecafVar t id pos) = 
+checkVarDec (DecafVar t id pos') = 
     do rec <- lookNear id
        case rec of 
-         Nothing -> addSymbol $ VarRec $ DecafVar t id pos
-         other -> pushError pos ("Variable "++id++" already defined at line number ")
+         Nothing -> addSymbol $ VarRec $ DecafVar t id pos'
+         Just (VarRec vrec) -> pushError pos' ("Variable "++id++" already defined at line number "++(show (fst (pos vrec))))
 
 
 checkFieldDec :: DecafField -> Checker Bool
 checkFieldDec (DecafVarField var pos) = checkVarDec var
-checkFieldDec (DecafArrField arr@(DecafArr t id len _) pos) = 
+checkFieldDec (DecafArrField arr@(DecafArr t id len _) pos') = 
     do rec <- lookNear id
        case rec of
-         Nothing -> do checkExpr (DecafLitExpr (DecafIntLit len pos) pos)
+         Nothing -> do checkExpr (DecafLitExpr (DecafIntLit len pos') pos')
                        let l = readDInt len
                        if l <= 0 -- needs to be fixed once I make checkLiteral
-                        then pushError pos ("Arrays must have positive length")
+                        then pushError pos' ("Arrays must have positive length")
                         else addSymbol $ ArrayRec $ arr
-         other -> pushError pos ("Array "++id++" already defined at line number ")
+         Just (ArrayRec arec) -> pushError pos' ("Array "++id++" already defined at line number "++(show(fst(pos arec))))
 
 checkMethodDec :: DecafMethod -> Checker Bool
-checkMethodDec meth@(DecafMethod t id args body@(DecafBlock bvars bstms _) pos) = 
+checkMethodDec meth@(DecafMethod t id args body@(DecafBlock bvars bstms _) pos') = 
     do rec <- lookNear id
        case rec of
          Nothing -> do foldl (>>) (return False) (map (addSymbol.VarRec) args)
@@ -280,7 +280,7 @@ checkMethodDec meth@(DecafMethod t id args body@(DecafBlock bvars bstms _) pos) 
                        checkBlock body (MethodBlock t) 
 
 
-         other -> pushError pos ("Function "++id++" already defined at line number ")
+         Just (MethodRec meth) -> pushError pos' ("Function "++id++" already defined at line number "++(show(fst(pos meth))))
 
 
 checkProgram :: DecafProgram -> Checker Bool
