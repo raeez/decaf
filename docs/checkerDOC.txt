@@ -84,4 +84,9 @@ yields a more efficient/concise or expressive way to implement the
 solutions to (sometimes common) problems. As such, we spent a great deal
 of time rewriting our code before launching into the semantic checking
 phase; and we anticipate continuing along this practice in the future.
+An example of this was in the (late) addition of type classes which
+enabled polymorphic treatment of our structured Abstract Syntax Tree;
+from this, we gained incredibly elegant tree rewriting code; this,
+however, came late in the project-again reflection of our relative
+newness to Haskell.
 
