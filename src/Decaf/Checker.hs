@@ -52,7 +52,7 @@ instance Monad Checker where
 
 -- Monad manipulation functions
 pushError :: DecafPosition -> String -> Checker Bool
-pushError (l,c) str = Checker (\(e,t) -> (False,(e++(show l)++":"++(show c)++":"++str++"\n",t)))
+pushError (l,c) str = Checker (\(e,t) -> (False,(e++(show l)++":"++(show c)++": "++str++"\n",t)))
 
 addSymbol :: SymbolRecord -> Checker Bool
 addSymbol sr = Checker (\(e,t) -> (True, (e, modifyTreeCnt g t))) 
