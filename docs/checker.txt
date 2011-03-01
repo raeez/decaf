@@ -18,7 +18,11 @@ each phase. For example, we decided that we would implement zippers (for
 arbitrarily directional tree walks) later on, and instead only
 implemented context trees for this section of the compiler.
 
-We also assumed we were 
+We also assumed we were able to punt on the implementation of multiple
+error reporting out of the parser; as detailed below, in Haskell this is
+a hard problem, and we're deferring this implementation until later. At
+the moment, our parser reports the first error it finds, and then stops;
+this will change in the future.
 
 3.  For the semantic checking phase, we decided to utilizie a High Level
 IR (called the HIR for the rest of this document). As a design maxim, we
