@@ -180,47 +180,47 @@ qs p i = case parse p "internal-decaf-parser" (eatFirst i) of
         Right val -> Just val
 
 program = (do
+            p <- getPosition
             reserv "class" >> identf "Program"
             lbrace
             f <- many $ (try $ fielddecl)
             m <- many $ ( methoddecl)
             rbrace
-            p <- getPosition
             let p' = morphPos p
             return $ DecafProgram (concat  f) m p')
 
 fielddecl = (do
+              p <- getPosition
               t <- vartype
               fd <- (fdecl t) `sepBy` comma
               semi
-              p <- getPosition
               return fd)
 
 fdecl t = (try $ adecl t) <|> (vdecl t)
 
 vdecl t = do
-            i <- identvar
             p <- getPosition
+            i <- identvar
             let p' = morphPos p
             return $ DecafVarField (DecafVar t i p') p'
 
 adecl t = do
+            p <- getPosition
             i <- identvar
             lbrack
             s <- int
             rbrack
-            p <- getPosition
             let p' = morphPos p
             return $ DecafArrField (DecafArr t i s p') p'
 
 methoddecl = (do
+              p' <- getPosition
               t <- rettype
               i <- identvar
               lparen
               p <- pdecl `sepBy` comma
               rparen
               b <- block
-              p' <- getPosition
               let p'' = morphPos p'
                   mappedP = map ($p'') p
               return $ DecafMethod t i mappedP b p'')
@@ -231,19 +231,19 @@ pdecl = do
           return $ DecafVar t i
 
 block = do
+          p <- getPosition
           lbrace
           v <- many (try vardecl)
           s <- many statement
           rbrace
-          p <- getPosition
           let p' = morphPos p
           return $ DecafBlock (concat v) s p'
 
 vardecl = do
+            p <- getPosition
             t <- vartype
             i <- identvar `sepBy1` comma
             semi
-            p <- getPosition
             let p' = morphPos p
                 i' = map ($p') (map  (DecafVar t) i)
             return $ i'
@@ -261,30 +261,31 @@ vartype = integertype <|> booleantype
 rettype = vartype <|> voidtype
 
 statement =  try (do
+               p <- getPosition
                l <- location
                o <- assignop
                e <- expr
                semi
-               p <- getPosition
                let p' = morphPos p
                return $ DecafAssignStm l (o p') e p')
          <|> try (do
+               p <- getPosition
                m <- methodcall
                semi
-               p <- getPosition
                let p' = morphPos p
                return $ DecafMethodStm m p')
          <|> (do
+               p <- getPosition
                reserv "if"
                lparen
                e <- expr
                rparen
                b1 <- block
                b <- mayb (reserv "else" >> block)
-               p <- getPosition
                let p' = morphPos p
                return $ DecafIfStm e b1 b p')
          <|> (do
+                p <- getPosition
                 reserv "for"
                 i <- identvar
                 aseq
@@ -292,14 +293,13 @@ statement =  try (do
                 comma
                 e2 <- expr
                 b <- block
-                p <- getPosition
                 let p' = morphPos p
                 return $ DecafForStm i e1 e2 b p')
          <|> (do
+                p <- getPosition
                 reserv "return"
                 e <- mayb expr
                 semi
-                p <- getPosition
                 let p' = morphPos p
                 return $ DecafRetStm e p')
          <|> (reserv "break" >> semi >> getPosition >>= return . DecafBreakStm . morphPos)
@@ -307,21 +307,21 @@ statement =  try (do
          <|> (block >>= \o -> getPosition >>= return . DecafBlockStm o . morphPos)
 
 methodcall = (do
+                p <- getPosition
                 reserv "callout"
                 lparen
                 s <- slit
                 comma <|> (return ())
                 a <- calloutarg `sepBy` comma
                 rparen
-                p <- getPosition
                 let p' = morphPos p
                 return $ DecafMethodCallout s a p')
           <|> (do
+                p' <- getPosition
                 i <- identvar
                 lparen
                 p <- expr `sepBy` comma
                 rparen
-                p' <- getPosition
                 let p'' = morphPos p'
                 return $ DecafPureMethodCall i p p'')
 
@@ -461,11 +461,13 @@ varlocation = do
                 getPosition >>= (return . DecafVarLoc i . morphPos)
 
 arrlocation = do
+                p <- getPosition
                 i <- identvar
                 lbrack
                 e <- expr
                 rbrack
-                getPosition >>= (return . DecafArrLoc i e . morphPos)
+                let p' = morphPos p
+                return $ DecafArrLoc i e p'
 
 calloutarg = (expr >>= (\o -> getPosition >>= (return . DecafCalloutArgExpr o . morphPos)))
           <|> (slit >>= (\o -> getPosition >>= (return . DecafCalloutArgStr o . morphPos)))
