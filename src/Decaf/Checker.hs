@@ -39,7 +39,7 @@ type SymbolTree = Tree SymbolTable
 
 
 {- Semantic checking monad -}
-newtype Checker a = Checker {runChecker :: (String, SymbolTree) -> (a, (String, SymbolTree))}
+data Checker a = Checker {runChecker :: (String, SymbolTree) -> (a, (String, SymbolTree))}
 
 instance Monad Checker where
 
@@ -60,6 +60,15 @@ local tp m = Checker (\(e,t)-> let (a,(e',t')) = runChecker m (e, addChild (Symb
                             (a, (e', setContext (context t) t')))
 getST :: Checker SymbolTree
 getST  = Checker (\(e,t) -> (t,(e,t)))
+
+get :: Checker (String,SymbolTree)
+get = Checker (\(e,t) -> ((e,t),(e,t)))
+
+setTree :: SymbolTree -> Checker ()
+setTree t = Checker(\(e,t') -> ((), (e,t)))
+
+setCheckerContext :: TreeContext -> Checker()
+setCheckerContext c = Checker(\(e,t)-> ((),(e,setContext c t)))
 
 
 -- symbol table access functions
@@ -99,13 +108,24 @@ inMethod = do st <- getST
                          then Nothing
                          else inmethod $ parent st
 
+addRet :: Checker Bool
+addRet = do st <- getST
+            goFun st
+            setCheckerContext (context st) -- goFun modifies context
+            return True
+    where goFun st = 
+              case blockType.getContent $ st of
+                MethodBlock _ -> 
+                    do setCheckerContext (context st)
+                       addSymbol $ VarRec $ DecafVar DVoid "return"
+                other -> goFun $ parent st
 
 {- to write : 
 
   error pushing code needs line numbers (pass line as argument to pushError)
 
-  function needs to make sure it has a return statement
 
+  make sure -intlit's are scanned correctly
 -}
 
 {- Statement-like Semantic checkers, bottom-up order -}
@@ -179,11 +199,14 @@ checkStm stmt =
                      other -> pushError ("Function declared void cannot return a value")
                Just x ->
                    case rv of
-                     Nothing -> pushError ("Function declared to return a value must do so")
+                     Nothing -> pushError ("Function declared to return a value cannot return void")
                      Just expr -> do rt <- checkExpr expr
                                      if rt == x
                                        then return True
                                        else pushError ("Function declared to return "++(show x)++" cannot return "++(show rt))
+             case t of
+               Nothing -> return False
+               other -> addRet -- hack, so that checkMethod knows whether a return statement occurred in the body; no legal var can have ID="return"
                                                       
 
       DecafBreakStm -> guardFor
@@ -198,8 +221,17 @@ checkStm stmt =
 
 checkBlock :: DecafBlock -> BlockType -> Checker Bool
 checkBlock (DecafBlock vars stmts) btype 
-    = local btype ((foldl (>>) (return False) (map checkVarDec vars)) >> 
-                   (foldl (>>) (return False) (map checkStm stmts)))
+    = local btype (do (foldl (>>) (return False) (map checkVarDec vars))
+                      (foldl (>>) (return False) (map checkStm stmts))
+                      case btype of
+                        MethodBlock t ->
+                            do mrec <- lookNear "return"
+                               case mrec of
+                                 Nothing -> if t == DVoid
+                                            then return True
+                                            else pushError "Missing return statement" -- line number of block
+                                 other -> return True
+                        other -> return True)
 
 checkCalloutArg :: DecafCalloutArg -> Checker Bool
 checkCalloutArg carg =
@@ -240,9 +272,13 @@ checkProgram :: DecafProgram -> Checker Bool
 checkProgram (DecafProgram fields methods) = 
     do foldl (>>) (return False) (map checkFieldDec fields)
        foldl (>>) (return False) (map checkMethodDec methods)
-
-
-
+       b <- lookNear "main"
+       case b of
+         Just (MethodRec (DecafMethod t id args body)) -> 
+            if null args
+            then return True
+            else pushError "Method \"main\" must have empty parameter list"
+         other -> pushError "Must define method main"
 
                           
 {- Type checking -}
@@ -327,13 +363,15 @@ readDInt :: DInt -> Integer
 readDInt int = 
     case int of 
       DDec s -> (read s) :: Integer
-      DHex s -> fst.head.(Numeric.readHex).(drop 2) $ s
+      DHex s -> fst.head.(Numeric.readHex) $ s
 
 
 {- Tree implementation -}
 
 data Node a = Node {content :: a, children :: [Node a]}
-data Tree a = Tree {node :: Node a, context :: [Int]}
+data Tree a = Tree {node :: Node a, context :: TreeContext}
+
+type TreeContext = [Int]
 
 mkTree :: a -> Tree a
 mkTree content = Tree (Node content []) []
