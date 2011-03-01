@@ -4,11 +4,14 @@ BUILD SYSTEM
 In order to build, we're using the cabal build system;
 you should have the latest version of the Haskell platform installed.
 
-cabal configure
-cabal build
-cabal install
+from the root directory, run:
 
-will install the project binaries into ~/.cabal/bin.
+  cabal configure
+  cabal build
+  cabal install
+
+And cabal will prepare, build and install the project binaries into ~/.cabal/bin.
+We suggest adding ~/.cabal.bin to your PATH environment variable.
 
 BINARIES
 --------
@@ -26,7 +29,7 @@ DEBUG
 -----
 With exception of grapher, binaries output error messages if any errors are encountered,
 otherwise they output nothing. If the '-debug' flag is supplied, then the binaries always
-output debug outpu to stdout.
+output debug output to stdout.
 
 DIRECTORIES
 -----------
