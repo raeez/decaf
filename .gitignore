@@ -1,4 +1,6 @@
 *.o
 *.hi
 *.out
+*~
+*.sw[a-z]
 dist/
