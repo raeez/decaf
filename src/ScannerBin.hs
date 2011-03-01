@@ -8,16 +8,24 @@ main :: IO ()
 main = do
         args <- getArgs
         case args of
-          [inputFile] -> (readFile inputFile) >>= (scan inputFile)
-          otherwise -> putStrLn "error, must specify the input file as the first and only arg"
+          [s, inputFile] | s == "-debug" -> 
+                  do str <- (readFile inputFile) 
+                     let res = scan str
+                     putStrLn.snd $ res
+                     exitSuccess
+          [inputFile] -> 
+              do str <- readFile inputFile
+                 let res = scan str
+                 if fst res
+                  then exitSuccess
+                  else (putStrLn.snd $ res) >> exitFailure
 
-scan inputFile input = do
-    if numLexErrorsIn tokens >  0
-      then (let errorMessage = ("Decaf Compiler\nFile " ++ input ++ " has lex errors!\nToken Stream:\n\n")
-           in putStrLn errorMessage >> putStrLn output >> exitFailure)
-      else (writeFile outputFile output >> putStrLn output >> exitSuccess)
-    where
-      tokens = scanner input
-      numErrors = numLexErrorsIn tokens
-      outputFile = inputFile ++ ".out"
-      output = formatScannerOutput tokens
+          otherwise -> putStrLn "Invalid command line input" >> exitFailure
+
+scan input = 
+    let tokens = scanner input
+        output = formatScannerOutput tokens in
+    if numLexErrorsIn tokens > 0 
+    then (False, output)
+    else (True, output)
+     
