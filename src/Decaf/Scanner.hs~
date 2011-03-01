@@ -14,11 +14,6 @@ import Decaf.Tokens
 scanner :: String -> [Token]
 scanner = eatFirst
 
--- moved from ScannerBin
-scannerShow :: String -> String 
-scannerShow inp = formatScannerOutput $ eatFirst inp
-
-
 -- try to find an interface to testSemanticsChecker
 -- will use scanStringProgram  -J
 scanStringProgram :: String -> Report [Token]

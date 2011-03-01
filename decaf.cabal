@@ -8,12 +8,13 @@ description:
 category:           System
 license:            MIT
 license-file:       LICENSE
-author:             Raeez Lorgat, Scott Kovach, Justin
+author:             Raeez Lorgat, Scott Kovach, Justin Zhang
 maintainer:         raeez@mit.edu
 extra-source-files: README LICENCSE
 cabal-version:      >= 1.2
 build-type:         Simple
 tested-with:        GHC == 6.12.3
+
 
 flag testing
     description: Testing mode, only build minimal components
@@ -74,6 +75,7 @@ executable parser
         build-depends:  QuickCheck < 2
         ghc-options:    -Werror
 
+
 executable scanner-repl
     hs-source-dirs:     src/
 
@@ -99,6 +101,8 @@ executable scanner-repl
         hs-source-dirs: . tests/
         build-depends:  QuickCheck < 2
         ghc-options:    -Werror
+
+
 
 executable grapher
     hs-source-dirs:     src/

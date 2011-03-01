@@ -5,8 +5,7 @@ import Decaf.Tokens
 import Decaf.AST
 import Decaf.Scanner
 
--- Aux functions
-
+-- custom token parser
 type DecafParser a = GenParser Token () a
 
 decafToken :: (DecafToken -> Maybe a) -> DecafParser a
@@ -16,7 +15,7 @@ decafToken test = token showToken posToken testToken
                     posToken (p1, p2, t) = p1
                     testToken (p1, p2, t) = test t
 
-identf name = decafToken (\tok -> case tok of
+ident name = decafToken (\tok -> case tok of
                               Identf n -> case n == name of
                                              False -> Nothing
                                              True  -> Just name
@@ -34,7 +33,7 @@ strlit = decafToken (\tok -> case tok of
                           StrLit s -> Just s
                           other    -> Nothing)
 
-int = (hexlit >>= return . DecafHex) <|> (declit >>= return . DecafDec)
+int = (hexlit >>= return . DHex) <|> (declit >>= return . DDec)
 
 hexlit = decafToken (\tok -> case tok of
                           HexLit s -> Just s
@@ -152,33 +151,17 @@ minusassign = decafToken (\tok -> case tok of
                           MinusAssign -> Just ()
                           other -> Nothing)
 
-
--- Parser interface
-
 containsErrors (Just a)= False
 containsErrors Nothing = True
 
-{- moved to Tokens, because Scanner.hs also needs it 
 data Report a = RSuccess a
               | RError String
 getSuccess (RSuccess a) = a
 
 getReport (RSuccess a) = show a
 getReport (RError s) = s
--}
 
 parser i = getReport $ ps program i
-
--- try to find an interface to testSemanticsChecker
--- will use parseStringProgram  -J
-parseToksProgram :: [Token] -> Report DecafProgram
-parseToksProgram intokstream = ps_ program intokstream
-                               where ps_ p s = case parse p "decaf-parser" s of
-                                       Left err -> RError $ show err
-                                       Right val -> RSuccess val
-
-
-
 
 ps p i = case parse p "decaf-parser" (eatFirst i) of
           Left err -> RError $ show err
@@ -188,11 +171,8 @@ qs p i = case parse p "internal-decaf-parser" (eatFirst i) of
         Left err -> Nothing
         Right val -> Just val
 
-
--- Grammer declaration
-
 program = do
-            reserv "class" >> identf "Program"
+            reserv "class" >> ident "Program"
             lbrace
             f <- many $ (try $ fielddecl)
             m <- many $ ( methoddecl)
@@ -216,7 +196,7 @@ adecl t = do
             lbrack
             s <- int
             rbrack
-            return $ DecafArrField $ DecafArr t i s
+            return $ DecafArrField $ DecafArray t i s
 
 methoddecl = do
               t <- rettype
@@ -245,15 +225,12 @@ vardecl = do
             semi
             return $ (map (DecafVar t) i)
 
+identvar = (varident >>= return . DecafIdentifier)
 
-identvar = (varident >>= return)
+voidtype = (reserv "void" >> return DVoid)
 
-
-
-voidtype = (reserv "void" >> return DecafVoid)
-
-integertype = (reserv "int" >> return DecafInteger)
-booleantype = (reserv "boolean" >> return DecafBoolean)
+integertype = (reserv "int" >> return DInteger)
+booleantype = (reserv "boolean" >> return DBoolean)
 vartype = integertype <|> booleantype
 rettype = vartype <|> voidtype
 
@@ -307,39 +284,6 @@ methodcall = (do
                 p <- expr `sepBy` comma
                 rparen
                 return $ DecafPureMethodCall i p)
--- tree rewrite for expr
-
-rewriteExpr :: DecafExpr -> DecafExpr
-rewriteExpr (DecafExpr term (EmptyExpr'))                            = rewriteTerm term
-rewriteExpr (DecafExpr term (Expr' binop term' (EmptyExpr')))        = DecafBinExpr (rewriteTerm term) binop (rewriteTerm term')
-rewriteExpr (DecafExpr term (Expr' binop term' expr'@(Expr' binop' _ _))) = DecafBinExpr (rewriteTerm term) binop  (DecafBinExpr (rewriteTerm term') binop' (rewriteExprTail expr'))
-rewriteExpr (DecafLocExpr loc)                                       = DecafLocExpr loc
-rewriteExpr (DecafMethodExpr meth)                                   = DecafMethodExpr meth
-rewriteExpr (DecafLitExpr lit)                                       = DecafLitExpr lit
-rewriteExpr (DecafBinExpr expr op expr')                             = DecafBinExpr expr op expr'
-rewriteExpr (DecafNotExpr expr)                                      = DecafNotExpr expr
-rewriteExpr (DecafMinExpr expr)                                      = DecafMinExpr expr
-rewriteExpr (DecafParenExpr expr)                                    = DecafParenExpr expr
-
-rewriteExprTail (Expr' _ term expr@(Expr' binop _ _)) = DecafBinExpr (rewriteTerm term) binop (rewriteExprTail expr)
-rewriteExprTail (Expr' _ term (EmptyExpr'))           = rewriteTerm term
-
-rewriteTerm :: Term -> DecafExpr
-rewriteTerm (Term factor (EmptyTerm'))                                               = rewriteFactor factor
-rewriteTerm (Term factor (Term' binop factor' (EmptyTerm')))                         = DecafBinExpr (rewriteFactor factor) binop (rewriteFactor factor')
-rewriteTerm (Term factor (Term' binop factor' term'@(Term' binop' _ _))) = DecafBinExpr (rewriteFactor factor) binop  (DecafBinExpr (rewriteFactor factor') binop' (rewriteTermTail term'))
-
-rewriteTermTail (Term' _ factor term@(Term' binop _ _))                              = DecafBinExpr (rewriteFactor factor) binop (rewriteTermTail term)
-rewriteTermTail (Term' _ factor (EmptyTerm'))                                        = rewriteFactor factor
-
-rewriteFactor :: Factor -> DecafExpr
-rewriteFactor (DecafParenExpr' expr)  = DecafParenExpr $ rewriteExpr expr
-rewriteFactor (DecafNotExpr' expr)    = DecafNotExpr $ rewriteExpr expr
-rewriteFactor (DecafMinExpr' expr)    = DecafMinExpr $ rewriteExpr expr
-rewriteFactor (DecafLocExpr' loc)     = DecafLocExpr loc
-rewriteFactor (DecafMethodExpr' meth) = DecafMethodExpr meth
-rewriteFactor (DecafLitExpr' lit)     = DecafLitExpr lit
-
 
 -- left associative, right recursive
 
@@ -349,8 +293,7 @@ mayb p = do
 expr = do
         t <- term
         e <- expr'
-        return $ rewriteExpr $ DecafExpr t e
-        --return $ DecafExpr t e
+        return $ DecafExpr t e
 
 expr' = (do
           b <- toplevelOp
@@ -417,10 +360,10 @@ mineq = (minusassign >> return DecafMinusEq)
 pluseq = (plusassign >> return DecafPlusEq)
 
 lit = ilit <|> clit  <|> blit
-slit = (strlit >>= return)
+slit = (strlit >>= return . DStr)
 ilit = (int >>= return . DecafIntLit)
 blit = (boollit >>= return . DecafBoolLit)
-clit = (chrlit >>= return . DecafCharLit)
+clit = (chrlit >>= return . DecafCharLit . DChar)
 
 location = (try arrlocation) <|> varlocation
 
