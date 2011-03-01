@@ -7,6 +7,9 @@ import Monad
 import Data.List
 import Numeric
 import Decaf.AST hiding (Node, Tree)
+import Decaf.Parser
+import Decaf.Scanner
+import Decaf.Tokens
 
 
 data SymbolRecord = VarRec DecafVar 
@@ -137,7 +140,15 @@ checkStm stmt =
              case lhs of 
                Nothing -> pushError ("Undeclared variable "++(ident loc))
                Just lhs -> 
-                   do t2 <- checkExpr expr
+                   do case loc of
+                        DecafArrLoc arrid ind ->
+                            do indT <- checkExpr ind
+                               if indT == DecafInteger
+                                then return True
+                                else pushError "Array index must be an integer"
+                        _ -> return True
+
+                      t2 <- checkExpr expr
                       let t1 = symType lhs
                       case op of
                         DecafEq -> if (t1 == t2)
@@ -147,8 +158,9 @@ checkStm stmt =
                         other -> if (t1 == DecafInteger && t2 == DecafInteger)
                                  then return True
                                  else pushError ("Mismatched types in arithmetic assignment statement") 
-      DecafMethodStm (DecafPureMethodCall dID args) -> 
-          do ex <- lookFar dID
+      DecafMethodStm m -> -- (DecafPureMethodCall dID args) -> 
+              checkMethodArgs m >> return False
+{-          do ex <- lookFar dID
              case ex of 
                Just (MethodRec decafMethod) -> 
                    do types <- bindCat [] (map checkExpr args)
@@ -162,7 +174,7 @@ checkStm stmt =
                 case args of
                   [] -> return res
                   other -> do t <- (head args)
-                              bindCat (res++[t]) (tail args)
+                              bindCat (res++[t]) (tail args) -}
 
       DecafMethodStm (DecafMethodCallout id args) ->
           foldl (>>) (return False) (map checkCalloutArg args) >> return True
@@ -260,11 +272,14 @@ checkFieldDec (DecafArrField arr@(DecafArr t id len)) =
          other -> pushError ("Array "++id++" already defined at line number ")
 
 checkMethodDec :: DecafMethod -> Checker Bool
-checkMethodDec meth@(DecafMethod t id args body) = 
+checkMethodDec meth@(DecafMethod t id args body@(DecafBlock bvars bstms)) = 
     do rec <- lookNear id
        case rec of
-         Nothing -> do checkBlock body (MethodBlock t) -- ADD CODE to check for return
+         Nothing -> do foldl (>>) (return False) (map (addSymbol.VarRec) args)
                        addSymbol $ MethodRec meth
+                       checkBlock (DecafBlock (bvars) bstms) (MethodBlock t) 
+
+
          other -> pushError ("Function "++id++" already defined at line number ")
 
 
@@ -289,15 +304,50 @@ checkExpr expr =
     let lookupID id = 
             do mrec <- lookFar id
                case mrec of
-                 Nothing -> return DecafVoid
+                 Nothing -> pushError ("Undefined variable "++id) >> return DecafVoid
                  Just rec -> return $ symType rec
     in
       case expr of
-        DecafLocExpr loc ->
-            lookupID (ident loc)
+        DecafLocExpr (DecafVarLoc id) ->
+            do mrec <- lookFar id
+               case mrec of
+                 Nothing -> pushError ("Undefined variable "++id) >> return DecafVoid
+                 Just rec -> 
+                     case rec of
+                       ArrayRec _ -> pushError ("Must specify array index") >> return DecafVoid
+                       other -> return $ symType rec
 
-        DecafMethodExpr (DecafPureMethodCall id _) -> 
-            lookupID id
+        DecafLocExpr (DecafArrLoc id ind) ->
+            do arrT <- lookupID id 
+               indT <- checkExpr ind
+               if indT == DecafInteger
+                then return True
+                else pushError "Array index must be an integer"
+               return arrT
+
+
+        DecafMethodExpr m -> --(DecafPureMethodCall dID args) -> 
+            checkMethodArgs m
+{-            do ex <- lookFar dID
+               case ex of 
+                 Just (MethodRec decafMethod) -> 
+                   do types <- bindCat [] (map checkExpr args)
+                      if (all (== True) $ zipWith (==) types (map varType (methodArg decafMethod)))
+                        then return False
+                        else pushError ("Incorrect argument type")
+                      return (methodType decafMethod)
+                 Nothing -> pushError ("Undeclared method: " ++ dID) >> return DecafVoid
+          where 
+            bindCat :: [DecafType] -> [Checker DecafType] -> Checker [DecafType]
+            bindCat res args = 
+                case args of
+                  [] -> return res
+                  other -> do t <- (head args)
+                              bindCat (res++[t]) (tail args) -}
+
+        DecafMethodExpr (DecafMethodCallout id args) ->
+            do foldl (>>) (return False) (map checkCalloutArg args)
+               return DecafInteger
 
         DecafLitExpr lit ->
             case lit of
@@ -328,7 +378,11 @@ checkExpr expr =
                         then pushError "Argument of relative operator must be integral"
                         else return True
                        return DecafBoolean
-                 DecafBinEqOp _ -> return DecafBoolean
+                 DecafBinEqOp _ -> 
+                       do if t1 /= t2
+                           then pushError "Arguments of \"==\" must be of the same type"
+                           else return True
+                          return DecafBoolean
                  DecafBinCondOp _ ->
                      do
                        if t1 /= DecafBoolean
@@ -359,11 +413,38 @@ checkExpr expr =
               then pushError "Integer literal too large" >> return DecafInteger -- maybe should be void
               else return DecafInteger
 
+checkMethodArgs :: DecafMethodCall -> Checker DecafType
+checkMethodArgs (DecafPureMethodCall dID args) =
+
+            do ex <- lookFar dID
+               case ex of 
+                 Just (MethodRec decafMethod) -> 
+                   do types <- bindCat [] (map checkExpr args)
+                      if (all (== True) $ zipWith (==) types (map varType (methodArg decafMethod)))
+                                  && length types == length (methodArg decafMethod)
+                        then return False
+                        else pushError ("Incorrect argument type")
+                      return (methodType decafMethod)
+                 Nothing -> pushError ("Undeclared method: " ++ dID) >> return DecafVoid
+          where 
+            bindCat :: [DecafType] -> [Checker DecafType] -> Checker [DecafType]
+            bindCat res args = 
+                case args of
+                  [] -> return res
+                  other -> do t <- (head args)
+                              bindCat (res++[t]) (tail args)
+
+checkMethodArgs _ = return DecafInteger
+
+
 readDInt :: DecafInteger -> Integer
 readDInt int = 
     case int of 
       DecafDec s -> (read s) :: Integer
       DecafHex s -> fst.head.(Numeric.readHex) $ s
+
+-- system call
+
 
 
 {- Tree implementation -}
@@ -440,3 +521,13 @@ instance (Show a) => Show (Tree a) where
     show t = show (node t) ++ show (context t)
 
 
+
+-- returns true if no errors, false otherwise
+checker i =                 
+    case ps program i of
+      RSuccess prog -> 
+          case (runChecker (checkProgram prog) ("", mkTree $SymbolTable [] GlobalBlock)) of
+            (_,(e,t)) -> if length e > 0
+                         then False
+                         else True
+---      RError str -> False

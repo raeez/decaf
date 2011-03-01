@@ -2,6 +2,7 @@ module Main where
 import System.Environment
 import Decaf.Checker
 import Decaf.Parser
+import Decaf.Tokens
 
 main = do args <- getArgs
           str <- readFile (head args)

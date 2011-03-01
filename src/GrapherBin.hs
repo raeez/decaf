@@ -4,11 +4,13 @@ import Data.Graph.Inductive
 import Data.GraphViz
 import Decaf.Parser
 import Decaf.AST
+import Decaf.Tokens
 import System.Process
 import System.Environment
 import System.Exit
 import Data.List
 import Control.Monad.State
+
 
 main :: IO ()
 main = do

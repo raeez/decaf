@@ -3,6 +3,7 @@ where
 import Test.HUnit
 import Decaf.Scanner
 import Decaf.Parser
+import Decaf.Checker
 --import TestRoot
 import Text.ParserCombinators.Parsec hiding (spaces)
 
@@ -12,7 +13,7 @@ import Text.ParserCombinators.Parsec hiding (spaces)
   
 -- plug in semchecker here                      
 semchecker_ :: String -> Bool                      
-semchecker_ instr = False
+semchecker_  = checker 
 
 
 semcheckerTests = TestList [
