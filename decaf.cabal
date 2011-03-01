@@ -11,7 +11,7 @@ license-file:       LICENSE
 author:             Raeez Lorgat, Scott Kovach, Justin Zhang
 maintainer:         raeez@mit.edu
 extra-source-files: README LICENCSE
-cabal-version:      >= 1.2
+cabal-version:      >= 1.8
 build-type:         Simple
 tested-with:        GHC == 6.12.3
 

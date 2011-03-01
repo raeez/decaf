@@ -60,7 +60,7 @@ eatN n = anyChar >> (eatN (n-1))
 --------------------------------------------
 --
 eol :: Parser ()
-eol = (try eof) <|> (char '\n' >> return ())
+eol = (try eof) <|> (char '\n' >> return ()) 
    <?> "end of line"
 
 comment' :: Parser ()
@@ -106,7 +106,7 @@ strLiteral = do
 quoted = try (char '\\' >> ((oneOf "\\\'\"" >>= return)
                           <|> (char 'n' >> return '\n')
                           <|> (char 't' >> return '\t')))
-         <|> noneOf "\"\'\t\n"
+         <|> noneOf "\"\'"   -- removed "\t\n", because \t and \n can be specified directly 
          <?> "quoted character"
 
 numLiteral :: Parser Token
