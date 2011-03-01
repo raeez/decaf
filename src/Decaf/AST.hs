@@ -232,6 +232,7 @@ instance ASTNode DecafExpr where
   treeify (DecafNotExpr expr _) = (Node "!") (Just $ [treeify expr])
   treeify (DecafMinExpr expr _) = (Node "-") (Just $ [treeify expr])
   treeify (DecafParenExpr expr _) = (Node "(   )") (Just $ [treeify expr])
+  treeify (DecafExpr term expr' _) = (Node "EXPR") (Just $ [treeify term] ++ [treeify expr'])
 
 data Expr' = Expr' DecafBinOp Term Expr' DecafPosition
            | EmptyExpr'

@@ -13,11 +13,20 @@ will install the project binaries into ~/.cabal/bin.
 BINARIES
 --------
 
-scanner       -- utilize as 'scanner x', where x is the file you'd like to scan. outputs to stdout and inputfile.out
+scanner       -- utilize as 'scanner x', where x is the file you'd like to scan.
 scanner-repl  -- utilize as in interactive REPL, to view the scanning of tokens in real-time
-parser        -- utilize as 'parser x', where x is the file you'd like to parse. outputs to stdout and inputfile.out
-grapher       -- utilize as 'grapher x', where x is the file you'd like to scan, parse and graph the resulting AST. requires the graphviz binary 'dot' installed on your system, (assuming it's on your PATH, else grapher fails) and outputs a 'outputfile.out.png', as the visuazlization of the AST.
+parser        -- utilize as 'parser x', where x is the file you'd like to parse.
+grapher       -- utilize as 'grapher x', where x is the file you'd like to scan, parse and graph
+                 the resulting AST. requires the graphviz binary 'dot' installed on your system,
+                 (assuming it's on your PATH, else grapher fails) and outputs a 'outputfile.out.png',
+                 as the visuazlization of the AST.
 checker       -- utilize as 'checker x', where x is the file you'd like to scan, parse and check for semantic errors.
+
+DEBUG
+-----
+With exception of grapher, binaries output error messages if any errors are encountered,
+otherwise they output nothing. If the '-debug' flag is supplied, then the binaries always
+output debug outpu to stdout.
 
 DIRECTORIES
 -----------

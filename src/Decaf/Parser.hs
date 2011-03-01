@@ -337,13 +337,13 @@ rewriteExpr (DecafExpr term (Expr' binop term' (EmptyExpr') p) _)
 rewriteExpr (DecafExpr term (Expr' binop term' expr'@(Expr' binop' _ _ p) p') _)
   = DecafBinExpr (rewriteTerm term) binop  (DecafBinExpr (rewriteTerm term') binop' (rewriteExprTail expr') p') p
 
-rewriteExpr e@(DecafLocExpr _ _)           = e
-rewriteExpr e@(DecafMethodExpr _ _)       = e
-rewriteExpr e@(DecafLitExpr _ _)           = e
+rewriteExpr e@(DecafLocExpr _ _)     = e
+rewriteExpr e@(DecafMethodExpr _ _)  = e
+rewriteExpr e@(DecafLitExpr _ _)     = e
 rewriteExpr e@(DecafBinExpr _ _ _ _) = e
-rewriteExpr e@(DecafNotExpr _ _)          = e
-rewriteExpr e@(DecafMinExpr _ _)          = e
-rewriteExpr e@(DecafParenExpr _ _)      = e
+rewriteExpr e@(DecafNotExpr _ _)     = e
+rewriteExpr e@(DecafMinExpr _ _)     = e
+rewriteExpr e@(DecafParenExpr _ _)   = e
 
 -- |'rewriteExprTail'
 rewriteExprTail :: Expr' -> DecafExpr
@@ -363,13 +363,23 @@ rewriteTermTail (Term' _ factor term@(Term' binop _ _ p) _)               = Deca
 rewriteTermTail (Term' _ factor (EmptyTerm') p)                           = rewriteFactor factor
 
 rewriteFactor :: Factor -> DecafExpr
-rewriteFactor (DecafParenExpr' expr p)  = DecafParenExpr (rewriteExpr expr) p
-rewriteFactor (DecafNotExpr' expr p)    = DecafNotExpr (rewriteExpr expr) p
-rewriteFactor (DecafMinExpr' expr p)    = DecafMinExpr (rewriteExpr expr) p
-rewriteFactor (DecafLocExpr' loc p)     = DecafLocExpr loc p
-rewriteFactor (DecafMethodExpr' meth p) = DecafMethodExpr meth p
-rewriteFactor (DecafLitExpr' lit p)     = DecafLitExpr lit p
+rewriteFactor (DecafParenExpr' expr p)
+  = DecafParenExpr (rewriteExpr expr) p
 
+rewriteFactor (DecafNotExpr' expr p)
+  = DecafNotExpr (rewriteExpr expr) p
+
+rewriteFactor (DecafMinExpr' expr p)
+  = DecafMinExpr (rewriteExpr expr) p
+
+rewriteFactor (DecafLocExpr' loc p)
+  = DecafLocExpr loc p
+
+rewriteFactor (DecafMethodExpr' meth p)
+  = DecafMethodExpr meth p
+
+rewriteFactor (DecafLitExpr' lit p)
+  = DecafLitExpr lit p
 
 -- left associative, right recursive
 
@@ -405,7 +415,15 @@ factor = (try methodcall >>= \o -> getPosition >>= return . DecafMethodExpr' o .
       <|> (location >>= \o -> getPosition >>= return . DecafLocExpr' o . morphPos)
       <|> (lit >>= \o -> getPosition >>= return . DecafLitExpr' o . morphPos)
       <|> (opnot >> expr >>= \o -> getPosition >>= return . DecafNotExpr' o . morphPos)
-      <|> (opmin >> expr >>= \o -> getPosition >>= return . DecafMinExpr' o . morphPos)
+      <|> (do
+            opmin
+            e <- expr
+            p <- getPosition
+            let p' = morphPos p
+            return $ DecafMinExpr' (case e of
+                        DecafLitExpr (DecafIntLit (DecafHex int) _) _ -> DecafLitExpr (DecafIntLit (DecafHex ("-" ++ int)) p') p'
+                        DecafLitExpr (DecafIntLit (DecafDec int) _) _ -> DecafLitExpr (DecafIntLit (DecafDec ("-" ++ int)) p') p'
+                        e -> e) p')
       <|> (do
             lparen
             e <- expr
