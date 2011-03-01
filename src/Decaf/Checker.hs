@@ -120,7 +120,7 @@ addRet = do st <- getST
               case blockType.getContent $ st of
                 MethodBlock _ -> 
                     do setCheckerContext (context st)
-                       addSymbol $ VarRec $ DecafVar DecafVoid "return"
+                       addSymbol $ VarRec $ DecafVar DecafVoid "return" (0,0)
                 other -> goFun $ parent st
 
 {- to write : 
@@ -135,30 +135,30 @@ addRet = do st <- getST
 checkStm :: DecafStm -> Checker Bool
 checkStm stmt =                  
     case stmt of 
-      DecafAssignStm loc op expr pos-> 
+      DecafAssignStm loc op expr pos'-> 
           do lhs <- lookFar (ident loc)
              case lhs of 
-               Nothing -> pushError pos ("Undeclared variable "++(ident loc))
+               Nothing -> pushError (pos loc) ("Undeclared variable "++(ident loc))
                Just lhs -> 
                    do case loc of
-                        DecafArrLoc arrid ind ->
+                        DecafArrLoc arrid ind _ ->
                             do indT <- checkExpr ind
                                if indT == DecafInteger
                                 then return True
-                                else pushError pos "Array index must be an integer"
+                                else pushError (pos ind) "Array index must be an integer"
                         _ -> return True
 
                       t2 <- checkExpr expr
                       let t1 = symType lhs
                       case op of
-                        DecafEq -> if (t1 == t2)
+                        DecafEq _ -> if (t1 == t2)
                                    then return True
-                                   else pushError pos ("Mismatched types in assignment statement") 
+                                   else pushError pos' ("Mismatched types in assignment statement") 
                                             >> return False
                         other -> if (t1 == DecafInteger && t2 == DecafInteger)
                                  then return True
-                                 else pushError pos ("Mismatched types in arithmetic assignment statement") 
-      DecafMethodStm m -> -- (DecafPureMethodCall dID args) -> 
+                                 else pushError pos' ("Mismatched types in arithmetic assignment statement") 
+      DecafMethodStm m _ -> -- (DecafPureMethodCall dID args) -> 
               checkMethodArgs m >> return False
 {-          do ex <- lookFar dID
              case ex of 
@@ -176,7 +176,7 @@ checkStm stmt =
                   other -> do t <- (head args)
                               bindCat (res++[t]) (tail args) -}
 
-      DecafMethodStm (DecafMethodCallout id args pos) ->
+      DecafMethodStm (DecafMethodCallout id args _) pos->
           foldl (>>) (return False) (map checkCalloutArg args) >> return True
 
       DecafIfStm expr block melse pos->
@@ -189,8 +189,8 @@ checkStm stmt =
                Just e -> checkBlock block IfBlock >> checkBlock e IfBlock
                Nothing -> checkBlock block IfBlock
 
-      DecafForStm id expr1 expr2 block pos -> 
-          do addSymbol $ VarRec $ DecafVar DecafInteger id pos
+      DecafForStm id expr1 expr2 block pos' -> 
+          do addSymbol $ VarRec $ DecafVar DecafInteger id pos'
              t1 <- checkExpr expr1
              t2 <- checkExpr expr2
              if (t1 /= DecafInteger)
@@ -226,9 +226,9 @@ checkStm stmt =
       DecafBlockStm block pos -> checkBlock block TrivialBlock
 
     where guardFor pos = do b <- inFor
-                        if b
-                         then return True
-                         else pushError pos ("break and continue may only be used inside for loops")
+                            if b
+                             then return True
+                             else pushError pos ("break and continue may only be used inside for loops")
 
 
 checkBlock :: DecafBlock -> BlockType -> Checker Bool
@@ -255,7 +255,7 @@ checkVarDec :: DecafVar -> Checker Bool
 checkVarDec (DecafVar t id pos) = 
     do rec <- lookNear id
        case rec of 
-         Nothing -> addSymbol $ VarRec $ DecafVar t id
+         Nothing -> addSymbol $ VarRec $ DecafVar t id pos
          other -> pushError pos ("Variable "++id++" already defined at line number ")
 
 
@@ -264,7 +264,7 @@ checkFieldDec (DecafVarField var pos) = checkVarDec var
 checkFieldDec (DecafArrField arr@(DecafArr t id len _) pos) = 
     do rec <- lookNear id
        case rec of
-         Nothing -> do checkExpr (DecafLitExpr (DecafIntLit len))
+         Nothing -> do checkExpr (DecafLitExpr (DecafIntLit len pos) pos)
                        let l = readDInt len
                        if l <= 0 -- needs to be fixed once I make checkLiteral
                         then pushError pos ("Arrays must have positive length")
@@ -277,7 +277,7 @@ checkMethodDec meth@(DecafMethod t id args body@(DecafBlock bvars bstms _) pos) 
        case rec of
          Nothing -> do foldl (>>) (return False) (map (addSymbol.VarRec) args)
                        addSymbol $ MethodRec meth
-                       checkBlock (DecafBlock (bvars) bstms) (MethodBlock t) 
+                       checkBlock body (MethodBlock t) 
 
 
          other -> pushError pos ("Function "++id++" already defined at line number ")
@@ -289,7 +289,7 @@ checkProgram (DecafProgram fields methods pos) =
        foldl (>>) (return False) (map checkMethodDec methods)
        b <- lookNear "main"
        case b of
-         Just (MethodRec (DecafMethod t id args body _) pos') -> 
+         Just (MethodRec (DecafMethod t id args body pos')) -> 
             if null args
             then return True
             else pushError pos' "Method \"main\" must have empty parameter list"
@@ -301,10 +301,10 @@ checkProgram (DecafProgram fields methods pos) =
 checkExpr :: DecafExpr -> Checker DecafType
 checkExpr expr = 
 
-    let lookupID id = 
+    let lookupID id pos = 
             do mrec <- lookFar id
                case mrec of
-                 Nothing -> pushError ("Undefined variable "++id) >> return DecafVoid
+                 Nothing -> pushError pos("Undefined variable "++id) >> return DecafVoid
                  Just rec -> return $ symType rec
     in
       case expr of
@@ -318,7 +318,7 @@ checkExpr expr =
                        other -> return $ symType rec
 
         DecafLocExpr (DecafArrLoc id ind _) pos ->
-            do arrT <- lookupID id 
+            do arrT <- lookupID id pos 
                indT <- checkExpr ind
                if indT == DecafInteger
                 then return True
@@ -354,13 +354,13 @@ checkExpr expr =
               DecafIntLit int pos-> 
                   checkInt int pos
               DecafBoolLit _ pos -> return DecafBoolean
-              other -> pushError "THIS SHOULDN'T HAPPEN" >> return DecafVoid
+              other -> pushError (0,0) "THIS SHOULDN'T HAPPEN" >> return DecafVoid
 
-        DecafBinExpr expr1 op expr2 pos ->
+        DecafBinExpr expr1 op expr2 pos' ->
             do t1 <- checkExpr expr1
                t2 <- checkExpr expr2
                case op of 
-                 DecafBinArithOp _ -> 
+                 DecafBinArithOp _ _-> 
                      do
                        if t1 /= DecafInteger
                         then pushError (pos expr1)"Argument of arithmetic operator must be integral"
@@ -369,7 +369,7 @@ checkExpr expr =
                         then pushError (pos expr2)"Argument of arithmetic operator must be integral"
                         else return True -- doesn't matter
                        return DecafInteger
-                 DecafBinRelOp _ ->
+                 DecafBinRelOp _ _ ->
                      do
                        if t1 /= DecafInteger
                         then pushError (pos expr1)"Argument of relative operator must be integral"
@@ -378,12 +378,12 @@ checkExpr expr =
                         then pushError (pos expr2)"Argument of relative operator must be integral"
                         else return True
                        return DecafBoolean
-                 DecafBinEqOp _ -> 
+                 DecafBinEqOp _ _-> 
                        do if t1 /= t2
-                           then pushError pos "Arguments of \"==\" must be of the same type"
+                           then pushError pos' "Arguments of \"==\" must be of the same type"
                            else return True
                           return DecafBoolean
-                 DecafBinCondOp _ ->
+                 DecafBinCondOp _ _->
                      do
                        if t1 /= DecafBoolean
                         then pushError (pos expr1)"Argument of logical operator must be boolean"
@@ -405,7 +405,7 @@ checkExpr expr =
                 then pushError pos "Can only negate an integral expression"
                 else return True
                return DecafInteger
-        DecafParenExpr expr -> checkExpr expr
+        DecafParenExpr expr _ -> checkExpr expr
 
     where checkInt int pos = 
               let val = readDInt int in
