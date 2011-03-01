@@ -29,7 +29,7 @@ executable scanner
                         Decaf.Scanner
                         Decaf.Parser
 
-    Build-Depends:      base, parsec, regex-posix
+    Build-Depends:      base, parsec, regex-posix,  graphviz
 
     if true 
         ghc-options:    -funbox-strict-fields -Wall
@@ -57,7 +57,7 @@ executable parser
                         Decaf.Scanner
                         Decaf.Parser
 
-    Build-Depends:      base, parsec, regex-posix
+    Build-Depends:      base, parsec, regex-posix,  graphviz
 
     if true 
         ghc-options:    -funbox-strict-fields -Wall
@@ -84,7 +84,7 @@ executable scanner-repl
                         Decaf.Scanner
                         Decaf.Parser
 
-    Build-Depends:      base, parsec, regex-posix
+    Build-Depends:      base, parsec, regex-posix,  graphviz
     if true 
         ghc-options:    -funbox-strict-fields -Wall
 
@@ -111,6 +111,7 @@ executable grapher
                         Decaf.Parser
 
     Build-Depends:      base, parsec, regex-posix, fgl, graphviz, mtl, process
+
     if true 
         ghc-options:    -funbox-strict-fields -Wall
 
@@ -125,3 +126,33 @@ executable grapher
         hs-source-dirs: . tests/
         build-depends:  QuickCheck < 2
         ghc-options:    -Werror
+
+
+executable checker
+    hs-source-dirs:     src/
+
+    main-is:            CheckerBin.hs
+    other-modules:      Decaf
+                        Decaf.Tokens
+                        Decaf.AST
+                        Decaf.Scanner
+                        Decaf.Parser
+                        Decaf.Checker
+
+    Build-Depends:      base, haskell98
+
+    if true 
+        ghc-options:    -funbox-strict-fields -Wall
+
+    if impl(ghc >= 6.12.1)
+        ghc-options:    -fno-warn-unused-do-bind
+
+    ghc-prof-options:   -prof -auto-all
+    extensions:         CPP
+
+    if flag(testing)
+        cpp-options:    -DTESTING
+        hs-source-dirs: . tests/
+        build-depends:  QuickCheck < 2
+        ghc-options:    -Werror
+
