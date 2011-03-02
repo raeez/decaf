@@ -33,7 +33,7 @@ executable scanner
     Build-Depends:      base, parsec, regex-posix,  graphviz
 
     if true 
-        ghc-options:    -funbox-strict-fields -Wall
+        ghc-options:    -Wall -fno-warn-name-shadowing
 
     if impl(ghc >= 6.12.1)
         ghc-options:    -fno-warn-unused-do-bind
@@ -61,7 +61,7 @@ executable parser
     Build-Depends:      base, parsec, regex-posix,  graphviz
 
     if true 
-        ghc-options:    -funbox-strict-fields -Wall
+        ghc-options:    -Wall -fno-warn-name-shadowing
 
     if impl(ghc >= 6.12.1)
         ghc-options:    -fno-warn-unused-do-bind
@@ -88,7 +88,7 @@ executable scanner-repl
 
     Build-Depends:      base, parsec, regex-posix,  graphviz
     if true 
-        ghc-options:    -funbox-strict-fields -Wall
+        ghc-options:    -Wall -fno-warn-name-shadowing
 
     if impl(ghc >= 6.12.1)
         ghc-options:    -fno-warn-unused-do-bind
@@ -117,7 +117,7 @@ executable grapher
     Build-Depends:      base, parsec, regex-posix, fgl, graphviz, mtl, process
 
     if true 
-        ghc-options:    -funbox-strict-fields -Wall
+        ghc-options:    -Wall -fno-warn-name-shadowing
 
     if impl(ghc >= 6.12.1)
         ghc-options:    -fno-warn-unused-do-bind
@@ -146,7 +146,7 @@ executable checker
     Build-Depends:      base, parsec, regex-posix, haskell98
 
     if true 
-        ghc-options:    -funbox-strict-fields -Wall
+        ghc-options:    -Wall -fno-warn-name-shadowing
 
     if impl(ghc >= 6.12.1)
         ghc-options:    -fno-warn-unused-do-bind
