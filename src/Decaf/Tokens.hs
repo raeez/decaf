@@ -10,7 +10,7 @@ type Token = (Position, DecafToken)
 
 -- |The 'showToken' function pretty prints a Token as a singel line
 showToken :: (Position, DecafToken) -> String
-showToken ((p1, p2), t) = "[L" ++ (show . sourceLine $ p1) ++ ":C" ++ (show . sourceColumn $ p1) ++ "-" ++ (show . sourceColumn $ p2) ++ "] " ++ (show t)
+showToken ((p1, p2), t) = "[L" ++ (show . sourceLine) p1 ++ ":C" ++ (show . sourceColumn) p1 ++ "-" ++ (show . sourceColumn) p2 ++ "] " ++ show t
 
 -- |The 'getStart' function retrieves the start position of a Token as a Parsec SourcePos
 getStart :: (Position, DecafToken) -> SourcePos
@@ -66,12 +66,12 @@ instance Show DecafToken where
     where
       strShow [] = []
       strShow (c:cs)
-            | c == '\t' = ('\\' : 't' : strShow cs)
-            | c == '\n' = ('\\' : 'n' : strShow cs)
-            | c == '\"' = ('\\' : '"' : strShow cs)
-            | c == '\'' = ('\\' : '\'' : strShow cs)
-            | c == '\\' = ('\\' : '\\' : strShow cs)
-            | otherwise = (c:strShow cs)
+            | c == '\t' = '\\' : 't' : strShow cs
+            | c == '\n' = '\\' : 'n' : strShow cs
+            | c == '\"' = '\\' : '"' : strShow cs
+            | c == '\'' = '\\' : '\'' : strShow cs
+            | c == '\\' = '\\' : '\\' : strShow cs
+            | otherwise = c:strShow cs
 
   show (CharLit s) | s == '"' = "CHARLITERAL '\\\"'"
                    | otherwise  = "CHARLITERAL " ++ show s
