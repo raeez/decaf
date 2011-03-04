@@ -6,7 +6,6 @@ language grammar is described below
 
 -}
 
-
 module Main where
 import System.Environment
 import Text.ParserCombinators.Parsec hiding (spaces)
@@ -262,8 +261,3 @@ main = do args <- getArgs
                 case (runChecker (checkStatement val) ("", mkTree $SymbolTable [])) of
                   (_,(e,t)) -> putStrLn $ e ++ (show t)
             Left err -> putStrLn.show $ err
-
-
-
-
-         

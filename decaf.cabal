@@ -30,7 +30,7 @@ executable scanner
                         Decaf.Scanner
                         Decaf.Parser
 
-    Build-Depends:      base, parsec, regex-posix,  graphviz
+    Build-Depends:      base > 4, parsec, regex-posix,  graphviz
 
     if true 
         ghc-options:    -Wall -fno-warn-name-shadowing
@@ -58,7 +58,7 @@ executable parser
                         Decaf.Scanner
                         Decaf.Parser
 
-    Build-Depends:      base, parsec, regex-posix,  graphviz
+    Build-Depends:      base > 4, parsec, regex-posix,  graphviz
 
     if true 
         ghc-options:    -Wall -fno-warn-name-shadowing
@@ -86,7 +86,7 @@ executable scanner-repl
                         Decaf.Scanner
                         Decaf.Parser
 
-    Build-Depends:      base, parsec, regex-posix,  graphviz
+    Build-Depends:      base > 4, parsec, regex-posix,  graphviz
     if true 
         ghc-options:    -Wall -fno-warn-name-shadowing
 
@@ -114,7 +114,7 @@ executable grapher
                         Decaf.Scanner
                         Decaf.Parser
 
-    Build-Depends:      base, parsec, regex-posix, fgl, graphviz, mtl, process
+    Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process
 
     if true 
         ghc-options:    -Wall -fno-warn-name-shadowing
@@ -142,8 +142,10 @@ executable checker
                         Decaf.Scanner
                         Decaf.Parser
                         Decaf.Checker
+                        Decaf.Data.ContextTree
+                        Decaf.Data.SymbolTable
 
-    Build-Depends:      base, parsec, regex-posix, haskell98
+    Build-Depends:      base > 4, parsec, regex-posix, haskell98
 
     if true 
         ghc-options:    -Wall -fno-warn-name-shadowing
