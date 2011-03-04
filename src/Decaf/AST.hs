@@ -417,4 +417,4 @@ instance ASTNode DecafLiteral where
 instance ASTNode DecafInteger where
   pp (DecafDec s) = "0d"++s
   pp (DecafHex h) = "0x"++h
-  
+
