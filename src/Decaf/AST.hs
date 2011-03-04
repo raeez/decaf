@@ -1,6 +1,8 @@
 module Decaf.AST
 where
 import Data.List
+import Numeric
+import Decaf.Data.Tree
 
 -- | ASTNode encapsulates common operations on the Abstract Syntax Tree
 -- @pos - retrieves the parsed source code position of the 'ASTNode' as a 'DecafPosition'
@@ -14,11 +16,6 @@ class ASTNode a where
 -- | ASTNode encapsulates common operations on the Abstract Syntax Tree
 class Location a where
   ident :: a -> DecafIdentifier
-
--- | A generic tree 
-data Tree a = Node a (Maybe [Tree a])
-            | Nil
-            deriving (Eq, Show)
 
 -- |Abstract Syntax: Top-level structure of a decaf program
 data DecafProgram = DecafProgram {
@@ -418,3 +415,14 @@ instance ASTNode DecafInteger where
   pp (DecafDec s) = "0d"++s
   pp (DecafHex h) = "0x"++h
 
+-- | 'readDecafInteger' parses a DecafInteger ASTNode and returns a Haskell integer
+readDecafInteger :: DecafInteger -> Integer
+readDecafInteger (DecafDec s) =
+          if head s == '-'
+          then -(read (tail s) :: Integer)
+          else read  s :: Integer
+
+readDecafInteger (DecafHex s) =
+          if head s == '-'
+          then -(fst . head . Numeric.readHex . tail $ s)
+          else fst . head . Numeric.readHex $ s
