@@ -4,6 +4,7 @@ import Text.ParserCombinators.Parsec
 import Decaf.Tokens
 import Decaf.AST
 import Decaf.Scanner
+import Decaf.Util
 
 -- |DecafParser defines a Parser type for DecafToken
 type DecafParser a = GenParser Token () a
@@ -15,195 +16,232 @@ decafToken :: (DecafToken -> Maybe a) -> DecafParser a
 decafToken test = token showToken posToken testToken
                   where
                     showToken (_, t) = show t
-                    posToken ((p1, p2), _) = p1
+                    posToken ((p1, _), _) = p1
                     testToken (_, t) = test t
 
+identf :: String -> DecafParser String
 identf name = decafToken (\tok -> case tok of
-                              Identf n -> case n == name of
-                                             False -> Nothing
-                                             True  -> Just name
-                              other                  -> Nothing)
+                              Identf n -> if n == name
+                                          then Just name
+                                          else Nothing
+                              _        -> Nothing)
 
+varident :: DecafParser String
 varident = decafToken (\tok -> case tok of
                             Identf name -> Just name
-                            other -> Nothing)
+                            _           -> Nothing)
 
+reserv :: String -> DecafParser String
 reserv name = decafToken (\tok -> case tok of
                                   Reserv s | s == name -> Just name
-                                  other                -> Nothing)
+                                  _                    -> Nothing)
 
+strlit :: DecafParser String
 strlit = decafToken (\tok -> case tok of
                           StrLit s -> Just s
-                          other    -> Nothing)
+                          _        -> Nothing)
 
-int = (hexlit >>= return . DecafHex) <|> (declit >>= return . DecafDec)
+int :: DecafParser DecafInteger
+int = fmap DecafDec declit <|> fmap DecafHex hexlit
 
+hexlit :: DecafParser String
 hexlit = decafToken (\tok -> case tok of
                           HexLit s -> Just s
-                          other    -> Nothing)
+                          _        -> Nothing)
 
+declit :: DecafParser String
 declit = decafToken (\tok -> case tok of
                             DecLit s -> Just s
-                            other    -> Nothing)
+                            _        -> Nothing)
 
+chrlit :: DecafParser Char
 chrlit = decafToken (\tok -> case tok of
                             CharLit c -> Just c
-                            other -> Nothing)
+                            _         -> Nothing)
 
+boollit :: DecafParser Bool
 boollit = decafToken (\tok -> case tok of
-                            BoolLit True -> Just True
+                            BoolLit True  -> Just True
                             BoolLit False -> Just False
-                            other -> Nothing)
+                            _             -> Nothing)
 
+lparen :: DecafParser ()
 lparen = decafToken (\tok -> case tok of
                           LParen -> Just ()
-                          other -> Nothing)
+                          _      -> Nothing)
+
+rparen :: DecafParser ()
 rparen = decafToken (\tok -> case tok of
                           RParen -> Just ()
-                          other -> Nothing)
+                          _      -> Nothing)
 
+lbrace :: DecafParser ()
 lbrace = decafToken (\tok -> case tok of
                           LBrace -> Just ()
-                          other -> Nothing)
+                          _      -> Nothing)
 
+rbrace :: DecafParser ()
 rbrace = decafToken (\tok -> case tok of
                           RBrace -> Just ()
-                          other -> Nothing)
+                          _      -> Nothing)
 
+lbrack :: DecafParser ()
 lbrack = decafToken (\tok -> case tok of
                             LBrack -> Just ()
-                            other -> Nothing)
+                            _      -> Nothing)
 
+rbrack :: DecafParser ()
 rbrack = decafToken (\tok -> case tok of
                             RBrack -> Just ()
-                            other -> Nothing)
+                            _      -> Nothing)
 
+comma :: DecafParser ()
 comma = decafToken (\tok -> case tok of
                             Comma -> Just ()
-                            other -> Nothing)
+                            _     -> Nothing)
 
+semi :: DecafParser ()
 semi = decafToken (\tok -> case tok of
                         Semi -> Just ()
-                        other -> Nothing)
+                        _    -> Nothing)
 
+opand :: DecafParser ()
 opand = decafToken (\tok -> case tok of
                           OpAnd -> Just ()
-                          other -> Nothing)
-
+                          _     -> Nothing)
+opor :: DecafParser ()
 opor = decafToken (\tok -> case tok of
                           OpOr -> Just ()
-                          other -> Nothing)
+                          _    -> Nothing)
 
+opeq :: DecafParser ()
 opeq = decafToken (\tok -> case tok of
                           OpEq -> Just ()
-                          other -> Nothing)
+                          _    -> Nothing)
 
+opneq :: DecafParser ()
 opneq = decafToken (\tok -> case tok of
                           OpNEq -> Just ()
-                          other -> Nothing)
+                          _     -> Nothing)
                             
+oplt :: DecafParser ()
 oplt = decafToken (\tok -> case tok of
                           OpLT -> Just ()
-                          other -> Nothing)
+                          _    -> Nothing)
 
+opgt :: DecafParser ()
 opgt = decafToken (\tok -> case tok of
                           OpGT -> Just ()
-                          other -> Nothing)
+                          _    -> Nothing)
 
+oplte :: DecafParser ()
 oplte = decafToken (\tok -> case tok of
                           OpLTE-> Just ()
-                          other -> Nothing)
+                          _    -> Nothing)
 
+opgte :: DecafParser ()
 opgte = decafToken (\tok -> case tok of
                           OpGTE-> Just ()
-                          other -> Nothing)
+                          _    -> Nothing)
 
+opadd :: DecafParser ()
 opadd = decafToken (\tok -> case tok of
                           OpAdd-> Just ()
-                          other -> Nothing)
+                          _    -> Nothing)
 
+opmin :: DecafParser ()
 opmin = decafToken (\tok -> case tok of
                           OpMin-> Just ()
-                          other -> Nothing)
+                          _    -> Nothing)
 
+opmul :: DecafParser ()
 opmul = decafToken (\tok -> case tok of
                           OpMul -> Just ()
-                          other -> Nothing)
+                          _     -> Nothing)
 
+opdiv :: DecafParser ()
 opdiv = decafToken (\tok -> case tok of
                           OpDiv -> Just ()
-                          other -> Nothing)
+                          _     -> Nothing)
 
+opmod :: DecafParser ()
 opmod = decafToken (\tok -> case tok of
                           OpMod -> Just ()
-                          other -> Nothing)
+                          _     -> Nothing)
 
+opnot :: DecafParser ()
 opnot = decafToken (\tok -> case tok of
                           OpNot -> Just ()
-                          other -> Nothing)
+                          _     -> Nothing)
 
+assign :: DecafParser ()
 assign = decafToken (\tok -> case tok of
                           Assign -> Just ()
-                          other -> Nothing)
+                          _      -> Nothing)
 
+plusassign :: DecafParser ()
 plusassign = decafToken (\tok -> case tok of
                           PlusAssign -> Just ()
-                          other -> Nothing)
+                          _          -> Nothing)
 
+minusassign :: DecafParser ()
 minusassign = decafToken (\tok -> case tok of
                           MinusAssign -> Just ()
-                          other -> Nothing)
-
+                          _           -> Nothing)
 
 -- Parser interface
-
-containsErrors (Just a)= False
+containsErrors :: Maybe a -> Bool
+containsErrors (Just _) = False
 containsErrors Nothing = True
 
+parser :: String -> String
 parser i = getReport $ ps program i
 
--- try to find an interface to testSemanticsChecker
--- will use parseStringProgram  -J
---
 parseToksProgram :: [Token] -> Report DecafProgram
 parseToksProgram intokstream = ps_ program intokstream
                                where ps_ p s = case parse p "decaf-parser" s of
                                        Left err -> RError $ show err
                                        Right val -> RSuccess val
 
+ps :: DecafParser a -> String -> Report a
 ps p i = case parse p "decaf-parser" (eatFirst i) of
-          Left err -> RError $ show err
+          Left err  -> RError $ show err
           Right val -> RSuccess val
 
+qs :: DecafParser a -> String -> Maybe a
 qs p i = case parse p "internal-decaf-parser" (eatFirst i) of
-        Left err -> Nothing
+        Left _    -> Nothing
         Right val -> Just val
 
-program = (do
+program :: DecafParser DecafProgram
+program = do
             p <- getPosition
             reserv "class" >> identf "Program"
             lbrace
-            f <- many $ (try $ fielddecl)
-            m <- many $ ( methoddecl)
+            f <- many (try fielddecl)
+            m <- many methoddecl
             rbrace
             let p' = morphPos p
-            return $ DecafProgram (concat  f) m p')
+            return $ DecafProgram (concat  f) m p'
 
-fielddecl = (do
-              p <- getPosition
+fielddecl :: DecafParser [DecafField]
+fielddecl = do
               t <- vartype
-              fd <- (fdecl t) `sepBy` comma
+              fd <- fdecl t `sepBy` comma
               semi
-              return fd)
+              return fd
 
-fdecl t = (try $ adecl t) <|> (vdecl t)
+fdecl :: DecafType -> DecafParser DecafField
+fdecl t = try (adecl t) <|> vdecl t
 
+vdecl :: DecafType -> DecafParser DecafField
 vdecl t = do
             p <- getPosition
             i <- identvar
             let p' = morphPos p
             return $ DecafVarField (DecafVar t i p') p'
 
+adecl :: DecafType -> DecafParser DecafField
 adecl t = do
             p <- getPosition
             i <- identvar
@@ -213,23 +251,27 @@ adecl t = do
             let p' = morphPos p
             return $ DecafArrField (DecafArr t i s p') p'
 
-methoddecl = (do
-              p' <- getPosition
+methoddecl :: DecafParser DecafMethod
+methoddecl = do
+              p <- getPosition
               t <- rettype
               i <- identvar
               lparen
-              p <- pdecl `sepBy` comma
+              ps <- pdecl `sepBy` comma
               rparen
               b <- block
-              let p'' = morphPos p'
-                  mappedP = map ($p'') p
-              return $ DecafMethod t i mappedP b p'')
+              let p' = morphPos p
+              return $ DecafMethod t i ps b p'
 
+pdecl :: DecafParser DecafVar
 pdecl = do
+          p <- getPosition
           t <- vartype
           i <- identvar
-          return $ DecafVar t i
+          let p' = morphPos p
+          return $ DecafVar t i p'
 
+block :: DecafParser DecafBlock
 block = do
           p <- getPosition
           lbrace
@@ -239,27 +281,29 @@ block = do
           let p' = morphPos p
           return $ DecafBlock (concat v) s p'
 
+vardecl :: DecafParser [DecafVar]
 vardecl = do
             p <- getPosition
             t <- vartype
             i <- identvar `sepBy1` comma
             semi
             let p' = morphPos p
-                i' = map ($p') (map  (DecafVar t) i)
-            return $ i'
+                i' = map (($p') . DecafVar t) i
+            return i'
 
+identvar :: DecafParser DecafIdentifier
+identvar = varident
 
-identvar = (varident >>= return)
-
-
-
-voidtype = (reserv "void" >> return DecafVoid)
-
-integertype = (reserv "int" >> return DecafInteger)
-booleantype = (reserv "boolean" >> return DecafBoolean)
+rettype, vartype :: DecafParser DecafType
 vartype = integertype <|> booleantype
 rettype = vartype <|> voidtype
 
+voidtype, booleantype, integertype :: DecafParser DecafType
+voidtype = reserv "void" >> return DecafVoid
+integertype = reserv "int" >> return DecafInteger
+booleantype = reserv "boolean" >> return DecafBoolean
+
+statement :: DecafParser DecafStm
 statement =  try (do
                p <- getPosition
                l <- location
@@ -267,7 +311,7 @@ statement =  try (do
                e <- expr
                semi
                let p' = morphPos p
-               return $ DecafAssignStm l (o p') e p')
+               return $ DecafAssignStm l o e p')
          <|> try (do
                p <- getPosition
                m <- methodcall
@@ -302,16 +346,17 @@ statement =  try (do
                 semi
                 let p' = morphPos p
                 return $ DecafRetStm e p')
-         <|> (reserv "break" >> semi >> getPosition >>= return . DecafBreakStm . morphPos)
-         <|> (reserv "continue" >> semi >> getPosition >>= return . DecafContStm . morphPos)
-         <|> (block >>= \o -> getPosition >>= return . DecafBlockStm o . morphPos)
+         <|> (reserv "break" >> semi >> fmap (DecafBreakStm . morphPos) getPosition)
+         <|> (reserv "continue" >> semi >> fmap (DecafContStm . morphPos) getPosition)
+         <|> (block >>= \o -> fmap (DecafBlockStm o . morphPos) getPosition)
 
+methodcall :: DecafParser DecafMethodCall
 methodcall = (do
                 p <- getPosition
                 reserv "callout"
                 lparen
                 s <- slit
-                comma <|> (return ())
+                comma <|> return ()
                 a <- calloutarg `sepBy` comma
                 rparen
                 let p' = morphPos p
@@ -328,10 +373,10 @@ methodcall = (do
 -- |'rewriteExpr' rewrites a parsed concrete expression tree into an abstract syntax expression tree
 -- This function utilizes the recursive rewriteExprTail, rewriteTerm, rewriteTermTail and rewriteFactor to rewrite the entire tree in-place.
 rewriteExpr :: DecafExpr -> DecafExpr
-rewriteExpr (DecafExpr term (EmptyExpr') _)
+rewriteExpr (DecafExpr term EmptyExpr' _)
   = rewriteTerm term
 
-rewriteExpr (DecafExpr term (Expr' binop term' (EmptyExpr') p) _)
+rewriteExpr (DecafExpr term (Expr' binop term' EmptyExpr' p) _)
   = DecafBinExpr (rewriteTerm term) binop (rewriteTerm term') p
 
 rewriteExpr (DecafExpr term (Expr' binop term' expr'@(Expr' binop' _ _ p) p') _)
@@ -350,17 +395,29 @@ rewriteExprTail :: Expr' -> DecafExpr
 rewriteExprTail (Expr' _ term expr@(Expr' binop _ _ p) _)
   = DecafBinExpr (rewriteTerm term) binop (rewriteExprTail expr) p
 
-rewriteExprTail (Expr' _ term (EmptyExpr') _)
+rewriteExprTail (Expr' _ term EmptyExpr' _)
   = rewriteTerm term
 
+rewriteExprTail EmptyExpr'
+  = error "Parser.hs:358 invalid concrete expr tree; rewriteExprTail encountered an EmptyTerm'"
+
 rewriteTerm :: Term -> DecafExpr
-rewriteTerm (Term factor (EmptyTerm') _)                                         = rewriteFactor factor
-rewriteTerm (Term factor (Term' binop factor' (EmptyTerm') p) _)              = DecafBinExpr (rewriteFactor factor) binop (rewriteFactor factor') p
-rewriteTerm (Term factor (Term' binop factor' term'@(Term' binop' _ _ p') p) _)   = DecafBinExpr (rewriteFactor factor) binop  (DecafBinExpr (rewriteFactor factor') binop' (rewriteTermTail term') p') p
+rewriteTerm (Term factor EmptyTerm' _)
+  = rewriteFactor factor
+rewriteTerm (Term factor (Term' binop factor' EmptyTerm' p) _)
+  = DecafBinExpr (rewriteFactor factor) binop (rewriteFactor factor') p
+rewriteTerm (Term factor (Term' binop factor' term'@(Term' binop' _ _ p') p) _)
+  = DecafBinExpr (rewriteFactor factor) binop  (DecafBinExpr (rewriteFactor factor') binop' (rewriteTermTail term') p') p
 
 rewriteTermTail :: Term' -> DecafExpr
-rewriteTermTail (Term' _ factor term@(Term' binop _ _ p) _)               = DecafBinExpr (rewriteFactor factor) binop (rewriteTermTail term) p
-rewriteTermTail (Term' _ factor (EmptyTerm') p)                           = rewriteFactor factor
+rewriteTermTail (Term' _ factor term@(Term' binop _ _ p) _)
+  = DecafBinExpr (rewriteFactor factor) binop (rewriteTermTail term) p
+
+rewriteTermTail (Term' _ factor EmptyTerm' _)
+  = rewriteFactor factor
+
+rewriteTermTail (EmptyTerm')
+  = error "Parser.hs:366 invalid concrete expr tree; rewriteTermTail encountered an EmptyTerm'"
 
 rewriteFactor :: Factor -> DecafExpr
 rewriteFactor (DecafParenExpr' expr p)
@@ -381,41 +438,44 @@ rewriteFactor (DecafMethodExpr' meth p)
 rewriteFactor (DecafLitExpr' lit p)
   = DecafLitExpr lit p
 
+mayb :: DecafParser a -> DecafParser (Maybe a)
+mayb p = fmap Just p <|> return Nothing
+
 -- left associative, right recursive
-
-mayb p = do
-          (p >>= return . Just) <|> (return Nothing)
-
+expr :: DecafParser DecafExpr
 expr = do
         t <- term
         e <- expr'
-        getPosition >>= return . rewriteExpr . DecafExpr t e . morphPos
-        --return $ DecafExpr t e
+        fmap (rewriteExpr . DecafExpr t e . morphPos) getPosition
 
-expr' = (do
+expr' :: DecafParser Expr'
+expr' = do
           b <- toplevelOp
           t <- term
           e <- expr'
-          getPosition >>= return . Expr' b t e . morphPos)
-     <|> (return $ EmptyExpr')
+          fmap (Expr' b t e . morphPos) getPosition
+     <|> return EmptyExpr'
 
+term :: DecafParser Term
 term = do
          f <- factor
          t <- term'
-         getPosition >>= return . Term f t . morphPos
+         fmap (Term f t . morphPos) getPosition
 
-term' = (do
+term' :: DecafParser Term'
+term' = do
           b <- botlevelOp
           f <- factor
           t <- term'
-          getPosition >>= return . Term' b f t . morphPos)
-     <|> (return $ EmptyTerm')
+          fmap (Term' b f t . morphPos) getPosition
+     <|> return EmptyTerm'
 
-factor = (try methodcall >>= \o -> getPosition >>= return . DecafMethodExpr' o . morphPos)
-      <|> (location >>= \o -> getPosition >>= return . DecafLocExpr' o . morphPos)
-      <|> (lit >>= \o -> getPosition >>= return . DecafLitExpr' o . morphPos)
-      <|> (opnot >> expr >>= \o -> getPosition >>= return . DecafNotExpr' o . morphPos)
-      <|> (do
+factor :: DecafParser Factor
+factor = (try methodcall >>= \o -> fmap (DecafMethodExpr' o . morphPos) getPosition)
+      <|> (location >>= \o -> fmap (DecafLocExpr' o . morphPos) getPosition)
+      <|> (lit >>= \o -> fmap (DecafLitExpr' o . morphPos) getPosition)
+      <|> (opnot >> expr >>= \o -> fmap (DecafNotExpr' o . morphPos) getPosition)
+      <|> do
             opmin
             e <- expr
             p <- getPosition
@@ -423,61 +483,83 @@ factor = (try methodcall >>= \o -> getPosition >>= return . DecafMethodExpr' o .
             return $ DecafMinExpr' (case e of
                         DecafLitExpr (DecafIntLit (DecafHex int) _) _ -> DecafLitExpr (DecafIntLit (DecafHex ("-" ++ int)) p') p'
                         DecafLitExpr (DecafIntLit (DecafDec int) _) _ -> DecafLitExpr (DecafIntLit (DecafDec ("-" ++ int)) p') p'
-                        e -> e) p')
-      <|> (do
+                        e -> e) p'
+      <|> do
             lparen
             e <- expr
             rparen
-            getPosition >>= return . DecafParenExpr' e . morphPos)
+            fmap (DecafParenExpr' e . morphPos) getPosition
 
-toplevelOp = ((addop <|> subop) >>= \o -> getPosition >>= return . DecafBinArithOp o . morphPos) <|> relop <|> eqop <|> condop
-botlevelOp = (mulop <|> divop <|> modop) >>= \o -> getPosition >>= return . DecafBinArithOp o . morphPos
+toplevelOp :: DecafParser DecafBinOp
+toplevelOp = toparithop <|> relop <|> eqop <|> condop
 
-addop = (opadd >> getPosition >>= return . DecafPlusOp . morphPos)
-subop = (opmin >> getPosition >>= return . DecafMinOp . morphPos)
-mulop = (opmul >> getPosition >>= return . DecafMulOp . morphPos)
-divop = (opdiv >> getPosition >>= return . DecafDivOp . morphPos)
-modop = (opmod >> getPosition >>= return . DecafModOp . morphPos)
+botlevelOp :: DecafParser DecafBinOp
+botlevelOp = botarithop
 
-relop = (ltop <|> gtop <|> lteop <|> gteop) >>= \o -> getPosition >>= return . DecafBinRelOp o . morphPos
+toparithop :: DecafParser DecafBinOp
+toparithop = (addop <|> subop) >>= \o -> fmap (DecafBinArithOp o . morphPos) getPosition
 
-ltop = (oplt >> getPosition >>= return . DecafLTOp . morphPos)
-gtop = (opgt >> getPosition >>= return . DecafGTOp . morphPos)
-lteop = (oplte >> getPosition >>=  return . DecafLTEOp . morphPos)
-gteop = (opgte >> getPosition >>= return . DecafGTEOp . morphPos)
+botarithop :: DecafParser DecafBinOp
+botarithop = (mulop <|> divop <|> modop) >>= \o -> fmap (DecafBinArithOp o . morphPos) getPosition
 
-eqop = (oeq <|> oneq) >>= (\o -> getPosition >>= return . DecafBinEqOp o . morphPos)
-condop = (andop <|> orop) >>= (\o -> (do
-                                        p <- getPosition
-                                        let p' = morphPos p
-                                        return $ DecafBinCondOp (o p') p'))
+addop, subop, mulop, divop, modop :: DecafParser DecafArithOp
+addop = opadd >> fmap (DecafPlusOp . morphPos) getPosition
+subop = opmin >> fmap (DecafMinOp . morphPos) getPosition
+mulop = opmul >> fmap (DecafMulOp . morphPos) getPosition
+divop = opdiv >> fmap (DecafDivOp . morphPos) getPosition
+modop = opmod >> fmap (DecafModOp . morphPos) getPosition
 
-oeq = (opeq >> getPosition >>= return . DecafEqOp . morphPos)
-oneq = (opneq >> getPosition >>= return . DecafNEqOp . morphPos)
+relop :: DecafParser DecafBinOp
+relop = (ltop <|> gtop <|> lteop <|> gteop) >>= \o -> fmap (DecafBinRelOp o . morphPos) getPosition
 
-andop = (opand >> return DecafAndOp)
-orop = (opor >> return DecafOrOp)
+ltop, gtop, lteop, gteop :: DecafParser DecafRelOp
+ltop = oplt >> fmap (DecafLTOp . morphPos) getPosition
+gtop = opgt >> fmap (DecafGTOp . morphPos) getPosition
+lteop = oplte >> fmap (DecafLTEOp . morphPos) getPosition
+gteop = opgte >> fmap (DecafGTEOp . morphPos) getPosition
 
-assignop = aseq
-        <|> mineq
-        <|> pluseq
+eqop :: DecafParser DecafBinOp
+eqop = (oeq <|> oneq) >>= \o -> fmap (DecafBinEqOp o . morphPos) getPosition
 
-aseq = (assign >> return DecafEq)
-mineq = (minusassign >> return DecafMinusEq)
-pluseq = (plusassign >> return DecafPlusEq)
+oeq, oneq :: DecafParser DecafEqOp
+oeq = opeq >> fmap (DecafEqOp . morphPos) getPosition
+oneq = opneq >> fmap (DecafNEqOp . morphPos) getPosition
 
+condop :: DecafParser DecafBinOp
+condop = (andop <|> orop) >>= \o -> fmap (DecafBinCondOp o . morphPos) getPosition
+
+andop, orop :: DecafParser DecafCondOp
+andop = opand >> fmap (DecafAndOp . morphPos) getPosition
+orop = opor >> fmap (DecafOrOp . morphPos) getPosition
+
+assignop, aseq, mineq, pluseq :: DecafParser DecafAssignOp
+assignop = aseq <|> mineq <|> pluseq
+aseq = assign >> fmap (DecafEq . morphPos) getPosition
+mineq = minusassign >> fmap (DecafMinusEq . morphPos) getPosition
+pluseq = plusassign >> fmap (DecafPlusEq . morphPos) getPosition
+
+lit :: DecafParser DecafLiteral
 lit = ilit <|> clit  <|> blit
-slit = (strlit >>= return)
-ilit = (int >>= \i -> getPosition >>= return . DecafIntLit i . morphPos)
-blit = (boollit >>= \b -> getPosition >>= return . DecafBoolLit b . morphPos)
-clit = (chrlit >>= \c -> getPosition >>= return . DecafCharLit c . morphPos)
 
-location = (try arrlocation) <|> varlocation
+slit :: DecafParser DecafString
+slit = strlit
 
-varlocation = do
-                i <- identvar
-                getPosition >>= (return . DecafVarLoc i . morphPos)
+ilit :: DecafParser DecafLiteral
+ilit = int >>= \i -> fmap (DecafIntLit i . morphPos) getPosition
 
+blit :: DecafParser DecafLiteral
+blit = boollit >>= \b -> fmap (DecafBoolLit b . morphPos) getPosition
+
+clit :: DecafParser DecafLiteral
+clit = chrlit >>= \c -> fmap (DecafCharLit c . morphPos) getPosition
+
+location :: DecafParser DecafLoc
+location = try arrlocation <|> varlocation
+
+varlocation :: DecafParser DecafLoc
+varlocation = identvar >>= \i -> fmap (DecafVarLoc i . morphPos) getPosition
+
+arrlocation :: DecafParser DecafLoc
 arrlocation = do
                 p <- getPosition
                 i <- identvar
@@ -487,5 +569,6 @@ arrlocation = do
                 let p' = morphPos p
                 return $ DecafArrLoc i e p'
 
-calloutarg = (expr >>= (\o -> getPosition >>= (return . DecafCalloutArgExpr o . morphPos)))
-          <|> (slit >>= (\o -> getPosition >>= (return . DecafCalloutArgStr o . morphPos)))
+calloutarg :: DecafParser DecafCalloutArg
+calloutarg = (expr >>= (\o -> fmap (DecafCalloutArgExpr o . morphPos) getPosition))
+          <|> (slit >>= (\o -> fmap (DecafCalloutArgStr o . morphPos) getPosition))
