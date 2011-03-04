@@ -8,7 +8,7 @@ import Decaf.Util
 
 main = do args <- getArgs
           case args of
-            [s, f] | s == "-debug" -> 
+            [s, f] | s == "-debug" ->
                     do str <- readFile f
                        let output = checkFile str f
                        putStrLn.fst $ output
@@ -23,7 +23,7 @@ main = do args <- getArgs
 
             other -> putStrLn "Invalid command line input" >> exitFailure
 
-checkOutput output = 
+checkOutput output =
     if length (snd output) > 0
     then exitSuccess
     else exitFailure
