@@ -14,11 +14,11 @@ showToken ((p1, p2), t) = "[L" ++ (show . sourceLine $ p1) ++ ":C" ++ (show . so
 
 -- |The 'getStart' function retrieves the start position of a Token as a Parsec SourcePos
 getStart :: (Position, DecafToken) -> SourcePos
-getStart ((p1, p2), _) = p1
+getStart ((p1, _), _) = p1
 
 -- |The 'getEnd' function retrieves the end position of a Token as a Parsec SourcePos
 getEnd :: (Position, DecafToken) -> SourcePos
-getEnd ((p1, p2), _) = p2
+getEnd ((_, p2), _) = p2
 
 -- |The 'getToken' function retrieves the DecafToken from a 'Token' type
 getToken :: (Position, DecafToken) -> DecafToken
@@ -77,8 +77,8 @@ instance Show DecafToken where
                    | otherwise  = "CHARLITERAL " ++ show s
   show (DecLit s) = "INTLITERAL " ++ s
   show (HexLit s) = "INTLITERAL 0x" ++ s
-  show (BoolLit s) | s == False = "BOOLEANLITERAL false"
-                   | s == True = "BOOLEANLITERAL true"
+  show (BoolLit False) = "BOOLEANLITERAL false"
+  show (BoolLit True) = "BOOLEANLITERAL true"
   show (Identf s) = "IDENTIFIER " ++ s
   show (Reserv s) = s
   show (LParen) = "("
@@ -108,14 +108,3 @@ instance Show DecafToken where
   show (OpMod) = "%"
   show (Fail s) = "SCANNER ERROR: " ++ s
   show (EOF) = "EOF"
-
--- | Report utilized throughout the binaries for error reporting
-data Report a = RSuccess a
-              | RError String
-
-getSuccess (RSuccess a) = a
-getFailure (RError s) = s
-
-getReport :: (Show a) => Report a -> String
-getReport (RSuccess a) = show a
-getReport (RError s) = s
