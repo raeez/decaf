@@ -36,10 +36,10 @@ addChild val t = let curcontext = context t
                      pos = head curcontext
                      nodes = children (node t)
                   in if isRoot t
-                  then let newNodes = nodes ++ [Node val []]
-                       in ContextTree (Node (content (node t)) newNodes) [length newNodes - 1]
-                  else let branch = addChild val (ContextTree (nodes !! pos) (tail curcontext)) in
-                       ContextTree (Node (content (node t))
+                     then let newNodes = nodes ++ [Node val []]
+                          in ContextTree (Node (content (node t)) newNodes) [length newNodes - 1]
+                     else let branch = addChild val (ContextTree (nodes !! pos) (tail curcontext))
+                          in ContextTree (Node (content (node t))
                              (take pos nodes
                               ++ [node branch]
                               ++ drop (pos+1) nodes)) (pos : context branch)
@@ -48,11 +48,11 @@ addChild val t = let curcontext = context t
 modify :: (ContextTree a -> ContextTree a) -> ContextTree a -> ContextTree a
 modify f t = if isRoot t -- this is the node to be modified
              then f t  -- modify it
-             else let ctxt = context t
+             else let ctxt = context t -- otherwise recurse
                       pos = head ctxt
                       root = node t -- current location
                       nodes = children root
-                      branch = modify f (ContextTree (nodes !! pos) (tail ctxt)) -- otherwise recurse
+                      branch = modify f (ContextTree (nodes !! pos) (tail ctxt))
                   in ContextTree (Node (content root)
                         (take pos nodes
                          ++ [node branch] -- insert the modified subtree in the right place
