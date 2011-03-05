@@ -16,7 +16,7 @@ type Context = [Int]
 mkContextTree :: a -> ContextTree a
 mkContextTree content = ContextTree (Node content []) []
 
-move :: ([Int] -> [Int]) -> ContextTree a -> ContextTree a
+move :: (Context -> Context) -> ContextTree a -> ContextTree a
 move f t = ContextTree (node t) (f.context $ t)
 
 
