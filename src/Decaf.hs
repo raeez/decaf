@@ -7,8 +7,8 @@ module Decaf (
     module Decaf.Parser,
     module Decaf.Checker,
     module Decaf.Data.ContextTree,
-    module Decaf.Data.SymbolTable
-    module Decaf.Data.Tree
+    module Decaf.Data.SymbolTable,
+    module Decaf.Data.Tree,
     module Decaf.Util
 
  ) where

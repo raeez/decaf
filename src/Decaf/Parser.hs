@@ -481,8 +481,8 @@ factor = (try methodcall >>= \o -> fmap (DecafMethodExpr' o . morphPos) getPosit
             p <- getPosition
             let p' = morphPos p
             return $ DecafMinExpr' (case e of
-                        DecafLitExpr (DecafIntLit (DecafHex int) _) _ -> DecafLitExpr (DecafIntLit (DecafHex ("-" ++ int)) p') p'
-                        DecafLitExpr (DecafIntLit (DecafDec int) _) _ -> DecafLitExpr (DecafIntLit (DecafDec ("-" ++ int)) p') p'
+                        DecafLitExpr (DecafIntLit (DecafHex int) _) _ -> DecafLitExpr (DecafIntLit (DecafHex ('-' : int)) p') p'
+                        DecafLitExpr (DecafIntLit (DecafDec int) _) _ -> DecafLitExpr (DecafIntLit (DecafDec ('-' : int)) p') p'
                         e -> e) p'
       <|> do
             lparen

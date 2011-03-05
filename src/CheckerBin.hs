@@ -2,10 +2,8 @@ module Main where
 import System.Environment
 import System.Exit
 import Decaf.Checker
-import Decaf.Parser
-import Decaf.Tokens
-import Decaf.Util
 
+main :: IO ()
 main = do args <- getArgs
           case args of
             [s, f] | s == "-debug" ->
@@ -14,15 +12,16 @@ main = do args <- getArgs
                        putStrLn.fst $ output
                        checkOutput output
 
-            [f] -> 
+            [f] ->
                 do str <- readFile f
                    let output = checkFile str f
                    if not (null (snd output))
                     then (putStrLn.snd $ output) >> exitFailure
                     else exitSuccess
 
-            other -> putStrLn "Invalid command line input" >> exitFailure
+            _ -> putStrLn "Invalid command line input" >> exitFailure
 
+checkOutput :: (String, String) -> IO ()
 checkOutput output =
     if length (snd output) > 0
     then exitSuccess
