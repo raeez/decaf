@@ -32,13 +32,13 @@ isRoot (ContextTree _ c) = null c
 
 -- adds a new node to tree at given context, and points to it in the new context
 addChild :: a -> ContextTree a -> ContextTree a
-addChild cont t = let curcontext = context t
-                      pos = head curcontext
-                      nodes = children (node t) in
-                  if null curcontext
-                  then let newNodes = nodes ++ [Node cont []]
+addChild val t = let curcontext = context t
+                     pos = head curcontext
+                     nodes = children (node t)
+                  in if null curcontext
+                  then let newNodes = nodes ++ [Node val []]
                        in ContextTree (Node (content (node t)) newNodes) [length newNodes - 1]
-                  else let branch = addChild cont (ContextTree (nodes !! pos) (tail curcontext)) in
+                  else let branch = addChild val (ContextTree (nodes !! pos) (tail curcontext)) in
                        ContextTree (Node (content (node t))
                              (take pos nodes
                               ++ [node branch]
@@ -59,8 +59,8 @@ modify f t = let ctxt = context t
                          ++ drop (pos+1) nodes)) (pos : context branch)
 
 addChild' :: a -> ContextTree a -> ContextTree a
-addChild' content' tree = modify change tree
-          where change (ContextTree node _) = let newNodes = children node ++ [Node content' []]
+addChild' val tree = modify change tree
+          where change (ContextTree node _) = let newNodes = children node ++ [Node val []]
                                               in ContextTree (Node (content node) newNodes) [length newNodes -1]
 
 modifyContextTreeCnt :: (a -> a) -> ContextTree a -> ContextTree a
