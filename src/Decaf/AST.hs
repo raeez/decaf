@@ -1,6 +1,5 @@
 module Decaf.AST
 where
-import Data.List
 import Numeric
 import Decaf.Data.Tree
 
@@ -8,6 +7,7 @@ import Decaf.Data.Tree
 -- @pos - retrieves the parsed source code position of the 'ASTNode' as a 'DecafPosition'
 -- @pp - pretty print the 'ASTNode'
 -- @treeify - convert the subtree rooted at the 'ASTNode' into a generic 'Tree'
+
 class ASTNode a where
   pos :: a -> DecafPosition
   pp :: a -> String -- pretty print
@@ -207,30 +207,32 @@ instance ASTNode DecafField where
   pos (DecafArrField _ p) = p
   pp (DecafVarField v _) = "DecafVarField " ++ pp v ++ "\n"
   pp (DecafArrField a _) = "DecafArrField " ++ pp a ++ "\n"
-  treeify (DecafVarField var@(DecafVar ty identf _) _) = treeify var
+  treeify (DecafVarField var _) = treeify var
   treeify (DecafArrField (DecafArr ty identf len _) _) = Node ("ARR " ++ pp ty ++ " " ++ identf ++"["++ pp len ++ "]") Nothing
 
 instance ASTNode DecafMethod where
   pos (DecafMethod _ _ _ _ p) = p
-  pp (DecafMethod ty identf args body _) = "METHOD " ++ pp ty ++ " " ++ identf ++ " " ++ unwords (map pp args)
-  treeify meth@(DecafMethod ty identf args body _) = Node (pp meth) (Just [treeify body])
+  pp (DecafMethod ty identf args _ _) = "METHOD " ++ pp ty ++ " " ++ identf ++ " " ++ unwords (map pp args)
+  treeify meth@(DecafMethod _ _ _ body _) = Node (pp meth) (Just [treeify body])
 
 instance Location DecafMethod where
-  ident (DecafMethod ty identf args body _) = identf
+  ident (DecafMethod _ identf _ _ _) = identf
 
 instance ASTNode DecafVar where
   pos (DecafVar _ _ p) = p
   pp (DecafVar ty identf _) = "VAR "++ pp ty++ " " ++ identf
-  treeify var@(DecafVar ty identf _) = Node (pp var) Nothing
+  treeify var = Node (pp var) Nothing
 
 instance Location DecafVar where
-  ident (DecafVar ty identf _) = identf
+  ident (DecafVar _ identf _) = identf
+
 instance ASTNode DecafArr where
   pos (DecafArr _ _ _ p) = p
   pp (DecafArr ty identf len _) = "ARR " ++ pp ty ++ " " ++ identf ++"["++ pp len ++ "]"
+  treeify a = Node (pp a) Nothing
 
 instance Location DecafArr where
-  ident (DecafArr ty identf len _) = identf
+  ident (DecafArr _ identf _ _) = identf
 
 instance ASTNode DecafBlock where
   pos (DecafBlock _ _ p) = p
@@ -238,12 +240,14 @@ instance ASTNode DecafBlock where
                                    where
                                      vs = map treeify vars
                                      ss = map treeify stms
-
+  pp _ = "DecafBlock"
 
 instance ASTNode DecafType where
   pp (DecafInteger) = "int"
   pp (DecafVoid)    = "void"
   pp (DecafBoolean) = "bool"
+  pos _ = error "DecafType has no associated position"
+  treeify a = Node (pp a) Nothing
 
 instance ASTNode DecafStm where
   pos (DecafAssignStm _ _ _ p) = p
@@ -254,10 +258,9 @@ instance ASTNode DecafStm where
   pos (DecafBreakStm p) = p
   pos (DecafContStm p) = p
   pos (DecafBlockStm _ p) = p
-  treeify (DecafAssignStm loc op expr _) = Node (pp op) (Just $ [treeify loc] ++ [treeify expr])
-  treeify (DecafMethodStm m@(DecafPureMethodCall identf args _) _) = treeify m
-  treeify (DecafMethodStm m@(DecafMethodCallout identf args _) _) = treeify m
-  treeify (DecafIfStm expr block elseblock _) = Node "if" (Just $ [treeify expr] ++ [treeify block] ++ elseblock')
+  treeify (DecafAssignStm loc op expr _) = Node (pp op) (Just [treeify loc, treeify expr])
+  treeify (DecafMethodStm m _) = treeify m
+  treeify (DecafIfStm expr block elseblock _) = Node "if" (Just $ treeify expr : treeify block : elseblock')
                                               where
                                                 elseblock' = case elseblock of
                                                                 Just block -> [treeify block]
@@ -272,6 +275,7 @@ instance ASTNode DecafStm where
   treeify (DecafBreakStm _) = Node "brk" Nothing
   treeify (DecafContStm _) = Node "cnt" Nothing
   treeify (DecafBlockStm block _) = Node "blockStm" (Just [treeify block])
+  pp _ = "DecafStm"
 
 instance ASTNode DecafAssignOp where
   pos (DecafEq p) = p
@@ -280,35 +284,37 @@ instance ASTNode DecafAssignOp where
   pp (DecafEq _) = "="
   pp (DecafPlusEq _) = "+="
   pp (DecafMinusEq _) = "-="
+  treeify a = Node (pp a) Nothing
   
 instance ASTNode DecafMethodCall where
   pos (DecafPureMethodCall _ _ p) = p
   pos (DecafMethodCallout _ _ p) = p
-  pp (DecafPureMethodCall identf args _) = "PureMethodcall[" ++ identf ++ "]"
-  pp (DecafMethodCallout identf args _) = "MethodCallOut[" ++ identf ++"]"
-  treeify meth@(DecafPureMethodCall identf args _) = (Node $ pp meth) (Just $ map treeify args)
-  treeify meth@(DecafMethodCallout identf args _) = (Node $ pp meth) (Just $ map treeify args)
+  pp (DecafPureMethodCall identf _ _) = "PureMethodcall[" ++ identf ++ "]"
+  pp (DecafMethodCallout identf _ _) = "MethodCallOut[" ++ identf ++"]"
+  treeify meth@(DecafPureMethodCall _ args _) = (Node $ pp meth) (Just $ map treeify args)
+  treeify meth@(DecafMethodCallout _ args _) = (Node $ pp meth) (Just $ map treeify args)
 
 instance ASTNode DecafLoc where
   pos (DecafVarLoc _ p) = p
   pos (DecafArrLoc _ _ p) = p
   pp (DecafVarLoc identf _) = identf
-  pp (DecafArrLoc identf expr _) = identf ++ "[e]"
+  pp (DecafArrLoc identf _ _) = identf ++ "[e]"
   treeify (DecafVarLoc identf _) = Node identf Nothing
   treeify (DecafArrLoc identf expr _) = Node (identf ++ " []") (Just [treeify expr])
 
 instance Location DecafLoc where
   ident (DecafVarLoc identf _) = identf
-  ident (DecafArrLoc identf expr _) = identf
-
+  ident (DecafArrLoc identf _ _) = identf
 
 instance ASTNode DecafCalloutArg where
   pos (DecafCalloutArgExpr _ p) = p
   pos (DecafCalloutArgStr _ p) = p
   treeify (DecafCalloutArgExpr expr _) = treeify expr
   treeify (DecafCalloutArgStr str _) = Node str Nothing
+  pp _ = "DecafCalloutArg"
 
 instance ASTNode DecafExpr where
+  pos (DecafExpr _ _ p) = p
   pos (DecafLocExpr _ p) = p
   pos (DecafMethodExpr _ p) = p
   pos (DecafLitExpr _ p) = p
@@ -319,25 +325,31 @@ instance ASTNode DecafExpr where
   treeify (DecafLocExpr loc _) = treeify loc
   treeify (DecafMethodExpr meth _) = treeify meth
   treeify (DecafLitExpr lit _) = treeify lit
-  treeify (DecafBinExpr expr binop expr' _) = Node (pp binop) (Just $ [treeify expr] ++ [treeify expr'])
+  treeify (DecafBinExpr expr binop expr' _) = Node (pp binop) (Just [treeify expr, treeify expr'])
   treeify (DecafNotExpr expr _) = Node "!" (Just [treeify expr])
   treeify (DecafMinExpr expr _) = Node "-" (Just [treeify expr])
   treeify (DecafParenExpr expr _) = Node "(   )" (Just [treeify expr])
-  treeify (DecafExpr term expr' _) = Node "EXPR" (Just $ [treeify term] ++ [treeify expr'])
+  treeify (DecafExpr term expr' _) = Node "EXPR" (Just [treeify term, treeify expr'])
+  pp _ = "Expr"
 
 instance ASTNode Expr' where
   pos (Expr' _ _ _ p) = p
-  treeify (Expr' binop term expr' _) = Node (pp binop) (Just $ [treeify term] ++ [treeify expr'])
+  pos (EmptyExpr') = error "EmptyExpr' has no associated position"
+  treeify (Expr' binop term expr' _) = Node (pp binop) (Just [treeify term, treeify expr'])
   treeify (EmptyExpr') = Nil
+  pp _ = "Expr'"
 
 instance ASTNode Term where
   pos (Term _ _ p) = p
-  treeify (Term factor term' _) = Node "TERM" (Just $ [treeify factor] ++ [treeify term'])
+  treeify (Term factor term' _) = Node "TERM" (Just [treeify factor, treeify term'])
+  pp _ = "Term"
 
 instance ASTNode Term' where
   pos (Term' _ _ _ p) = p
-  treeify (Term' binop factor term' _) = (Node $ pp binop) (Just $ [treeify factor] ++ [treeify term'])
+  pos (EmptyTerm') = error "EmptyTerm' node has no associated position"
+  treeify (Term' binop factor term' _) = (Node $ pp binop) (Just [treeify factor, treeify term'])
   treeify (EmptyTerm') = Nil
+  pp _ = "Term'"
 
 instance ASTNode Factor where
   pos (DecafParenExpr' _ p) = p
@@ -352,6 +364,7 @@ instance ASTNode Factor where
   treeify (DecafLocExpr' loc _) = treeify loc
   treeify (DecafMethodExpr' dmc _) = treeify dmc
   treeify (DecafLitExpr' dl _) = treeify dl
+  pp _ = "Factor"
 
 instance ASTNode DecafBinOp where
   pos (DecafBinArithOp _ p) = p
@@ -362,6 +375,7 @@ instance ASTNode DecafBinOp where
   pp (DecafBinRelOp o _) = pp o
   pp (DecafBinEqOp o _) = pp o
   pp (DecafBinCondOp o _) = pp o
+  treeify a = Node (pp a) Nothing
 
 instance ASTNode DecafArithOp where
   pos (DecafPlusOp p) = p
@@ -374,6 +388,7 @@ instance ASTNode DecafArithOp where
   pp (DecafMulOp _)  = "*"
   pp (DecafModOp _)  = "%"
   pp (DecafDivOp _)  = "/"
+  treeify a = Node (pp a) Nothing
 
 instance ASTNode DecafRelOp where
   pos (DecafLTOp p)  = p
@@ -384,18 +399,21 @@ instance ASTNode DecafRelOp where
   pp (DecafGTOp _)  = ">"
   pp (DecafGTEOp _) = ">="
   pp (DecafLTEOp _) = "<="
+  treeify a = Node (pp a) Nothing
   
 instance ASTNode DecafEqOp where
   pos (DecafEqOp p)   = p
   pos (DecafNEqOp p) = p
   pp (DecafEqOp _)   = "=="
   pp (DecafNEqOp _) = "!="
+  treeify a = Node (pp a) Nothing
 
 instance ASTNode DecafCondOp where
   pos (DecafAndOp p) = p
   pos (DecafOrOp p)  = p
   pp (DecafAndOp _) = "&&"
   pp (DecafOrOp _)  = "||"
+  treeify a = Node (pp a) Nothing
 
 instance ASTNode DecafLiteral where
   pos (DecafIntLit _ p) = p
@@ -414,6 +432,8 @@ instance ASTNode DecafLiteral where
 instance ASTNode DecafInteger where
   pp (DecafDec s) = "0d"++s
   pp (DecafHex h) = "0x"++h
+  treeify _ = Node "DecafInteger" Nothing
+  pos _     = error "DecafInteger has no associated position"
 
 -- | 'readDecafInteger' parses a DecafInteger ASTNode and returns a Haskell integer
 readDecafInteger :: DecafInteger -> Integer

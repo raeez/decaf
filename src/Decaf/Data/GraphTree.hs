@@ -1,6 +1,5 @@
 module Decaf.Data.GraphTree where
 import Data.Graph.Inductive
-import Data.GraphViz
 import Decaf.Data.Tree
 
 type GraphTree = ([GraphNode], [GraphEdge])
@@ -11,7 +10,7 @@ type GraphEdge = (Int, Int, String)
 buildGraph :: Tree String -> Gr String String
 buildGraph program = mkGraph nodes edges :: Gr String String
        where
-        (nodes, edges) = (buildGraphTree) program
+        (nodes, edges) = buildGraphTree program
 
 buildGraphTree :: Tree String -> GraphTree
 buildGraphTree = extract . numberTree 0
@@ -20,7 +19,7 @@ buildGraphTree = extract . numberTree 0
 -- finally, we convert our NumberTree into a DotGraph
 --
 extract :: (Int, [GraphNode], [GraphEdge]) -> GraphTree
-extract (i, nodes, edges) = (nodes, edges)
+extract (_, nodes, edges) = (nodes, edges)
 
 -- | Recursively walk a 'Decaf.Data.Tree' in-order to
 -- a) number the nodes with integral values in order visited
@@ -34,12 +33,12 @@ numberTree :: Int -> Tree String -> (Int, [GraphNode], [GraphEdge])
 numberTree new Nil = (new-1, [], []) -- (new-1) because the convention is to return the 'last labeled number'; i.e. we did not utilize label 'new', hence decrement the label counter
 numberTree new (Node val children) = (n', nodes, edges)
                   where
-                    nodes = [(new, val)] ++ nodes' -- label this node 'new'
+                    nodes = (new, val) : nodes' -- label this node 'new'
                     (n', nodes', edges) = -- label this node's children
                             case children of
                                 Nothing -> (new, [], []) -- new is still the last utilized label
                                 Just a -> let (n'''', nodes'''', edges'''', ch) = numberChildren (new+1) a -- number the children starting from ('new'+1)
-                                          in (n'''', nodes'''', edges'''' ++ (map buildEdge ch))
+                                          in (n'''', nodes'''', edges'''' ++ map buildEdge ch)
                                           where buildEdge cid = (new, cid, "")
 
 -- | Recursively walk down a list of a Node's children in a 'Decaf.Data.Tree'
@@ -50,6 +49,6 @@ numberTree new (Node val children) = (n', nodes, edges)
 --    (_, _, _, [Int])       -> the list of labels corresponding to the labels of the children in this list; utilized by the caller of 'numberChildren' to create edges between the root of this children list, and all the nodes contained in the list
 numberChildren :: Int -> [Tree String] -> (Int, [GraphNode], [GraphEdge], [Int])
 numberChildren new [] = (new-1, [], [], []) -- (new-1) because the convention is to return the 'last labeled number'; i.e. we did not utilize the lable 'new', hence decrement the label counter
-numberChildren new (x:xs) = let (n'', nodes'', edges'') = numberTree (new) x
+numberChildren new (x:xs) = let (n'', nodes'', edges'') = numberTree new x
                                 (n''', nodes''', edges''', ch') = numberChildren (n''+1) xs
-                            in (n''', nodes'' ++ nodes''', edges'' ++ edges''', (if n'' >= new then [new] else []) ++ ch')
+                            in (n''', nodes'' ++ nodes''', edges'' ++ edges''', [new | n'' >= new] ++ ch')
