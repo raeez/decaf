@@ -30,20 +30,6 @@ root = move (\_ -> [])
 isRoot :: ContextTree a -> Bool
 isRoot (ContextTree _ c) = null c
 
--- adds a new node to tree at given context, and points to it in the new context
-addChild :: a -> ContextTree a -> ContextTree a
-addChild val t = let curcontext = context t
-                     pos = head curcontext
-                     nodes = children (node t)
-                  in if isRoot t
-                     then let newNodes = nodes ++ [Node val []]
-                          in ContextTree (Node (content (node t)) newNodes) [length newNodes - 1]
-                     else let branch = addChild val (ContextTree (nodes !! pos) (tail curcontext))
-                          in ContextTree (Node (content (node t))
-                             (take pos nodes
-                              ++ [node branch]
-                              ++ drop (pos+1) nodes)) (pos : context branch)
-
 -- applies f to the current context (considered as a tree) and returns modified t
 modify :: (ContextTree a -> ContextTree a) -> ContextTree a -> ContextTree a
 modify f t = if isRoot t -- this is the node to be modified
@@ -58,10 +44,10 @@ modify f t = if isRoot t -- this is the node to be modified
                          ++ [node branch] -- insert the modified subtree in the right place
                          ++ drop (pos+1) nodes)) (pos : context branch)
 
-addChild' :: a -> ContextTree a -> ContextTree a
-addChild' val tree = modify change tree
-          where change (ContextTree node _) = let newNodes = children node ++ [Node val []]
-                                              in ContextTree (Node (content node) newNodes) [length newNodes -1]
+addChild :: a -> ContextTree a -> ContextTree a
+addChild val tree = modify addchild tree
+          where addchild (ContextTree node _) = let newNodes = children node ++ [Node val []]
+                                                in ContextTree (Node (content node) newNodes) [length newNodes -1]
 
 modifyContextTreeCnt :: (a -> a) -> ContextTree a -> ContextTree a
 modifyContextTreeCnt f = modify g
