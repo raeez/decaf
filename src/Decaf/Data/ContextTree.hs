@@ -49,8 +49,8 @@ addChild val tree = modify addchild tree
           where addchild (ContextTree node _) = let newNodes = children node ++ [Node val []]
                                                 in ContextTree (Node (content node) newNodes) [length newNodes -1]
 
-modifyContextTreeCnt :: (a -> a) -> ContextTree a -> ContextTree a
-modifyContextTreeCnt f = modify g
+modifyContextTreeContent :: (a -> a) -> ContextTree a -> ContextTree a
+modifyContextTreeContent f = modify g
           where g (ContextTree node cnt) = ContextTree (Node (f (content node)) (children node)) cnt
 
 getContent :: ContextTree a -> a

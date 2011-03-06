@@ -5,38 +5,49 @@ import Decaf.Data.SymbolTable
 import Decaf.Data.ContextTree
 import Decaf.Util
 
+data SemanticError = SemanticError {
+  message :: String,
+  position :: DecafPosition
+  }
+
 -- | Semantic checking monad
-data Checker a = Checker {runChecker :: (String, SymbolTree) -> (a, (String, SymbolTree))}
+newtype Checker a = Checker {
+  runChecker :: ([SemanticError], SymbolTree) -> (a, ([SemanticError], SymbolTree))
+  }
 
 instance Monad Checker where
-    return a = Checker (\s -> (a, s))
-    m >>= f = Checker (\s ->
+  return a = Checker (\s -> (a, s))
+  m >>= f = Checker (\s ->
                 let (a, (e,t)) = runChecker m s
                 in runChecker (f a) (e,t))
 
+instance Show SemanticError where
+  show (SemanticError message (l, c)) = show l ++ ":" ++ show c ++ ": " ++ message
+
 -- Monad manipulation functions
 pushError :: DecafPosition -> String -> Checker Bool
-pushError (l,c) str = Checker (\(e,t) -> (False, (e ++ show l ++ ":" ++ show c ++ ": " ++ str ++ "\n", t)))
+pushError (l,c) str = Checker (\(e,t) -> (False, (e ++ [err], t)))
+    where
+      err = SemanticError str (l, c)
 
 addSymbol :: SymbolRecord -> Checker Bool
-addSymbol sr = Checker (\(e,t) -> (True, (e, modifyContextTreeCnt g t))) 
+addSymbol sr = Checker (\(e,t) -> (True, (e, modifyContextTreeContent g t)))
     where g (SymbolTable rs bt) = SymbolTable (sr : rs) bt
 
 local :: BlockType -> Checker a -> Checker a
-local tp m = Checker (\(e,t)-> let (a,(e',t')) = runChecker m (e, addChild (SymbolTable [] tp) t)
+local tp m = Checker (\(e,t)-> let (a,(e', t')) = runChecker m (e, addChild (SymbolTable [] tp) t)
                                in (a, (e', setContext (context t) t')))
 getST :: Checker SymbolTree
-getST  = Checker (\(e,t) -> (t,(e,t)))
+getST  = Checker (\(e, t) -> (t,(e, t)))
 
-get :: Checker (String, SymbolTree)
-get = Checker (\(e,t) -> ((e,t),(e,t)))
+get :: Checker ([SemanticError], SymbolTree)
+get = Checker (\(e,t) -> ((e, t),(e, t)))
 
 setContextTree :: SymbolTree -> Checker ()
-setContextTree t = Checker(\(e, _) -> ((), (e,t)))
+setContextTree t = Checker(\(e, _) -> ((), (e,t )))
 
 setCheckerContext :: Context -> Checker()
-setCheckerContext c = Checker(\(e,t)-> ((),(e,setContext c t)))
-
+setCheckerContext c = Checker(\(e, t)-> ((), (e, setContext c t)))
 
 -- symbol table access functions
 lookNear :: DecafIdentifier -> Checker (Maybe SymbolRecord)
@@ -368,7 +379,7 @@ checker :: String -> Bool
 checker input =
     case ps program input of
       RSuccess prog ->
-          let (_, (errors, _)) =  runChecker (checkProgram prog) ("", mkContextTree $ SymbolTable [] GlobalBlock)
+          let (_, (errors, _)) =  runChecker (checkProgram prog) ([], mkContextTree $ SymbolTable [] GlobalBlock)
           in length errors <= 0
       RError s -> error s -- should be a valid program
 
@@ -377,9 +388,10 @@ checkFile :: String -> String -> (String, String)
 checkFile str file =
     case ps program str of
       RSuccess prog -> 
-          let (_,(e,t)) = runChecker (checkProgram prog) ("", mkContextTree $ SymbolTable [] GlobalBlock)
-          in (show prog ++ "\n\n" ++ show t, safeinit . unlines . map ((file++":")++) . lines $ e)
+          let (_,(e,t)) = runChecker (checkProgram prog) ([], mkContextTree $ SymbolTable [] GlobalBlock)
+          in (show prog ++ "\n\n" ++ show t, unlines (map (addHeader . show) e))
       RError str -> (str,str)
       where
         safeinit [] = []
         safeinit list = init list
+        addHeader a = file ++ ": " ++ a
