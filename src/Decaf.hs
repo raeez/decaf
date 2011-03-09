@@ -9,11 +9,11 @@ module Decaf (
     module Decaf.Data.ContextTree,
     module Decaf.Data.SymbolTable,
     module Decaf.Data.Tree,
-    module Decaf.Util
+    module Decaf.Util.Report
 
  ) where
 
-import Decaf.Util
+import Decaf.Util.Report
 import Decaf.Data.ContextTree
 import Decaf.Data.Tree
 import Decaf.Data.SymbolTable

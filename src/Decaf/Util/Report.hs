@@ -1,4 +1,4 @@
-module Decaf.Util where
+module Decaf.Util.Report where
 
 -- | Report utilized throughout the binaries for error reporting
 data Report a = RSuccess a
