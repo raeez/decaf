@@ -10,14 +10,16 @@ type Zipper a = (Tree a, Context a)
 context :: Zipper a -> Context a
 context (_, c) = c
 
-select :: Int -> Zipper a -> Zipper a
-select i ((Node val children), ctx) = (children !! i, Child i (Node val (take i children ++ drop (i+1) children)) ctx)
-
 top :: Tree a -> Zipper a
 top t = (t, Root)
 
+select :: Int -> Zipper a -> Zipper a
+select i ((Node val children), ctx)
+  = (children !! i, Child i (Node val (take i children ++ drop (i+1) children)) ctx)
+
 parent :: Zipper a -> Zipper a
-parent (tree, Child n (Node val children) c) = (Node val (take n children ++ [tree] ++ drop n children), c)
+parent (tree, Child n (Node val children) c)
+  = (Node val (take n children ++ [tree] ++ drop n children), c)
 parent (_, Root) = error "Zipper.hs:22 Root context has no parent"
 
 root :: Zipper a -> Zipper a
@@ -39,8 +41,12 @@ isRoot (_, Root) = True
 isRoot _ = False
 
 addChild :: a -> Zipper a -> Zipper a
-addChild v z = modify addchild z
-    where addchild (Node val children) = Node val (children ++ [Node v []])
+addChild v (Node val children, ctx) = (tree'', ctx')
+    where
+      newNodes = children ++ [Node v []]
+      tree' = Node val newNodes -- insert node
+      nodeNumber = length newNodes - 1-- get it's number
+      (tree'', ctx') = (select nodeNumber) (tree', ctx) -- focus on the new node
 
 modifyContent :: (a -> a) -> Zipper a -> Zipper a
 modifyContent f = modify changecontent

@@ -5,6 +5,9 @@ import Decaf.Data.Zipper
 -- | A program's set of 'SymbolTable' is stored in a tree structure
 type SymbolTree = Zipper SymbolTable
 
+-- | A program's SymbolTable Context
+type SymbolTreeContext = Context SymbolTable
+
 -- | Program symbols are stored in the 'SymbolTable' structure
 data SymbolTable = SymbolTable {
   symbolRecords :: [SymbolRecord],
@@ -39,4 +42,4 @@ symType (ArrayRec a) = arrayType a
 
 -- | Create a new SymbolTree
 mkSymbolTree :: SymbolTable -> SymbolTree
-mkSymbolTree s = mkZipper s
+mkSymbolTree = mkZipper

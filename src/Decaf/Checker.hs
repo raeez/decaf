@@ -44,7 +44,7 @@ getST  = Checker (\(e, t) -> (t, (e, t)))
 get :: Checker ([SemanticError], SymbolTree)
 get = Checker (\(e,t) -> ((e, t), (e, t)))
 
-setCheckerContext :: Context SymbolTable -> Checker()
+setCheckerContext :: SymbolTreeContext -> Checker()
 setCheckerContext c = Checker(\(e, t)-> ((), (e, setContext c t)))
 
 -- symbol table access functions
