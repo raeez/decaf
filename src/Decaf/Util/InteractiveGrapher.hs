@@ -1,6 +1,7 @@
 module Decaf.Util.InteractiveGrapher where
 import System.Process
 import Decaf.Data.GraphTree
+import Decaf.Data.Zipper
 
 graph z = do
     outputGraph z

@@ -1,9 +1,5 @@
 module Decaf.Data.Zipper where
-
-data Tree a = Node {
-    content :: a,
-    children ::[Tree a]
-  } deriving (Eq)
+import Decaf.Data.Tree
 
 data Context a = Root
                | Child Int (Tree a) (Context a)
@@ -11,25 +7,32 @@ data Context a = Root
 
 type Zipper a = (Tree a, Context a)
 
+context :: Zipper a -> Context a
+context (_, c) = c
+
 select :: Int -> Zipper a -> Zipper a
-select i (t@(Node val children), ctx) = (children !! i, Child i t ctx)
+select i ((Node val children), ctx) = (children !! i, Child i (Node val (take i children ++ drop (i+1) children)) ctx)
 
 top :: Tree a -> Zipper a
 top t = (t, Root)
 
 parent :: Zipper a -> Zipper a
 parent (tree, Child n (Node val children) c) = (Node val (take n children ++ [tree] ++ drop n children), c)
+parent (_, Root) = error "Zipper.hs:22 Root context has no parent"
 
 root :: Zipper a -> Zipper a
-root l@(t, Root) = l
+root l@(_, Root) = l
 root l = root (parent l)
 
 modify :: (Tree a -> Tree a) -> Zipper a -> Zipper a
 modify f (t, c) = (f t, c)
 
--- implement
---setContext :: Context -> ContextTree a -> ContextTree a
---setContext c = move (\_ -> c)
+setContext :: Context a -> (Zipper a -> Zipper a)
+setContext c = (genPath c) . root
+
+genPath :: Context a -> (Zipper a -> Zipper a)
+genPath Root = id
+genPath (Child i _ c) = (select i) . (genPath c)
 
 isRoot :: Zipper a -> Bool
 isRoot (_, Root) = True
@@ -44,17 +47,18 @@ modifyContent f = modify changecontent
     where changecontent (Node val children) = Node (f val) children
 
 getContent :: Zipper a -> a
-getContent (Node val children, _) = val
+getContent (Node val _, _) = val
 
 mkZipper :: a -> Zipper a
 mkZipper val = top (Node val [])
 
-instance (Show a) => Show (Tree a) where
-    show node = display 0 node
-        where
-            display indent node = spaces indent ++ Prelude.show (content node) ++ "\n" ++ concatMap (display $ indent+1) (children node)
-            spaces indent = map (\_ -> ' ') [1..3*indent]
+generify :: (Show a) => Zipper a -> Tree String
+generify z = let (tree, _) = root z
+             in rewrite tree
+  where
+    rewrite :: (Show a) => Tree a -> Tree String
+    rewrite (Node val children) = Node (show val) (map rewrite children)
 
 instance (Show a) => Show (Context a) where
     show Root = "ROOT"
-    show (Child i t c) = "CHILD " ++ Prelude.show i ++ " <" ++ show c ++ ">"
+    show (Child i _ c) = "CHILD " ++ Prelude.show i ++ " <" ++ show c ++ ">"

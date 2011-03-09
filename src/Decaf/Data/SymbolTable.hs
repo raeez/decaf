@@ -1,9 +1,9 @@
 module Decaf.Data.SymbolTable where
 import Decaf.AST
-import Decaf.Data.ContextTree
+import Decaf.Data.Zipper
 
 -- | A program's set of 'SymbolTable' is stored in a tree structure
-type SymbolTree = ContextTree SymbolTable
+type SymbolTree = Zipper SymbolTable
 
 -- | Program symbols are stored in the 'SymbolTable' structure
 data SymbolTable = SymbolTable {
@@ -36,3 +36,7 @@ symType :: SymbolRecord -> DecafType
 symType (VarRec v) = varType v
 symType (MethodRec m) = methodType m
 symType (ArrayRec a) = arrayType a
+
+-- | Create a new SymbolTree
+mkSymbolTree :: SymbolTable -> SymbolTree
+mkSymbolTree s = mkZipper s

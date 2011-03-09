@@ -2,8 +2,8 @@ module Decaf.Checker where
 import Decaf.AST
 import Decaf.Parser
 import Decaf.Data.SymbolTable
-import Decaf.Data.ContextTree
-import Decaf.Util
+import Decaf.Data.Zipper
+import Decaf.Util.Report
 
 -- | A single instance of a semantic error
 data SemanticError = SemanticError {
@@ -32,7 +32,7 @@ pushError (l,c) str = Checker (\(e,t) -> (False, (e ++ [err], t)))
       err = SemanticError str (l, c)
 
 addSymbol :: SymbolRecord -> Checker Bool
-addSymbol sr = Checker (\(e,t) -> (True, (e, modifyContextTreeContent g t)))
+addSymbol sr = Checker (\(e,t) -> (True, (e, modifyContent g t)))
     where g (SymbolTable rs bt) = SymbolTable (sr : rs) bt
 
 local :: BlockType -> Checker a -> Checker a
@@ -44,7 +44,7 @@ getST  = Checker (\(e, t) -> (t, (e, t)))
 get :: Checker ([SemanticError], SymbolTree)
 get = Checker (\(e,t) -> ((e, t), (e, t)))
 
-setCheckerContext :: Context -> Checker()
+setCheckerContext :: Context SymbolTable -> Checker()
 setCheckerContext c = Checker(\(e, t)-> ((), (e, setContext c t)))
 
 -- symbol table access functions
@@ -377,17 +377,18 @@ checker :: String -> Bool
 checker input =
     case ps program input of
       RSuccess prog ->
-          let (_, (errors, _)) =  runChecker (checkProgram prog) ([], mkContextTree $ SymbolTable [] GlobalBlock)
+          let (_, (errors, _)) =  runChecker (checkProgram prog) ([], mkSymbolTree $ SymbolTable [] GlobalBlock)
           in length errors <= 0
       RError s -> error s -- should be a valid program
 
 -- | The 'checkFile' function returns a tuple of (String, String) representing
-checkFile :: String -> String -> (String, String)
+checkFile :: String -> String -> Report ([SemanticError], SymbolTree, String, String)
 checkFile str file =
     case ps program str of
-      RSuccess prog -> 
-          let (_,(e,t)) = runChecker (checkProgram prog) ([], mkContextTree $ SymbolTable [] GlobalBlock)
-          in (show prog ++ "\n\n" ++ show t, unlines (map (addHeader . show) e))
-      RError str -> (str,str)
+      RSuccess prog -> let (_,(e,t)) = runChecker (checkProgram prog) ([], mkSymbolTree $ SymbolTable [] GlobalBlock)
+                       in RSuccess (e, t, displayDebug (prog, t), displayErrors e)
+      RError str -> RError str
       where
         addHeader a = file ++ ": " ++ a
+        displayErrors e = unlines (map (addHeader . show) e)
+        displayDebug (prog, t) = show prog ++ "\n\n" ++ show t
