@@ -1,10 +1,15 @@
 module Decaf.Data.GraphTree where
 import Data.Graph.Inductive
+import Data.GraphViz
 import Decaf.Data.Tree
 
 type GraphTree = ([GraphNode], [GraphEdge])
 type GraphNode = (Int, String)
 type GraphEdge = (Int, Int, String)
+
+-- | Render a constructed GraphViz graph with the default parameters
+renderGraph :: Gr String String -> String
+renderGraph = printDotGraph . graphToDot graphParams
 
 -- | Construct a GraphViz graph from a 'Decaf.Data.Tree'
 buildGraph :: Tree String -> Gr String String
@@ -30,14 +35,13 @@ extract (_, nodes, edges) = (nodes, edges)
 --    (_, [GraphNode], _) -> corresponds to the list of labeled nodes contained in the subtree rooted at this node (root inclusive)
 --    (_, _, [GraphEdge]) -> corresponds to the list of edges contained in the subtree rooted at this node (root inclusive)
 numberTree :: Int -> Tree String -> (Int, [GraphNode], [GraphEdge])
-numberTree new Nil = (new-1, [], []) -- (new-1) because the convention is to return the 'last labeled number'; i.e. we did not utilize label 'new', hence decrement the label counter
 numberTree new (Node val children) = (n', nodes, edges)
                   where
                     nodes = (new, val) : nodes' -- label this node 'new'
                     (n', nodes', edges) = -- label this node's children
                             case children of
-                                Nothing -> (new, [], []) -- new is still the last utilized label
-                                Just a -> let (n'''', nodes'''', edges'''', ch) = numberChildren (new+1) a -- number the children starting from ('new'+1)
+                                [] -> (new, [], []) -- new is still the last utilized label
+                                c@(_:_) -> let (n'''', nodes'''', edges'''', ch) = numberChildren (new+1) c -- number the children starting from ('new'+1)
                                           in (n'''', nodes'''', edges'''' ++ map buildEdge ch)
                                           where buildEdge cid = (new, cid, "")
 
@@ -52,3 +56,25 @@ numberChildren new [] = (new-1, [], [], []) -- (new-1) because the convention is
 numberChildren new (x:xs) = let (n'', nodes'', edges'') = numberTree new x
                                 (n''', nodes''', edges''', ch') = numberChildren (n''+1) xs
                             in (n''', nodes'' ++ nodes''', edges'' ++ edges''', [new | n'' >= new] ++ ch')
+
+-- | Decfault render parameters
+graphParams :: GraphvizParams String String () String
+graphParams = nonClusteredParams {
+    globalAttributes = ga,
+    fmtNode = fn,
+    fmtEdge = fe
+  }
+  where
+    ga = [
+      GraphAttrs [
+        (BgColor . X11Color) Transparent
+        ],
+      NodeAttrs [
+        (FillColor . X11Color) White,
+        Style [SItem Filled []]
+        ]
+      ]
+
+    fn (_, l) = [(Label . StrLabel) l]
+    fe (_, _,l) = [(Label . StrLabel) l]
+
