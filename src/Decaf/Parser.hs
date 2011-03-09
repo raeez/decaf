@@ -4,7 +4,7 @@ import Text.ParserCombinators.Parsec
 import Decaf.Tokens
 import Decaf.AST
 import Decaf.Scanner
-import Decaf.Util
+import Decaf.Util.Report
 
 -- |DecafParser defines a Parser type for DecafToken
 type DecafParser a = GenParser Token () a
