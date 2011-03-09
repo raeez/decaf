@@ -14,7 +14,7 @@ top :: Tree a -> Zipper a
 top t = (t, Root)
 
 select :: Int -> Zipper a -> Zipper a
-select i ((Node val children), ctx)
+select i (Node val children, ctx)
   = (children !! i, Child i (Node val (take i children ++ drop (i+1) children)) ctx)
 
 parent :: Zipper a -> Zipper a
@@ -29,12 +29,12 @@ root l = root (parent l)
 modify :: (Tree a -> Tree a) -> Zipper a -> Zipper a
 modify f (t, c) = (f t, c)
 
-setContext :: Context a -> (Zipper a -> Zipper a)
-setContext c = (genPath c) . root
+setContext :: Context a -> Zipper a -> Zipper a
+setContext c = genPath c . root
 
-genPath :: Context a -> (Zipper a -> Zipper a)
+genPath :: Context a -> Zipper a -> Zipper a
 genPath Root = id
-genPath (Child i _ c) = (select i) . (genPath c)
+genPath (Child i _ c) = select i . genPath c
 
 isRoot :: Zipper a -> Bool
 isRoot (_, Root) = True
@@ -46,7 +46,7 @@ addChild v (Node val children, ctx) = (tree'', ctx')
       newNodes = children ++ [Node v []]
       tree' = Node val newNodes -- insert node
       nodeNumber = length newNodes - 1-- get it's number
-      (tree'', ctx') = (select nodeNumber) (tree', ctx) -- focus on the new node
+      (tree'', ctx') = select nodeNumber (tree', ctx) -- focus on the new node
 
 modifyContent :: (a -> a) -> Zipper a -> Zipper a
 modifyContent f = modify changecontent
