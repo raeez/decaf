@@ -1,12 +1,22 @@
 module Main where
-import Data.GraphViz
 import System.Process
 import System.Environment
 import System.Exit
-import Decaf.AST
 import Decaf.Data.GraphTree
+import Decaf.Data.Zipper
+import Decaf.Util.Report
+import Decaf.AST
 import Decaf.Parser
-import Decaf.Util
+import Decaf.Checker
+
+basename :: String -> String
+basename f = fst $ break (=='.') f
+
+buildFilename :: String -> Int -> String -> String
+buildFilename f i ext = basename f ++ "." ++ show i ++ "." ++ ext
+
+convertToPNG :: String -> String -> IO ()
+convertToPNG graphFile imageFile = runCommand ("dot -Tpng " ++ graphFile ++ " -o" ++ imageFile) >> putStrLn ""
 
 main :: IO ()
 main = do
@@ -18,30 +28,21 @@ main = do
 parse :: String -> String -> IO ()
 parse inputFile input =
           case ps program input of
-              RSuccess a -> print a  >> outputGraph a >> convertToPNG >> exitSuccess
+              RSuccess a -> print a  >> outputGraph a >> convertToPNG graphFile imageFile >> (check inputFile input)
               RError e -> putStrLn ("Error:\n" ++ show e) >> exitFailure
           where
-            outputFile = inputFile ++ ".out"
-            graphText =  printDotGraph . graphToDot graphParams . buildGraph . treeify
-            outputGraph a = print (graphText a) >> writeFile outputFile (graphText a)
-            convertToPNG = runCommand ("dot -Tpng " ++ outputFile ++ " -o" ++ outputFile ++ ".png") >> putStrLn ""
+            graphText =  renderGraph . buildGraph . treeify
+            outputGraph a = putStrLn (graphText a) >> writeFile graphFile (graphText a)
+            graphFile = buildFilename inputFile 0 "out"
+            imageFile = buildFilename inputFile 0 "png"
 
-graphParams :: GraphvizParams String String () String
-graphParams = nonClusteredParams {
-    globalAttributes = ga,
-    fmtNode = fn,
-    fmtEdge = fe
-  }
-  where
-    ga = [
-      GraphAttrs [
-        (BgColor . X11Color) Transparent
-        ],
-      NodeAttrs [
-        (FillColor . X11Color) White,
-        Style [SItem Filled []]
-        ]
-      ]
-
-    fn (_, l) = [(Label . StrLabel) l]
-    fe (_, _,l) = [(Label . StrLabel) l]
+check :: String -> String -> IO ()
+check inputFile input =
+          case checkFile input inputFile of
+            RSuccess (_, t, dT, dE) -> print dT >> print dE >> outputGraph t >> convertToPNG graphFile imageFile >> exitSuccess
+            RError e -> putStrLn ("Error:\n" ++ show e) >> exitFailure
+          where
+            graphText = renderGraph . buildGraph . generify
+            outputGraph a = putStrLn (graphText a) >> writeFile graphFile (graphText a)
+            graphFile = buildFilename inputFile 1 "out"
+            imageFile = buildFilename inputFile 1 "png"
