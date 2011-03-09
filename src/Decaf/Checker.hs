@@ -5,6 +5,7 @@ import Decaf.Data.SymbolTable
 import Decaf.Data.ContextTree
 import Decaf.Util
 
+-- | A single instance of a semantic error
 data SemanticError = SemanticError {
   message :: String,
   position :: DecafPosition
@@ -38,13 +39,10 @@ local :: BlockType -> Checker a -> Checker a
 local tp m = Checker (\(e,t)-> let (a,(e', t')) = runChecker m (e, addChild (SymbolTable [] tp) t)
                                in (a, (e', setContext (context t) t')))
 getST :: Checker SymbolTree
-getST  = Checker (\(e, t) -> (t,(e, t)))
+getST  = Checker (\(e, t) -> (t, (e, t)))
 
 get :: Checker ([SemanticError], SymbolTree)
-get = Checker (\(e,t) -> ((e, t),(e, t)))
-
-setContextTree :: SymbolTree -> Checker ()
-setContextTree t = Checker(\(e, _) -> ((), (e,t )))
+get = Checker (\(e,t) -> ((e, t), (e, t)))
 
 setCheckerContext :: Context -> Checker()
 setCheckerContext c = Checker(\(e, t)-> ((), (e, setContext c t)))
@@ -52,14 +50,14 @@ setCheckerContext c = Checker(\(e, t)-> ((), (e, setContext c t)))
 -- symbol table access functions
 lookNear :: DecafIdentifier -> Checker (Maybe SymbolRecord)
 lookNear id = do st <- getST
-                 let recs = symbolRecords.getContent $ st
+                 let recs = symbolRecords . getContent $ st
                  return $ lookup id $ zip (map symID recs) recs
 
 lookFar :: DecafIdentifier -> Checker (Maybe SymbolRecord)
 lookFar id = do st <- getST
                 return $ exists st
-    where exists st = let recs = symbolRecords.getContent $ st in
-                      case lookup id (zip (map symID recs) recs) of
+    where exists st = let recs = symbolRecords . getContent $ st
+                      in case lookup id (zip (map symID recs) recs) of
                         Nothing -> if isRoot st
                                    then Nothing
                                    else exists $ parent st
@@ -392,6 +390,4 @@ checkFile str file =
           in (show prog ++ "\n\n" ++ show t, unlines (map (addHeader . show) e))
       RError str -> (str,str)
       where
-        safeinit [] = []
-        safeinit list = init list
         addHeader a = file ++ ": " ++ a

@@ -15,7 +15,7 @@ data SymbolTable = SymbolTable {
 data SymbolRecord = VarRec DecafVar 
                   | MethodRec DecafMethod
                   | ArrayRec DecafArr
-                  deriving (Show,Eq)
+                  deriving (Show, Eq)
 
 -- | Symbol representing the various styleof block in Decaf
 data BlockType = ForBlock
@@ -23,7 +23,7 @@ data BlockType = ForBlock
                | MethodBlock DecafType
                | GlobalBlock
                | TrivialBlock
-               deriving (Show,Eq)
+               deriving (Show, Eq)
 
 -- | Retrieve the a symbol's identifier; utilized in checking declarations
 symID :: SymbolRecord -> DecafIdentifier
