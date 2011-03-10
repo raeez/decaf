@@ -7,33 +7,34 @@ import Decaf.Util.Report
 
 -- | A single instance of a semantic error
 data SemanticError = SemanticError {
-  message :: String,
-  position :: DecafPosition
-  }
+    message :: String,
+    position :: DecafPosition
+    }
 
 -- | Semantic checking monad
 newtype Checker a = Checker {
-  runChecker :: ([SemanticError], SymbolTree) -> (a, ([SemanticError], SymbolTree))
-  }
+    runChecker :: ([SemanticError], SymbolTree) -> (a, ([SemanticError], SymbolTree))
+    }
 
 instance Monad Checker where
-  return a = Checker (\s -> (a, s))
-  m >>= f = Checker (\s ->
+    return a = Checker (\s -> (a, s))
+    m >>= f = Checker (\s ->
                 let (a, (e,t)) = runChecker m s
                 in runChecker (f a) (e,t))
 
 instance Show SemanticError where
-  show (SemanticError message (l, c)) = show l ++ ":" ++ show c ++ ": " ++ message
+    show (SemanticError message (l, c)) = show l ++ ":" ++ show c ++ ": " ++ message
 
 -- Monad manipulation functions
 pushError :: DecafPosition -> String -> Checker Bool
 pushError (l,c) str = Checker (\(e,t) -> (False, (e ++ [err], t)))
-    where
-      err = SemanticError str (l, c)
+  where
+    err = SemanticError str (l, c)
 
 addSymbol :: SymbolRecord -> Checker Bool
 addSymbol sr = Checker (\(e,t) -> (True, (e, modifyContent g t)))
-    where g (SymbolTable rs bt) = SymbolTable (sr : rs) bt
+  where
+    g (SymbolTable rs bt) = SymbolTable (sr : rs) bt
 
 local :: BlockType -> Checker a -> Checker a
 local tp m = Checker (\(e,t)-> let (a, (e', t')) = runChecker m (e, addChild (SymbolTable [] tp) t)
@@ -49,24 +50,26 @@ setCheckerContext c = Checker(\(e, t)-> ((), (e, setContext c t)))
 
 -- symbol table access functions
 lookNear :: DecafIdentifier -> Checker (Maybe SymbolRecord)
-lookNear id = do st <- getST
-                 let recs = symbolRecords . getContent $ st
-                 return $ lookup id $ zip (map symID recs) recs
+lookNear id = do
+                st <- getST
+                let recs = symbolRecords . getContent $ st
+                return $ lookup id $ zip (map symID recs) recs
 
 lookFar :: DecafIdentifier -> Checker (Maybe SymbolRecord)
-lookFar id = do st <- getST
-                return $ exists st
-    where exists st = let recs = symbolRecords . getContent $ st
-                      in case lookup id (zip (map symID recs) recs) of
+lookFar id = do
+               st <- getST
+               return $ exists st
+  where exists st = let recs = symbolRecords . getContent $ st
+                    in case lookup id (zip (map symID recs) recs) of
                         Nothing -> if isRoot st
-                                   then Nothing
-                                   else exists $ parent st
+                                     then Nothing
+                                     else exists $ parent st
                         other -> other
 
 inFor :: Checker Bool
 inFor = do st <- getST
            return $ infor st
-    where infor st
+  where infor st
               | (blockType . getContent $ st) == ForBlock = True
               | isRoot st = False
               | otherwise = infor $ parent st
@@ -74,19 +77,19 @@ inFor = do st <- getST
 inMethod :: Checker (Maybe DecafType)
 inMethod = do st <- getST
               return $ inmethod st
-    where inmethod st = 
+  where inmethod st = 
               case blockType.getContent $ st of
                 MethodBlock t -> Just t
                 _ -> if isRoot st
-                     then Nothing
-                     else inmethod $ parent st
+                       then Nothing
+                       else inmethod $ parent st
 
 addRet :: Checker Bool
 addRet = do st <- getST
             goFun st
             setCheckerContext (context st) -- goFun modifies context
             return True
-    where goFun st = 
+  where goFun st = 
               case blockType.getContent $ st of
                 MethodBlock _ -> 
                     do setCheckerContext (context st)
@@ -110,44 +113,46 @@ checkStm (DecafAssignStm loc op expr p) =
                         DecafArrLoc _ ind _ ->
                             do indT <- checkExpr ind
                                if indT == DecafInteger
-                                then return True
-                                else pushError (pos ind) "Array index must be an integer"
+                                 then return True
+                                 else pushError (pos ind) "Array index must be an integer"
                         _ -> return True
 
                       t2 <- checkExpr expr
                       let t1 = symType lhs
                       case op of
                         DecafEq _ -> if t1 == t2
-                                   then return True
-                                   else pushError p "Mismatched types in assignment statement"
+                                       then return True
+                                       else pushError p "Mismatched types in assignment statement"
                                             >> return False
                         _ -> if t1 == DecafInteger && t2 == DecafInteger
-                                 then return True
-                                 else pushError p "Mismatched types in arithmetic assignment statement"
+                               then return True
+                               else pushError p "Mismatched types in arithmetic assignment statement"
 
-checkStm (DecafIfStm expr block melse pos) = 
-          do dt <- checkExpr expr
-             if dt == DecafBoolean
-              then return True
-              else pushError pos "If conditional must have type Boolean"
+checkStm (DecafIfStm expr block melse pos) =
+    do
+      dt <- checkExpr expr
+      if dt == DecafBoolean
+        then return True
+        else pushError pos "If conditional must have type Boolean"
 
-             case melse of
-               Just e -> checkBlock block IfBlock >> checkBlock e IfBlock
-               Nothing -> checkBlock block IfBlock
+      case melse of
+          Just e -> checkBlock block IfBlock >> checkBlock e IfBlock
+          Nothing -> checkBlock block IfBlock
 
-checkStm (DecafForStm id expr1 expr2 block pos') = 
-          do addSymbol $ VarRec $ DecafVar DecafInteger id pos'
-             t1 <- checkExpr expr1
-             t2 <- checkExpr expr2
-             if t1 /= DecafInteger
-               then pushError (pos expr1) "Start expression in for loop must have type Integer"
-               else return True
-             if t2 /= DecafInteger
-               then pushError (pos expr2) "End expression in for loop must have type Integer"
-               else return True
-             checkBlock block ForBlock
+checkStm (DecafForStm id expr1 expr2 block pos') =
+          do
+            addSymbol $ VarRec $ DecafVar DecafInteger id pos'
+            t1 <- checkExpr expr1
+            t2 <- checkExpr expr2
+            if t1 /= DecafInteger
+              then pushError (pos expr1) "Start expression in for loop must have type Integer"
+              else return True
+            if t2 /= DecafInteger
+              then pushError (pos expr2) "End expression in for loop must have type Integer"
+              else return True
+            checkBlock block ForBlock
 
-checkStm (DecafRetStm rv pos) = 
+checkStm (DecafRetStm rv pos) =
           do t <- inMethod -- returns method type, if there is one
              case t of
                Nothing -> pushError pos "return may only be used inside a method definition"
@@ -268,7 +273,7 @@ checkExpr (DecafLocExpr (DecafArrLoc id ind _) pos) =
                 then return True
                 else pushError pos "Array index must be an integer"
                return arrT
-    where lookupID id pos =
+  where lookupID id pos =
             do mrec <- lookFar id
                case mrec of
                  Nothing -> pushError pos("Undefined variable "++id) >> return DecafVoid
@@ -289,7 +294,7 @@ checkExpr (DecafLitExpr lit _) =
                   checkInt int pos
               DecafBoolLit _ _-> return DecafBoolean
               _ -> error "THIS SHOULDN'T HAPPEN" -- TODO put a sensible error message here
-    where
+  where
       checkInt :: DecafInteger -> DecafPosition -> Checker DecafType
       checkInt int pos = 
               let val = readDecafInteger int
@@ -363,32 +368,33 @@ checkMethodArgs (DecafPureMethodCall dID args pos) =
                       return (methodType decafMethod)
                  Just _ -> error "Checker.hs:347 lookFar returned declaration of incorrect type; should be methodRec" -- TODO better error message
                  Nothing -> pushError pos ("Undeclared method: " ++ dID) >> return DecafVoid
-          where
-            bindCat :: [DecafType] -> [Checker DecafType] -> Checker [DecafType]
-            bindCat res args =
-                case args of
-                  [] -> return res
-                  _ -> do t <- (head args)
-                          bindCat (res++[t]) (tail args)
+  where
+    bindCat :: [DecafType] -> [Checker DecafType] -> Checker [DecafType]
+    bindCat res args =
+        case args of
+            [] -> return res
+            _ -> do
+                   t <- (head args)
+                   bindCat (res++[t]) (tail args)
 checkMethodArgs _ = return DecafInteger
 
 -- | The 'checker' function returns 'True' on a semantically valid decaf program input, 'False' otherwise; utilized in testsuite
 checker :: String -> Bool
 checker input =
     case ps program input of
-      RSuccess prog ->
-          let (_, (errors, _)) =  runChecker (checkProgram prog) ([], mkSymbolTree $ SymbolTable [] GlobalBlock)
-          in length errors <= 0
-      RError s -> error s -- should be a valid program
+        RSuccess prog ->
+            let (_, (errors, _)) =  runChecker (checkProgram prog) ([], mkSymbolTree $ SymbolTable [] GlobalBlock)
+            in length errors <= 0
+        RError s -> error s -- should be a valid program
 
 -- | The 'checkFile' function returns a tuple of (String, String) representing
 checkFile :: String -> String -> Report ([SemanticError], SymbolTree, String, String)
 checkFile str file =
     case ps program str of
-      RSuccess prog -> let (_,(e,t)) = runChecker (checkProgram prog) ([], mkSymbolTree $ SymbolTable [] GlobalBlock)
-                       in RSuccess (e, t, displayDebug (prog, t), displayErrors e)
-      RError str -> RError str
-      where
-        addHeader a = file ++ ": " ++ a
-        displayErrors e = unlines (map (addHeader . show) e)
-        displayDebug (prog, t) = show prog ++ "\n\n" ++ show t
+        RSuccess prog -> let (_,(e,t)) = runChecker (checkProgram prog) ([], mkSymbolTree $ SymbolTable [] GlobalBlock)
+                         in RSuccess (e, t, displayDebug (prog, t), displayErrors e)
+        RError str -> RError str
+  where
+    addHeader a = file ++ ": " ++ a
+    displayErrors e = unlines (map (addHeader . show) e)
+    displayDebug (prog, t) = show prog ++ "\n\n" ++ show t
