@@ -6,15 +6,14 @@ import Decaf.Data.Zipper
 import Decaf.Util.Report
 
 -- | A single instance of a semantic error
-data SemanticError = SemanticError {
-    message :: String,
-    position :: DecafPosition
+data SemanticError = SemanticError
+    { message :: String
+    , position :: DecafPosition
     }
 
 -- | Semantic checking monad
-newtype Checker a = Checker {
-    runChecker :: ([SemanticError], SymbolTree) -> (a, ([SemanticError], SymbolTree))
-    }
+newtype Checker a = Checker
+    { runChecker :: ([SemanticError], SymbolTree) -> (a, ([SemanticError], SymbolTree)) }
 
 instance Monad Checker where
     return a = Checker (\s -> (a, s))
@@ -361,7 +360,7 @@ checkMethodArgs (DecafPureMethodCall dID args pos) =
                case ex of 
                  Just (MethodRec decafMethod) -> 
                    do types <- bindCat [] (map checkExpr args)
-                      if (all (== True) $ zipWith (==) types (map varType (methodArg decafMethod)))
+                      if all (== True) (zipWith (==) types (map varType (methodArg decafMethod)))
                          && (length types == length (methodArg decafMethod))
                         then return False
                         else pushError pos "Incorrect argument type"

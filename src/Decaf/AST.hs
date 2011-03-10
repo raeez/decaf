@@ -8,20 +8,20 @@ import Decaf.Data.Tree
 -- @treeify - convert the subtree rooted at the 'ASTNode' into a generic 'Tree'
 
 class ASTNode a where
-  pos :: a -> DecafPosition
-  pp :: a -> String -- pretty print
-  treeify :: a -> Tree String -- turn into a generic tree
+    pos :: a -> DecafPosition
+    pp :: a -> String -- pretty print
+    treeify :: a -> Tree String -- turn into a generic tree
 
 -- | ASTNode encapsulates common operations on the Abstract Syntax Tree
 class Location a where
-  ident :: a -> DecafIdentifier
+    ident :: a -> DecafIdentifier
 
 -- |Abstract Syntax: Top-level structure of a decaf program
-data DecafProgram = DecafProgram {
-    fields :: [DecafField],
-    methods :: [DecafMethod],
-    progPos :: DecafPosition
-} deriving (Show, Eq)
+data DecafProgram = DecafProgram
+    { fields :: [DecafField]
+    , methods :: [DecafMethod]
+    , progPos :: DecafPosition
+    } deriving (Show, Eq)
 
 -- |Abstract Syntax: Field Declaration: variable or array
 data DecafField = DecafVarField DecafVar DecafPosition
@@ -29,35 +29,35 @@ data DecafField = DecafVarField DecafVar DecafPosition
                deriving (Show, Eq)
 
 -- |Abstract Syntax: Method Declaration (Signature)
-data DecafMethod = DecafMethod {
-    methodType :: DecafType,
-    methodID :: DecafIdentifier,
-    methodArg :: [DecafVar],
-    methodBody :: DecafBlock,
-    methodPos :: DecafPosition
+data DecafMethod = DecafMethod
+    { methodType :: DecafType
+    , methodID :: DecafIdentifier
+    , methodArg :: [DecafVar]
+    , methodBody :: DecafBlock
+    , methodPos :: DecafPosition
 } deriving (Show, Eq)
 
 -- |Abstract Syntax: Variable Declaration (Signature)
-data DecafVar = DecafVar {
-    varType :: DecafType,
-    varID :: DecafIdentifier,
-    varPos :: DecafPosition
-} deriving (Show, Eq)
+data DecafVar = DecafVar
+    { varType :: DecafType
+    , varID :: DecafIdentifier
+    , varPos :: DecafPosition
+    } deriving (Show, Eq)
 
 -- |Abstract Syntax: Array Declaration (Signature)
-data DecafArr = DecafArr {
-    arrayType :: DecafType,
-    arrayID :: DecafIdentifier,
-    arrayLength :: DecafInteger,
-    arrayPos :: DecafPosition
-} deriving (Show, Eq)
+data DecafArr = DecafArr
+    { arrayType :: DecafType
+    , arrayID :: DecafIdentifier
+    , arrayLength :: DecafInteger
+    ,arrayPos :: DecafPosition
+    } deriving (Show, Eq)
 
 -- |Abstract Syntax: Compound Statement/Block
-data DecafBlock = DecafBlock {
-    blockVars :: [DecafVar],
-    blockStms :: [DecafStm],
-    blockPos :: DecafPosition
-} deriving (Show, Eq)
+data DecafBlock = DecafBlock
+    { blockVars :: [DecafVar]
+    , blockStms :: [DecafStm]
+    , blockPos :: DecafPosition
+    } deriving (Show, Eq)
 
 -- |Abstract Syntax: Type Enumeration
 -- types : consider differentiating the two kinds of types
@@ -437,11 +437,11 @@ instance ASTNode DecafInteger where
 -- | 'readDecafInteger' parses a DecafInteger ASTNode and returns a Haskell integer
 readDecafInteger :: DecafInteger -> Integer
 readDecafInteger (DecafDec s) =
-          if head s == '-'
-          then -(read (tail s) :: Integer)
-          else read  s :: Integer
+    if head s == '-'
+      then -(read (tail s) :: Integer)
+      else read  s :: Integer
 
 readDecafInteger (DecafHex s) =
-          if head s == '-'
-          then -(fst . head . Numeric.readHex . tail $ s)
-          else fst . head . Numeric.readHex $ s
+    if head s == '-'
+      then -(fst . head . Numeric.readHex . tail $ s)
+      else fst . head . Numeric.readHex $ s
