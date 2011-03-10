@@ -9,16 +9,24 @@ type SymbolTree = Zipper SymbolTable
 type SymbolTreeContext = Context SymbolTable
 
 -- | Program symbols are stored in the 'SymbolTable' structure
-data SymbolTable = SymbolTable {
-  symbolRecords :: [SymbolRecord],
-  blockType :: BlockType
-  } deriving (Show, Eq)
+data SymbolTable = SymbolTable
+    { symbolRecords :: [SymbolRecord]
+    , blockType :: BlockType
+    } deriving (Show, Eq)
 
 -- | Individual program symbol entries are stored in the 'SymbolRecord' structure
-data SymbolRecord = VarRec DecafVar 
-                  | MethodRec DecafMethod
-                  | ArrayRec DecafArr
+data SymbolRecord = VarRec DecafVar SymbolicAddress
+                  | MethodRec DecafMethod SymbolicAddress
+                  | ArrayRec DecafArr SymbolicAddress
                   deriving (Show, Eq)
+
+data SymbolicAddress = SymbolicRegister RegisterLabel
+                     | GlobalOffset Offset
+                     | FrameOffset Offset
+                     deriving (Show, Eq)
+
+type Offset = Int
+type RegisterLabel = String
 
 -- | Symbol representing the various styleof block in Decaf
 data BlockType = ForBlock

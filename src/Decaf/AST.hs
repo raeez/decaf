@@ -8,8 +8,8 @@ import Decaf.Data.Tree
 -- @treeify - convert the subtree rooted at the 'ASTNode' into a generic 'Tree'
 
 class ASTNode a where
-    pos :: a -> DecafPosition
-    pp :: a -> String -- pretty print
+    pos :: a -> DecafPosition   -- return the source position
+    pp :: a -> String           -- pretty print
     treeify :: a -> Tree String -- turn into a generic tree
 
 -- | ASTNode encapsulates common operations on the Abstract Syntax Tree
