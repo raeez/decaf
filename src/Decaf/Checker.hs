@@ -109,11 +109,12 @@ checkStm (DecafAssignStm loc op expr p) =
                Nothing -> pushError (pos loc) ("Undeclared variable " ++ ident loc)
                Just lhs -> 
                    do case loc of
-                        DecafArrLoc _ ind _ ->
-                            do indT <- checkExpr ind
+                        arr@(DecafArrLoc _ _ _) ->
+                            checkExpr (DecafLocExpr arr p) >> return True
+{-                            do indT <- checkExpr ind
                                if indT == DecafInteger
                                  then return True
-                                 else pushError (pos ind) "Array index must be an integer"
+                                 else pushError (pos ind) "Array index must be an integer"-}
                         _ -> return True
 
                       t2 <- checkExpr expr
@@ -229,16 +230,14 @@ checkFieldDec (DecafArrField arr@(DecafArr _ id len _) pos') =
          Just _ -> error "Checker.hs:209 lookNear returned declaration of incorrect type; should be ArrayRec" -- TODO better error message
 
 checkMethodDec :: DecafMethod -> Checker Bool
-checkMethodDec meth@(DecafMethod t id args body@(DecafBlock _ _ _) pos') = 
+checkMethodDec meth@(DecafMethod t id args body{-@(DecafBlock _ _ _)-} pos') = 
     do rec <- lookNear id
        case rec of
-         Nothing -> do foldl (>>) (return False) (map (addSymbol.VarRec) args)
-                       addSymbol $ MethodRec meth
-                       checkBlock body (MethodBlock t) 
-
+         Nothing -> do addSymbol $ MethodRec meth
+                       checkBlock (DecafBlock (args ++ (blockVars body)) (blockStms body) (blockPos body)) (MethodBlock t)
 
          Just (MethodRec meth) -> pushError pos' ("Function " ++ id ++ " already defined at line number " ++ show(fst(pos meth)))
-         Just _ -> error "Checker.hs:221 lookNear returned declaration of incorrect type; should be MethodRec" -- TODO better error message
+         Just _ -> pushError pos' ("Variable with identifier "++ id ++ " already defined")
 
 
 checkProgram :: DecafProgram -> Checker Bool
@@ -266,17 +265,18 @@ checkExpr (DecafLocExpr (DecafVarLoc id _) pos) =
                        _ -> return $ symType rec
 
 checkExpr (DecafLocExpr (DecafArrLoc id ind _) pos) =
-            do arrT <- lookupID id pos 
+            do arrT <- lookupID id
                indT <- checkExpr ind
                if indT == DecafInteger
                 then return True
                 else pushError pos "Array index must be an integer"
                return arrT
-  where lookupID id pos =
+  where lookupID id =
             do mrec <- lookFar id
                case mrec of
-                 Nothing -> pushError pos("Undefined variable "++id) >> return DecafVoid
-                 Just rec -> return $ symType rec
+                 Nothing -> pushError pos ("Undefined variable "++id) >> return DecafVoid
+                 Just (ArrayRec arr) -> return $ arrayType arr
+                 Just (VarRec var) -> pushError pos (id++ " is not an array") >> return DecafVoid
 
 checkExpr (DecafExpr _ _ _) = error "AST has not had expression tree rewrite; concrete tree still present"
 
@@ -287,12 +287,14 @@ checkExpr (DecafMethodExpr (DecafMethodCallout _ args _) _) =
 checkExpr (DecafMethodExpr m _) =
             checkMethodArgs m
 
-checkExpr (DecafLitExpr lit _) =
+checkExpr (DecafLitExpr lit pos) =
             case lit of
-              DecafIntLit int pos-> 
+              DecafIntLit int _ -> 
                   checkInt int pos
               DecafBoolLit _ _-> return DecafBoolean
-              _ -> error "THIS SHOULDN'T HAPPEN" -- TODO put a sensible error message here
+              DecafCharLit char _ -> return DecafInteger
+              _ -> do pushError pos "THIS SHOULDN'T HAPPEN" -- TODO put a sensible error message here
+                      return DecafVoid
   where
       checkInt :: DecafInteger -> DecafPosition -> Checker DecafType
       checkInt int pos = 
@@ -327,6 +329,9 @@ checkExpr (DecafBinExpr expr1 op expr2 pos') =
                        do if t1 /= t2
                            then pushError pos' "Arguments of \"==\" must be of the same type"
                            else return True
+                          if t1 == DecafVoid || t2 == DecafVoid
+                            then pushError pos' "Arguments of \"==\" must be integral or boolean"
+                            else return True
                           return DecafBoolean
                  DecafBinCondOp _ _->
                      do
@@ -365,7 +370,8 @@ checkMethodArgs (DecafPureMethodCall dID args pos) =
                         then return False
                         else pushError pos "Incorrect argument type"
                       return (methodType decafMethod)
-                 Just _ -> error "Checker.hs:347 lookFar returned declaration of incorrect type; should be methodRec" -- TODO better error message
+                 Just _ -> do pushError pos (dID ++ " is not a method")
+                              return DecafVoid
                  Nothing -> pushError pos ("Undeclared method: " ++ dID) >> return DecafVoid
   where
     bindCat :: [DecafType] -> [Checker DecafType] -> Checker [DecafType]
@@ -385,6 +391,7 @@ checker input =
             let (_, (errors, _)) =  runChecker (checkProgram prog) ([], mkSymbolTree $ SymbolTable [] GlobalBlock)
             in length errors <= 0
         RError s -> error s -- should be a valid program
+
 
 -- | The 'checkFile' function returns a tuple of (String, String) representing
 checkFile :: String -> String -> Report ([SemanticError], SymbolTree, String, String)

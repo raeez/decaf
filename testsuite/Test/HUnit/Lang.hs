@@ -65,7 +65,7 @@ performTestCase :: Assertion -- ^ an assertion to be made during the test case r
 -- Implementations
 -- ---------------
 {-
-#if defined(__GLASGOW_HASKELL__) || defined(__HUGS__)
+ #if defined(__GLASGOW_HASKELL__) || defined(__HUGS__)
 data HUnitFailure = HUnitFailure String
     deriving Show
 
@@ -77,7 +77,7 @@ hunitFailureTc = mkTyCon "HUnitFailure"
                 
 instance Typeable HUnitFailure where
     typeOf _ = mkTyConApp hunitFailureTc []
-#ifdef BASE4
+ #ifdef BASE4
 instance Exception HUnitFailure
 
 assertFailure msg = E.throw (HUnitFailure msg)
@@ -88,7 +88,7 @@ performTestCase action =
      `E.catches`
       [E.Handler (\(HUnitFailure msg) -> return $ Just (True, msg)),
        E.Handler (\e -> return $ Just (False, show (e :: E.SomeException)))]
-#else
+ #else
 assertFailure msg = E.throwDyn (HUnitFailure msg)
 
 performTestCase action = 
@@ -100,8 +100,9 @@ performTestCase action =
                Just (HUnitFailure msg) -> return $ Just (True, msg)
                Nothing                 -> return $ Just (False, show e)
          Left e -> return $ Just (False, show e)
-#endif
-#else  -}
+ #endif
+ #else
+-}
 hunitPrefix = "HUnit:"
 
 nhc98Prefix = "I/O error (user-defined), call to function `userError':\n  "
