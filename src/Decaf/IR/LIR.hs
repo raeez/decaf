@@ -6,7 +6,7 @@ import Decaf.Data.Tree
 
 data LIRProgram = LIRProgram
     { programLabel :: LIRLabel
-    , program :: [LIRUnit]
+    , progUnits :: [LIRUnit]
     } deriving (Show, Eq)
 
 data LIRUnit = LIRUnit
