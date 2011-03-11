@@ -139,3 +139,38 @@ executable checker
         build-depends:  QuickCheck < 2
         ghc-options:    -Werror
 
+executable runtests
+    hs-source-dirs:     testsuite/
+
+    main-is:            runtests.hs
+    other-modules:      Decaf
+                        Decaf.Tokens
+                        Decaf.AST
+                        Decaf.Scanner
+                        Decaf.Parser
+                        Decaf.Checker
+
+                        Decaf.SemcheckerTests
+                        Decaf.ScannerTests
+                        Decaf.ParserTests
+
+    Hs-Source-Dirs:     src
+
+
+
+    Build-Depends:      base > 4, parsec, regex-posix, graphviz, HUnit
+    if true 
+        ghc-options:    -Wall -fno-warn-name-shadowing
+
+    if impl(ghc >= 6.12.1)
+        ghc-options:    -fno-warn-unused-do-bind
+
+    ghc-prof-options:   -prof -auto-all
+    extensions:         CPP
+
+    if flag(testing)
+        cpp-options:    -DTESTING
+        hs-source-dirs: . tests/
+        build-depends:  QuickCheck < 2
+        ghc-options:    -Werror
+
