@@ -25,10 +25,6 @@ executable scanner
 
     main-is:            ScannerBin.hs
     other-modules:      Decaf
-                        Decaf.Tokens
-                        Decaf.AST
-                        Decaf.Scanner
-                        Decaf.Parser
 
     Build-Depends:      base > 4, parsec, regex-posix,  graphviz
 
@@ -53,10 +49,6 @@ executable parser
 
     main-is:            ParserBin.hs
     other-modules:      Decaf
-                        Decaf.Tokens
-                        Decaf.AST
-                        Decaf.Scanner
-                        Decaf.Parser
 
     Build-Depends:      base > 4, parsec, regex-posix,  graphviz
 
@@ -81,10 +73,6 @@ executable scanner-repl
 
     main-is:            ScannerREPL.hs
     other-modules:      Decaf
-                        Decaf.Tokens
-                        Decaf.AST
-                        Decaf.Scanner
-                        Decaf.Parser
 
     Build-Depends:      base > 4, parsec, regex-posix,  graphviz
     if true 
@@ -109,10 +97,6 @@ executable grapher
 
     main-is:            GrapherBin.hs
     other-modules:      Decaf
-                        Decaf.Tokens
-                        Decaf.AST
-                        Decaf.Scanner
-                        Decaf.Parser
 
     Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process
 
@@ -137,13 +121,6 @@ executable checker
 
     main-is:            CheckerBin.hs
     other-modules:      Decaf
-                        Decaf.Tokens
-                        Decaf.AST
-                        Decaf.Scanner
-                        Decaf.Parser
-                        Decaf.Checker
-                        Decaf.Data.ContextTree
-                        Decaf.Data.SymbolTable
 
     Build-Depends:      base > 4, parsec, regex-posix, haskell98
 

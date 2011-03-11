@@ -1,5 +1,5 @@
 module Decaf.Checker where
-import Decaf.AST
+import Decaf.IR.AST
 import Decaf.Parser
 import Decaf.Data.SymbolTable
 import Decaf.Data.Zipper

@@ -1,5 +1,5 @@
 module Decaf.Data.SymbolTable where
-import Decaf.AST
+import Decaf.IR.AST
 import Decaf.Data.Zipper
 
 -- | A program's set of 'SymbolTable' is stored in a tree structure
@@ -15,17 +15,22 @@ data SymbolTable = SymbolTable
     } deriving (Show, Eq)
 
 -- | Individual program symbol entries are stored in the 'SymbolRecord' structure
-data SymbolRecord = VarRec DecafVar SymbolicAddress
-                  | MethodRec DecafMethod SymbolicAddress
-                  | ArrayRec DecafArr SymbolicAddress
+data SymbolRecord = VarRec DecafVar
+                  | MethodRec DecafMethod
+                  | ArrayRec DecafArr
                   deriving (Show, Eq)
 
+-- | A Symbolic Address assigned to the program symbol by the semantic checker;
+-- resolved at register allocater (in the code generator)
 data SymbolicAddress = SymbolicRegister RegisterLabel
                      | GlobalOffset Offset
                      | FrameOffset Offset
                      deriving (Show, Eq)
 
+-- | An integral offset, sign specifying direction and magnitude specifying number of bytes
 type Offset = Int
+
+-- | An integral offset, sign specifying direction and magnitude specifying number of bytes
 type RegisterLabel = String
 
 -- | Symbol representing the various styleof block in Decaf

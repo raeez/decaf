@@ -2,7 +2,7 @@ module Decaf.Parser
 where
 import Text.ParserCombinators.Parsec
 import Decaf.Tokens
-import Decaf.AST
+import Decaf.IR.AST
 import Decaf.Scanner
 import Decaf.Util.Report
 

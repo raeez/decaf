@@ -1,4 +1,4 @@
-module Decaf.AST where
+module Decaf.IR.AST where
 import Numeric
 import Decaf.Data.Tree
 
