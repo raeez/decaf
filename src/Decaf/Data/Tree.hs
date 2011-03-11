@@ -3,7 +3,7 @@ module Decaf.Data.Tree where
 -- | A generic tree
 data Tree a = Node {
   content :: a,
-  children ::[Tree a]
+  children :: [Tree a]
   } deriving (Eq)
 
 instance (Show a) => Show (Tree a) where
