@@ -20,8 +20,18 @@ flag testing
     description: Testing mode, only build minimal components
     default: False
 
+
+Library
+    hs-source-dirs: src/	
+
+    Build-Depends:  HUnit, graphviz, parsec, base > 4, regex-posix, fgl, mtl, process
+    Exposed-Modules:  Decaf, Decaf.Tokens, Decaf.IR.AST, Decaf.IR.LIR, Decaf.Scanner, Decaf.Parser, Decaf.Checker, Decaf.Data.Zipper, Decaf.Data.SymbolTable, Decaf.Data.Tree, Decaf.Data.GraphTree, Decaf.Util.Prelude, Decaf.Util.InteractiveGrapher, Decaf.Util.Report
+
+    Other-Modules: Decaf.Data.ContextTree
+
 executable scanner
     hs-source-dirs:     src/
+
 
     main-is:            ScannerBin.hs
     other-modules:      Decaf
