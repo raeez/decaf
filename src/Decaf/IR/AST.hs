@@ -1,16 +1,7 @@
 module Decaf.IR.AST where
 import Numeric
 import Decaf.Data.Tree
-
--- | ASTNode encapsulates common operations on the Abstract Syntax Tree
--- @pos - retrieves the parsed source code position of the 'ASTNode' as a 'DecafPosition'
--- @pp - pretty print the 'ASTNode'
--- @treeify - convert the subtree rooted at the 'ASTNode' into a generic 'Tree'
-
-class ASTNode a where
-    pos :: a -> DecafPosition   -- return the source position
-    pp :: a -> String           -- pretty print
-    treeify :: a -> Tree String -- turn into a generic tree
+import Decaf.IR.Class
 
 -- | ASTNode encapsulates common operations on the Abstract Syntax Tree
 class Location a where
@@ -187,9 +178,6 @@ type DecafCharacter = Char
 
 -- |Abstract Syntax: An identifier in Decaf is represented with a Haskell String.
 type DecafIdentifier = String
-
--- |Abstract Syntax: Every node in the Abstract Syntax tree track's it's parsed source pos as a tuple of (line, column)
-type DecafPosition = (Int, Int)
 
 instance ASTNode DecafProgram where
   pos (DecafProgram _ _ p) = p
