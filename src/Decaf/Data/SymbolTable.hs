@@ -15,6 +15,7 @@ data SymbolTable = SymbolTable
     } deriving (Show, Eq)
 
 -- | Individual program symbol entries are stored in the 'SymbolRecord' structure
+-- TODO 
 data SymbolRecord = VarRec DecafVar
                   | MethodRec DecafMethod
                   | ArrayRec DecafArr
@@ -54,5 +55,5 @@ symType (MethodRec m) = methodType m
 symType (ArrayRec a) = arrayType a
 
 -- | Create a new SymbolTree
-mkSymbolTree :: SymbolTable -> SymbolTree
-mkSymbolTree = mkZipper
+mkSymbolTree :: SymbolTree
+mkSymbolTree = mkZipper (SymbolTable [] GlobalBlock)

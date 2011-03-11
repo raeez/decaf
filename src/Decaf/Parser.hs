@@ -216,14 +216,12 @@ qs p i = case parse p "internal-decaf-parser" (eatFirst i) of
 
 program :: DecafParser DecafProgram
 program = do
-            p <- getPosition
             reserv "class" >> identf "Program"
             lbrace
             f <- many (try fielddecl)
             m <- many methoddecl
             rbrace
-            let p' = morphPos p
-            return $ DecafProgram (concat  f) m p'
+            return $ DecafProgram (concat  f) m
 
 fielddecl :: DecafParser [DecafField]
 fielddecl = do

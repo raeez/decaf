@@ -242,7 +242,7 @@ checkMethodDec meth@(DecafMethod t id args body{-@(DecafBlock _ _ _)-} pos') =
 
 
 checkProgram :: DecafProgram -> Checker Bool
-checkProgram (DecafProgram fields methods p) = 
+checkProgram (DecafProgram fields methods) =
     do foldl (>>) (return False) (map checkFieldDec fields)
        foldl (>>) (return False) (map checkMethodDec methods)
        b <- lookNear "main"
@@ -251,7 +251,7 @@ checkProgram (DecafProgram fields methods p) =
             if null args
             then return True
             else pushError p "Method \"main\" must have empty parameter list"
-         _ -> pushError p "Must define method main"
+         _ -> pushError (0, 0) "Must define method main"
 
 -- Type checking
 
@@ -389,7 +389,7 @@ checker :: String -> Bool
 checker input =
     case ps program input of
         RSuccess prog ->
-            let (_, (errors, _)) =  runChecker (checkProgram prog) ([], mkSymbolTree $ SymbolTable [] GlobalBlock)
+            let (_, (errors, _)) =  runChecker (checkProgram prog) ([], mkSymbolTree)
             in length errors <= 0
         RError s -> error s -- should be a valid program
 
@@ -398,7 +398,7 @@ checker input =
 checkFile :: String -> String -> Report ([SemanticError], SymbolTree, String, String)
 checkFile str file =
     case ps program str of
-        RSuccess prog -> let (_,(e,t)) = runChecker (checkProgram prog) ([], mkSymbolTree $ SymbolTable [] GlobalBlock)
+        RSuccess prog -> let (_,(e,t)) = runChecker (checkProgram prog) ([], mkSymbolTree)
                          in RSuccess (e, t, displayDebug (prog, t), displayErrors e)
         RError str -> RError str
   where

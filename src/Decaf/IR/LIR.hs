@@ -4,11 +4,15 @@ import Numeric
 import Decaf.IR.Class
 import Decaf.Data.Tree
 
-newtype LIRProgram = LIRProgram {program :: [LIRUnit] }
-                   deriving (Show, Eq)
+data LIRProgram = LIRProgram
+    { programLabel :: LIRLabel
+    , program :: [LIRUnit]
+    } deriving (Show, Eq)
 
-newtype LIRUnit = LIRUnit { instructions :: [LIRInst] }
-                deriving (Show, Eq)
+data LIRUnit = LIRUnit
+    { unitLabel ::LIRLabel
+    , instructions :: [LIRInst]
+    } deriving (Show, Eq)
 
 data LIRInst = LIRRegAssignInst LIRReg LIRExpr
              | LIRRegOffAssignInst LIRReg LIROffset LIRSize LIROperand  -- Element-wise Assign
@@ -107,13 +111,13 @@ data LIRLabel = LIRLabel String
               deriving (Show, Eq)
 
 instance IRNode LIRProgram where
-    pp (LIRProgram units) = "Program:\n" ++ unlines (map pp units)
-    treeify (LIRProgram units) = Node "LIRProgram" (map treeify units)
+    pp (LIRProgram label units) = pp label ++ ":\n" ++ unlines (map pp units)
+    treeify (LIRProgram label units) = Node (pp label) (map treeify units)
     pos _     = error "LIR has no associated position"
 
 instance IRNode LIRUnit where
-    pp (LIRUnit insts) = unlines (map pp insts)
-    treeify (LIRUnit insts) = Node "LIRUnit" (map treeify insts)
+    pp (LIRUnit label insts) = unlines (map pp insts)
+    treeify (LIRUnit label insts) = Node ("LIRUnit: " ++ pp label) (map treeify insts)
     pos _     = error "LIR has no associated position"
 
 instance IRNode LIRInst where

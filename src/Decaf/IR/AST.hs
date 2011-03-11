@@ -11,46 +11,45 @@ class Location a where
 data DecafProgram = DecafProgram
     { fields :: [DecafField]
     , methods :: [DecafMethod]
-    , progPos :: DecafPosition
     } deriving (Show, Eq)
 
--- |Abstract Syntax: Field Declaration: variable or array
+-- | Abstract Syntax: Field Declaration: variable or array
 data DecafField = DecafVarField DecafVar DecafPosition
                | DecafArrField DecafArr DecafPosition
                deriving (Show, Eq)
 
--- |Abstract Syntax: Method Declaration (Signature)
+-- | Abstract Syntax: Method Declaration (Signature)
 data DecafMethod = DecafMethod
     { methodType :: DecafType
     , methodID :: DecafIdentifier
     , methodArg :: [DecafVar]
     , methodBody :: DecafBlock
     , methodPos :: DecafPosition
-} deriving (Show, Eq)
+    } deriving (Show, Eq)
 
--- |Abstract Syntax: Variable Declaration (Signature)
+-- | Abstract Syntax: Variable Declaration (Signature)
 data DecafVar = DecafVar
     { varType :: DecafType
     , varID :: DecafIdentifier
     , varPos :: DecafPosition
     } deriving (Show, Eq)
 
--- |Abstract Syntax: Array Declaration (Signature)
+-- | Abstract Syntax: Array Declaration (Signature)
 data DecafArr = DecafArr
     { arrayType :: DecafType
     , arrayID :: DecafIdentifier
     , arrayLength :: DecafInteger
-    ,arrayPos :: DecafPosition
+    , arrayPos :: DecafPosition
     } deriving (Show, Eq)
 
--- |Abstract Syntax: Compound Statement/Block
+-- | Abstract Syntax: Compound Statement/Block
 data DecafBlock = DecafBlock
     { blockVars :: [DecafVar]
     , blockStms :: [DecafStm]
     , blockPos :: DecafPosition
     } deriving (Show, Eq)
 
--- |Abstract Syntax: Type Enumeration
+-- | Abstract Syntax: Type Enumeration
 -- types : consider differentiating the two kinds of types
 -- (one is an expression type (int|bool) and the other is method return type (int|bool|void))
 data DecafType = DecafInteger
@@ -58,7 +57,7 @@ data DecafType = DecafInteger
                | DecafVoid
                deriving (Show, Eq)
 
--- |Abstract Syntax: Statement
+-- | Abstract Syntax: Statement
 data DecafStm = DecafAssignStm DecafLoc DecafAssignOp DecafExpr DecafPosition
               | DecafMethodStm DecafMethodCall DecafPosition
               | DecafIfStm DecafExpr DecafBlock (Maybe DecafBlock) DecafPosition
@@ -69,28 +68,28 @@ data DecafStm = DecafAssignStm DecafLoc DecafAssignOp DecafExpr DecafPosition
               | DecafBlockStm DecafBlock DecafPosition
               deriving (Show, Eq)
 
--- |Abstract Syntax: Assignment Operator, used in 'DecafAssignStm'
+-- | Abstract Syntax: Assignment Operator, used in 'DecafAssignStm'
 data DecafAssignOp = DecafEq DecafPosition
                    | DecafPlusEq DecafPosition
                    | DecafMinusEq DecafPosition
                    deriving (Show, Eq)
 
--- |Abstract Syntax: Method call, either defined within Decaf or externally, used in 'DecafAssignStm'
+-- | Abstract Syntax: Method call, either defined within Decaf or externally, used in 'DecafAssignStm'
 data DecafMethodCall = DecafPureMethodCall { methodCallID :: DecafIdentifier, methodCallArgs :: [DecafExpr], methodCallPos :: DecafPosition}
                      | DecafMethodCallout { methodCalloutID :: DecafString, methodCalloutArgs :: [DecafCalloutArg], methodCalloutPos :: DecafPosition}
                      deriving (Show, Eq)
 
--- |Abstract Syntax: Argument passed to 'DecafMethodCallout'
+-- | Abstract Syntax: Argument passed to 'DecafMethodCallout'
 data DecafCalloutArg = DecafCalloutArgExpr DecafExpr DecafPosition
                      | DecafCalloutArgStr DecafString DecafPosition
                      deriving (Show, Eq)
 
--- |Abstract Syntax: Memory Location
+-- | Abstract Syntax: Memory Location
 data DecafLoc = DecafVarLoc DecafIdentifier DecafPosition
               | DecafArrLoc DecafIdentifier DecafExpr DecafPosition
               deriving (Show, Eq)
 
--- |Abstract Syntax: An abstract Decaf Expression Tree.
+-- | Abstract Syntax: An abstract Decaf Expression Tree.
 -- 'DecafExpr' is a temporory tree utilized for parsing in a left-associative, right recursive manner.
 --  This temporary tree is rewritten to utilize the pure abstract DecafExpr tree after parsing.
 --  For more information, see the 'rewriteExpr' function in 'Decaf.Parse'
@@ -123,14 +122,14 @@ data Factor = DecafParenExpr' DecafExpr DecafPosition
             | DecafLitExpr' DecafLiteral DecafPosition
             deriving (Show, Eq)
 
--- |Abstract Syntax: A binary operation; used in 'DecafExpr' trees.
+-- | Abstract Syntax: A binary operation; used in 'DecafExpr' trees.
 data DecafBinOp = DecafBinArithOp DecafArithOp DecafPosition
                 | DecafBinRelOp DecafRelOp DecafPosition
                 | DecafBinEqOp DecafEqOp DecafPosition
                 | DecafBinCondOp DecafCondOp DecafPosition
                 deriving (Show, Eq)
 
--- |Abstract Syntax: A binary arithmetic operation; of type 'DecafBinOp'
+-- | Abstract Syntax: A binary arithmetic operation; of type 'DecafBinOp'
 data DecafArithOp = DecafPlusOp DecafPosition
                   | DecafMinOp DecafPosition
                   | DecafMulOp DecafPosition
@@ -138,49 +137,49 @@ data DecafArithOp = DecafPlusOp DecafPosition
                   | DecafModOp DecafPosition
                   deriving (Show, Eq)
 
--- |Abstract Syntax: A binary ralitonal comparison operation; of type 'DecafBinOp'
+-- | Abstract Syntax: A binary ralitonal comparison operation; of type 'DecafBinOp'
 data DecafRelOp = DecafLTOp DecafPosition
                 | DecafGTOp DecafPosition
                 | DecafLTEOp DecafPosition
                 | DecafGTEOp DecafPosition
                 deriving (Show, Eq)
 
--- |Abstract Syntax: A binary equality comparison operation; of type 'DecafBinOp'
+-- | Abstract Syntax: A binary equality comparison operation; of type 'DecafBinOp'
 data DecafEqOp = DecafEqOp DecafPosition
                | DecafNEqOp DecafPosition
                deriving (Show, Eq)
 
--- |Abstract Syntax: A binary boolean conditional comparison operation; of type 'DecafBinOp'
+-- | Abstract Syntax: A binary boolean conditional comparison operation; of type 'DecafBinOp'
 data DecafCondOp = DecafAndOp DecafPosition
                  | DecafOrOp DecafPosition
                  deriving (Show, Eq)
 
--- |Abstract Syntax: A literal construct.
+-- | Abstract Syntax: A literal construct.
 data DecafLiteral = DecafIntLit DecafInteger DecafPosition
                | DecafBoolLit Bool  DecafPosition
                | DecafStrLit  DecafString DecafPosition
                | DecafCharLit  DecafCharacter DecafPosition
                deriving (Show, Eq)
 
--- |Abstract Syntax: Integers can be either base Decimal or Hexadecimal.
+-- | Abstract Syntax: Integers can be either base Decimal or Hexadecimal.
 data DecafInteger = DecafDec String
                   | DecafHex  String
                   deriving (Show, Eq)
 
--- |Abstract Syntax: We represent DecafString with a Haskell String.
+-- | Abstract Syntax: We represent DecafString with a Haskell String.
 type DecafString = String
 
--- |Abstract Syntax: We represent DecafBoolean with a Haskell Bool.
+-- | Abstract Syntax: We represent DecafBoolean with a Haskell Bool.
 type DecafBoolean = Bool
 
--- |Abstract Syntax: We represent DecafCharacter with a Haskell Char.
+-- | Abstract Syntax: We represent DecafCharacter with a Haskell Char.
 type DecafCharacter = Char
 
--- |Abstract Syntax: An identifier in Decaf is represented with a Haskell String.
+-- | Abstract Syntax: An identifier in Decaf is represented with a Haskell String.
 type DecafIdentifier = String
 
 instance IRNode DecafProgram where
-  pos (DecafProgram _ _ p) = p
+  pos _ = error "DecafProgram has no associated position"
   pp p = "Decaf Program" ++ "\n" ++ concatMap pp (fields p) ++ "\n" ++ concatMap pp (methods p)
   treeify p  = Node "Program" children
                     where
