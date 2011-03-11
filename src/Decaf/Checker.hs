@@ -1,4 +1,5 @@
 module Decaf.Checker where
+import Decaf.IR.Class
 import Decaf.IR.AST
 import Decaf.Parser
 import Decaf.Data.SymbolTable

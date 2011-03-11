@@ -144,15 +144,6 @@ executable runtests
 
     main-is:            runtests.hs
     other-modules:      Decaf
-                        Decaf.Tokens
-                        Decaf.AST
-                        Decaf.Scanner
-                        Decaf.Parser
-                        Decaf.Checker
-
-                        Decaf.SemcheckerTests
-                        Decaf.ScannerTests
-                        Decaf.ParserTests
 
     Hs-Source-Dirs:     src
 
