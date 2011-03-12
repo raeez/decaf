@@ -1,0 +1,6 @@
+// 2. identifier used before it is declared
+class Program {
+  void main() {
+    foo();
+  }
+}

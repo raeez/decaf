@@ -1,0 +1,13 @@
+// OK
+class Program {
+  void x() {}
+  void main() {
+    boolean x;
+    {	
+      int x;
+      {
+	int x;
+      }
+    }
+  }								
+}	

@@ -1,0 +1,9 @@
+// 15. <location> = <expr> must have the same type
+class Program {
+	
+  boolean a[10];
+
+  void main() {
+    a[0] = 1 + 1;
+  }
+}

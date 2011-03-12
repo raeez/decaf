@@ -1,0 +1,7 @@
+// Range check
+class Program {
+  int x;
+  void main() {
+    x = 0xdeadbeef;
+  }
+}

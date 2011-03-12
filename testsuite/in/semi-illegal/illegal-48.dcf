@@ -1,0 +1,10 @@
+// 15. <location> += <expr> must have type int on both sides
+class Program {
+  void main() {
+    boolean b;
+    int x;
+    x = 0;
+    b = true;
+    x += b;
+  }
+}

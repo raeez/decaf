@@ -1,0 +1,10 @@
+// 7. A return statement must not have a return value unless it
+// appears in the body of a method that is declared to return a
+// value. 
+class Program {
+  void foo() { return 5; }
+
+  void main() {
+    return;
+  }
+}	

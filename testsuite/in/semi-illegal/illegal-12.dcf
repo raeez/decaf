@@ -1,0 +1,7 @@
+// 13. The operands of <eq_ops> must have the same type, either int or bool.
+class Program {
+  void main() {
+    boolean b;
+    b = 1 == true;
+  }
+}

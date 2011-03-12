@@ -1,0 +1,7 @@
+// 10(a). <id> must be an array variable
+class Program {
+  int a;
+  void main() {
+    a[0] = 0;
+  }
+}

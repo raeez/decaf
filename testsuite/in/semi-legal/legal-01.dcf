@@ -1,0 +1,9 @@
+// OK - local variable can shadow a method
+class Program {
+  void i() {}
+
+  void main() {
+    int i;
+    i = 4;
+  }
+}

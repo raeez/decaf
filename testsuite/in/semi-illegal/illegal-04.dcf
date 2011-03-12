@@ -1,0 +1,6 @@
+// 16. continue must be in a loop
+class Program {
+  void main() {
+    continue;
+  }
+}

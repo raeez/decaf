@@ -1,0 +1,10 @@
+class Program {
+  void main() {
+    for a = 0, 100 {
+      if (a > b) {
+	break;
+      }
+      foo();
+    }
+  }
+}

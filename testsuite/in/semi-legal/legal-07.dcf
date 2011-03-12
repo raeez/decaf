@@ -1,0 +1,8 @@
+// OK
+class Program {
+  void foo() {
+    foo(); // Recursive function call - legal!
+  }
+  
+  void main() {}
+}	

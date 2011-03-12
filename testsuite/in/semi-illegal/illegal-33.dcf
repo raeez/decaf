@@ -1,0 +1,8 @@
+// Error 
+class Program {
+  int i;
+  void main() {
+    i();
+  }
+}
+

@@ -1,0 +1,8 @@
+// 12. The operands of <arith_op>s must have type int.
+class Program {
+
+  void main() {
+    boolean b;
+    b = (1 > 2) + (3 > 4);
+  }
+}

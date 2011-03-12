@@ -1,0 +1,21 @@
+class Program
+{
+    void main()
+    {
+        int a, b, c;
+        int d, e;
+
+        a = 10;
+        b = 20;
+        c = 30;
+
+        d = (a + b);
+        e = (c * 3);
+
+        e = d * e - 100;
+
+        callout("printf", "%d %d\n", d, e);
+    }
+}
+
+      

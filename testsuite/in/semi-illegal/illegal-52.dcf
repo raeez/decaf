@@ -1,0 +1,8 @@
+// 15. <expr> == <expr> must have type boolean on both sides
+class Program {
+  void x () { }
+  void main() {
+    boolean y;
+    y = x () == x ();
+  }
+}

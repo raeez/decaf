@@ -1,0 +1,11 @@
+// 1. No identifier can be declared twice in the same scope.
+class Program {
+  int x;
+  void main() {
+    int y;
+    {	
+      int z;
+      int z;
+    }
+  }								
+}	

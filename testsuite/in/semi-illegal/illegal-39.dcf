@@ -1,0 +1,7 @@
+// 2. No identifier is used before it is declared
+class Program {
+  int b;
+  void main() {
+    a[b] = 0;
+  }
+}

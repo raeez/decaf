@@ -1,0 +1,5 @@
+// 1. No identifier is declared twice in the same scope
+class Program {
+  int foo(int a, int a) { return 0; }
+  void main() {}
+}

@@ -1,0 +1,8 @@
+// 15. character literals have int type
+class Program {
+  void main() {
+    boolean  b;
+    
+    b = 'b';
+  }
+}

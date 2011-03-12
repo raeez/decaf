@@ -1,0 +1,11 @@
+// 15. <location> = <expr> must have same type
+class Program {
+  int i() {
+    return 1;
+  }
+  
+  void main() {
+    boolean  b;
+    b = i();
+  }
+}

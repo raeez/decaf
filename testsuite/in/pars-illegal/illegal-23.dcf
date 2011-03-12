@@ -1,0 +1,4 @@
+class Program // missing opening brace
+  void main() {
+  }
+}

@@ -1,0 +1,9 @@
+// 1. No identifier is declared twice in the same scope.
+class Program {
+
+  void foo(int x) {
+    int x; // Error: local shadows parameter
+  }
+
+  void main() {}
+}	

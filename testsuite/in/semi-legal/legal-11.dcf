@@ -1,0 +1,14 @@
+// OK
+class Program {
+  void main() {
+    boolean b;
+    {
+      int b;
+      {
+	b = 0;
+      }
+    }
+
+    b = true;
+  }
+}

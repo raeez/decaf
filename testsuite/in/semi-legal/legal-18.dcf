@@ -1,0 +1,17 @@
+class Program {
+  void main() {
+    boolean x;
+    x = true;
+    x = !true;
+    x = !!true;
+    x = !!!true;
+    x = false;
+    x = !false;
+    x = !!false;
+    x = !!!false;
+    x = x;
+    x = !x;
+    x = !!x;
+    x = !!!x;
+  }
+}

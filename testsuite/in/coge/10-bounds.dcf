@@ -1,0 +1,9 @@
+// This should produce a runtime error
+class Program {
+  int a[10];
+  
+  void main() {
+    callout("printf", "expecting an error next:\n\n");
+    a[100] = 0;
+  }
+}
