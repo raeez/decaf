@@ -8,9 +8,12 @@ import Decaf.Tokens
 -- interface functions
 --------------------------------------------
 --
+-- type TokenD = (Token, String)  
+type TokenD = Token
+
 
 -- |The 'scanner' function takes and generates a corresponding list of Token
-scanner :: String -> [Token]
+scanner :: String -> [TokenD]
 scanner = eatFirst
 
 -- |The 'scprint' function scans a given string and returns provides formatted output
@@ -18,14 +21,20 @@ scprint :: String -> String
 scprint = formatScannerOutput . scanner
 
 -- |The 'formatScannerOutput' function formats a list of scanned tokens into human readable format
-formatScannerOutput :: [Token] -> String
-formatScannerOutput = unlines . map showToken
+formatScannerOutput :: [TokenD] -> String
+formatScannerOutput = unlines . map showTokenD
+
+showTokenD :: TokenD -> String
+-- showTokenD (t, s) = showToken t --  ++ "  ::  " ++ show s
+showTokenD = showToken
+
 
 -- |The 'numLexErrorsIn' function calculates the number of errors in a list of Token
 numLexErrorsIn :: [Token] -> Int
 numLexErrorsIn tokens = numErrors tokens' 0
                         where
                           tokens' = map getToken tokens
+                          
 -- |The 'numErrors' function incrementally counts the number of errors in a list of DecafToken
 numErrors :: [DecafToken] -> Int -> Int
 numErrors (t:ts) count = numErrors ts err'
@@ -92,10 +101,11 @@ strLiteral = do
               return ((p1, p2), StrLit s)
 
 quoted :: Parser Char
-quoted = try (char '\\' >> (oneOf "\\\'\""
+quoted = (char '\\' >> (oneOf "\\\'\""
                        <|> (char 'n' >> return '\n')
-                       <|> (char 't' >> return '\t')))
-         <|> noneOf "\"\'"   -- removed "\t\n", because \t and \n can be specified directly 
+                       <|> (char 't' >> return '\t')
+                       <?> "valid \\ char"))
+         <|> noneOf "\"\'\t\n"   -- removed "\t\n", because \t and \n can be specified directly 
          <?> "quoted character"
 
 numLiteral :: Parser Token
@@ -317,6 +327,10 @@ end = do
 -- scanner
 --------------------------------------------
 --
+
+
+
+{-
 eatNext :: Parser Token -> String -> [Token]
 eatNext parser input = case parse parser "decaf-scanner-eatNext" input of
                         Left err -> let errPosition   = (errorPos err, incSourceColumn (errorPos err) $ 1 + beforeOrAfter err)
@@ -348,3 +362,79 @@ eatFirst inp = case parse singleToken "decaf-scanner-eatFirst" input of
                           | otherwise = c
                     failParser    e = eatPos input (incSourceColumn (errorPos e) $ beforeOrAfter e) >> singleToken
                     successParser e = eatPos input (getEnd e) >> singleToken
+-}
+
+
+
+-- scanner interface
+        
+        
+eatFirst :: String -> [TokenD]
+eatFirst str = scanString str 0 0
+
+
+-- scan a string, return token stream, with position correted with the number of rows/cols scanned before the given string 
+scanString :: String -> Int -> Int -> [TokenD]
+scanString inp prow pcol = case parse singleToken "decaf-scanner-eatFirst" inp of
+                  Left err -> 
+                    let pos           = errorPos err
+                        coepos        = adjTokenPos pos prow pcol   -- corrected error pos
+                        coeendpos     = incSourceColumn coepos $ 1 + beforeOrAfter err   -- end pos
+                        endpos        = incSourceColumn (errorPos err) $ 1 + beforeOrAfter err   -- uncorrected end pos
+                        errPosition   = (coepos, coeendpos)
+                        errDecafToken = Fail $ show err
+                        errToken      = (errPosition, errDecafToken)
+                        -- tok           = (errToken, inp)    -- debug
+                        tok           = errToken 
+                    in tok : asmNext endpos inp prow pcol
+
+                  Right val -> if getToken val == EOF
+                               then []
+                               else let cval = ((adjTokenPos (getStart val) prow pcol, adjTokenPos (getEnd val) prow pcol), getToken val)
+                                        -- tok  = (cval, (show $ positionCount inp (getEnd val) pcol) ++ "__" ++ inp)
+                                        tok  = cval
+                                    in tok : asmNext (getEnd val) inp prow pcol 
+
+-- assemble the next 
+asmNext :: SourcePos -> String -> Int -> Int -> [TokenD]
+asmNext pos inp prow pcol = 
+  let pc      = positionCount inp pos pcol  -- count #chars in scanned part
+      splits  = splitAt pc inp          -- split 
+      remain  =  snd $ splits           -- remaining part
+      snrow   = foldr (\x y -> if x == '\n' || x == '\r' then (1+y) else y) 0 $ fst splits -- count number of rows scanned 
+      slines  = lines $ fst splits      -- the scanned lines 
+      sncol   = if snrow == 0 
+                 then pcol + (length $ fst splits)   -- scanned within one line, inc col
+                 else if length slines == snrow      -- token is at the beginning of last line, tricky case  "asdfsd/nasdfsd/nTOKEN" 
+                      then 0 
+                      else length $ last slines      -- otherwise the length of last line
+      in scanString remain (prow + snrow) sncol
+
+
+
+
+-- add token position, count in the effect that if the token is on a new line, then the previous col can be ignored
+adjTokenPos :: SourcePos -> Int -> Int -> SourcePos
+adjTokenPos pos prow pcol = if sourceLine pos > 1 then adjustLineCol pos prow 0 else adjustLineCol pos prow pcol
+  
+
+-- add previous line and col to sourcepos
+adjustLineCol :: SourcePos -> Int -> Int -> SourcePos
+adjustLineCol p l c = incSourceColumn (incSourceLine p l) c
+
+
+-- count enough characters to reach sourcePos
+positionCount :: String -> SourcePos -> Int -> Int               -- previous col
+positionCount input p pcol = let line = head $ lines input in
+  if (sourceLine p == 1) then countChar line (sourceColumn p) pcol
+  else positionCount (unlines $ tail $ lines input) (incSourceLine p (-1)) 0 + (length line) + 1 
+       
+
+-- count actual #char in a string with Parsec's col count, with previous col skips pcol
+countChar :: String -> Int -> Int -> Int 
+countChar _ 1 _ = 0   -- don't want to delete last char
+countChar (c:cs) col pcol | c == '\t' =
+                            let skiped = 8-(pcol `mod` 8)            -- need to skip 8-(pcol `mod` 8) spaces   pcol=0 skip 8, pcol=1 7
+                            in (countChar cs (col-skiped) (pcol+skiped)) + 1
+                          | otherwise = (countChar cs (col-1) (pcol+1)) + 1   -- nahh
+countChar [] _ _ = 0
