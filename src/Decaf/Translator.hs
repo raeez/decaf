@@ -11,16 +11,16 @@ import Decaf.Data.Zipper
 --        function prologue
 --        function epilogue
 --        function post-return
---
---        control flow graph generation
---        control flow graph ss conditional expansion
---        control flow graph noop removal
 
 data Namespace = Namespace
     { temp :: Int
     , label :: Int
-    , scope :: String
+    , scope :: [Int]
+    , blockindex :: [Int]
     }
+
+mkNamespace :: Namespace
+mkNamespace = Namespace 0 0 [] []
 
 newtype Translator a = Translator
     { runTranslator :: Namespace -> (a, Namespace) }
@@ -34,40 +34,50 @@ instance Monad Translator where
 getNS :: Translator Namespace
 getNS = Translator (\ns -> (ns, ns))
 
-incTemp :: Translator a -> Translator a
-incTemp m = Translator (\(Namespace t l s) ->
-        runTranslator m (Namespace (t+1) l s))
+incTemp :: Translator ()
+incTemp = Translator (\(Namespace t l s b) -> ((), Namespace (t+1) l s b))
 
-getTemp :: Translator a -> Translator Int
-getTemp m = Translator (\ns@(Namespace t _ _) -> (t, ns))
+getTemp :: Translator Int
+getTemp = Translator (\ns@(Namespace t _ _ _) -> (t, ns))
 
-incLabel :: Translator a -> Translator a
-incLabel m = Translator (\(Namespace t l s) ->
-        runTranslator m (Namespace t (l+1) s))
+incLabel :: Translator ()
+incLabel = Translator (\(Namespace t l s b) -> ((), Namespace t (l+1) s b))
 
-getLabel :: Translator a -> Translator Int
-getLabel m = Translator (\ns@(Namespace _ l _) -> (l, ns))
+getLabel :: Translator Int
+getLabel = Translator (\ns@(Namespace _ l _ _) -> (l, ns))
 
-setScope :: String -> Translator a -> Translator a
-setScope scope m = Translator (\(Namespace t l s) ->
-        let (a, Namespace t' l' _) = runTranslator m (Namespace t l scope)
-        in (a, (Namespace t' l' s)))
+withScope :: [Int] -> Translator a -> Translator a
+withScope scope m = Translator (\(Namespace t l s b) ->
+    let (a, Namespace t' l' _ b') = runTranslator m (Namespace t l scope b)
+    in (a, Namespace t' l' s b'))
 
-getScope :: Translator a -> Translator String
-getScope m = Translator (\ns@(Namespace _ _ s) -> (s, ns))
+getScope :: Translator [Int]
+getScope = Translator (\ns@(Namespace _ _ s _) -> (s, ns))
+
+withBlock :: [Int] -> Translator a -> Translator a
+withBlock block m = Translator (\(Namespace t l s b) ->
+    let (a, Namespace t' l' s' _) = runTranslator m (Namespace t l s block)
+    in (a, Namespace t' l' s' b))
+
+getBlock :: Translator [Int]
+getBlock = Translator (\ns@(Namespace _ _ _ b) -> (b, ns))
 
 -- | Given a SymbolTree, Translate a DecafProgram into an LIRProgram
-translateProgram ::  SymbolTree -> DecafProgram -> LIRProgram
-translateProgram st program = LIRProgram programlabel units
+translateProgram ::  SymbolTree -> DecafProgram -> Translator LIRProgram
+translateProgram st program =
+    do i <- getTemp
+       incTemp
+       let prog = LIRProgram (LIRLabel $ "L" ++ show i) units
+       return prog
   where
-    programlabel = LIRLabel "PROG"
     units = map (translateMethod st) (methods program)
 
 -- | Given a SymbolTree, Translate a DecafMethod into an LIRUnit
 translateMethod :: SymbolTree -> DecafMethod -> LIRUnit
 translateMethod st method =
     case symLookup (methodID method) (getTable st) of
-        Just (index, MethodRec _ (label, _)) -> LIRUnit (LIRLabel label) (translateBody (select (rindex index) st)) -- ^ label this method and select the corresponding nested SymbolTree
+        Just (index, MethodRec _ (label, count)) ->
+            LIRUnit (LIRLabel (label ++ show count)) (translateBody (select (rindex index) st)) -- ^ label this method and select the corresponding nested SymbolTree
         _ -> LIRUnit (LIRLabel ("Translator.hs:71 Invalid SymbolTable; could not find '" ++ methodID method ++ "' symbol")) [] -- ^ should not happen
   where
     translateBody st' = concatMap (translateStm st') (blockStms $ methodBody method) -- ^ join all translated statements together
@@ -84,16 +94,16 @@ translateStm st (DecafAssignStm loc op expr _) =
               _ -> LIRLabelInst (LIRLabel $ "Translator.hs:84 Invalid SymbolTable; could not find '" ++ ident loc ++ "' symbol")
 
 translateStm st (DecafMethodStm (DecafPureMethodCall mid args _) _) =
-    [LIRCallInst (LIRCall func (SREG "this"))]
+    [LIRCallInst (LIRCall func (SREG "ip"))]
   where
     func = LIRProcLabel (case globalSymLookup mid st of
-                            Just (MethodRec _ (label, _)) -> label
+                            Just (MethodRec _ (label, count)) -> label ++ show count
                             _ -> "Translator.hs:91 Invalid SymbolTable; could not find a valid symbol for'" ++ mid ++ "'")
 
 translateStm st (DecafMethodStm (DecafMethodCallout mid args _) _) =
     [LIRCallInst (LIRCall func (SREG "ip"))]
   where
-    func = LIRProcLabel  mid
+    func = LIRProcLabel mid
     
 translateStm st (DecafIfStm expr block (Just elseblock) _) =
     [LIRIfInst (translateRelExpr st expr) truelabel]
@@ -151,8 +161,10 @@ translateStm st (DecafBlockStm block _) =
 
 translateBlock :: SymbolTree -> DecafBlock -> [LIRInst]
 translateBlock st block =
-    -- TODO dive into scope
-    concatMap (translateStm st) (blockStms block)
+    translateBody st
+  where
+    translateBody st' = concatMap (translateStm st') (blockStms block)
+    rindex index = (length . children . tree) st - index - 1
 
 translateRelExpr :: SymbolTree -> DecafExpr -> LIRRelExpr
 translateRelExpr st expr = LIROperRelExpr $ LIRRegOperand $ RAX

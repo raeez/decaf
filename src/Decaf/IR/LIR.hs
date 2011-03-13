@@ -127,7 +127,7 @@ instance IRNode LIRUnit where
     pos _     = error "LIR has no associated position"
 
 instance IRNode LIRInst where
-    pp (LIRRegAssignInst reg expr) = pp reg ++ " <- " ++ pp reg
+    pp (LIRRegAssignInst reg expr) = pp reg ++ " <- " ++ pp expr
     pp (LIRRegOffAssignInst reg offset size operand) = pp reg ++ "(" ++ pp offset ++ ", " ++ pp size ++ ") <- " ++ pp operand
     pp (LIRCondAssignInst reg reg' operand) = pp reg ++ " <- (" ++ pp reg' ++ ") " ++ pp operand
     pp (LIRStoreInst mem operand) = "STORE " ++ pp mem ++ ", " ++ pp operand
