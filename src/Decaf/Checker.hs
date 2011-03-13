@@ -12,41 +12,49 @@ data SemanticError = SemanticError
     , position :: DecafPosition
     }
 
+data CheckerState = CST
+    { cstErrors :: [SemanticError]
+    , cstTable :: SymbolTree
+    }
+
+mkCheckerState = CST [] mkSymbolTree
+
 -- | Semantic checking monad
 newtype Checker a = Checker
-    { runChecker :: ([SemanticError], SymbolTree) -> (a, ([SemanticError], SymbolTree)) }
+    { runChecker :: CheckerState -> (a, CheckerState) }
 
 instance Monad Checker where
     return a = Checker (\s -> (a, s))
     m >>= f = Checker (\s ->
-                let (a, (e,t)) = runChecker m s
-                in runChecker (f a) (e,t))
+                let (a, s') = runChecker m s
+                in runChecker (f a) s')
 
 instance Show SemanticError where
     show (SemanticError message (l, c)) = show l ++ ":" ++ show c ++ ": " ++ message
 
 -- Monad manipulation functions
 pushError :: DecafPosition -> String -> Checker Bool
-pushError (l,c) str = Checker (\(e,t) -> (False, (e ++ [err], t)))
+pushError (l,c) str = Checker (\s@(CST{cstErrors = e}) -> (False, s{cstErrors = e++[err]}))
   where
     err = SemanticError str (l, c)
 
 addSymbol :: SymbolRecord -> Checker Bool
-addSymbol sr = Checker (\(e,t) -> (True, (e, modifyContent g t)))
+addSymbol sr = Checker (\s@(CST{cstTable = t}) -> (True, s{cstTable = modifyContent g t}))
   where
     g (SymbolTable rs bt) = SymbolTable (sr : rs) bt
 
 local :: BlockType -> Checker a -> Checker a
-local tp m = Checker (\(e,t)-> let (a, (e', t')) = runChecker m (e, addChild (SymbolTable [] tp) t)
-                               in (a, (e', setContext (context t) t')))
+local tp m = Checker (\s@(CST{cstTable = t}) ->
+                          let (a, s') = runChecker m s{cstTable = addChild (SymbolTable [] tp) t}
+                          in (a, s'{cstTable = setContext (context t) (cstTable s')}))
 getST :: Checker SymbolTree
-getST  = Checker (\(e, t) -> (t, (e, t)))
+getST  = Checker (\s@(CST{cstTable = t}) -> (t, s))
 
-get :: Checker ([SemanticError], SymbolTree)
-get = Checker (\(e,t) -> ((e, t), (e, t)))
+get :: Checker CheckerState
+get = Checker (\s -> (s, s))
 
 setCheckerContext :: SymbolTreeContext -> Checker()
-setCheckerContext c = Checker(\(e, t)-> ((), (e, setContext c t)))
+setCheckerContext c = Checker(\s@(CST{cstTable = t}) -> ((), s{cstTable = setContext c t}))
 
 -- symbol table access functions
 lookNear :: DecafIdentifier -> Checker (Maybe SymbolRecord)
@@ -96,6 +104,8 @@ addRet = do st <- getST
                        addSymbol $ VarRec $ DecafVar DecafVoid "return" (0,0)
                 _ -> goFun $ parent st
 
+-- Counter management for register/label assignment
+
 {- Statement-like Semantic checkers, bottom-up order -}
 checkStm :: DecafStm -> Checker Bool
 checkStm (DecafMethodStm (DecafMethodCallout _ args _) _) = 
@@ -110,7 +120,7 @@ checkStm (DecafAssignStm loc op expr p) =
                Nothing -> pushError (pos loc) ("Undeclared variable " ++ ident loc)
                Just lhs -> 
                    do case loc of
-                        arr@(DecafArrLoc _ _ _) ->
+                        arr@(DecafArrLoc {}) ->
                             checkExpr (DecafLocExpr arr p) >> return True
 {-                            do indT <- checkExpr ind
                                if indT == DecafInteger
@@ -121,7 +131,7 @@ checkStm (DecafAssignStm loc op expr p) =
                       t2 <- checkExpr expr
                       let t1 = symType lhs
                       case op of
-                        DecafEq _ -> if t1 == t2
+                        DecafEq {} -> if t1 == t2
                                        then return True
                                        else pushError p "Mismatched types in assignment statement"
                                             >> return False
@@ -308,7 +318,7 @@ checkExpr (DecafBinExpr expr1 op expr2 pos') =
             do t1 <- checkExpr expr1
                t2 <- checkExpr expr2
                case op of 
-                 DecafBinArithOp _ _-> 
+                 DecafBinArithOp {} -> 
                      do
                        if t1 /= DecafInteger
                         then pushError (pos expr1)"Argument of arithmetic operator must be integral"
@@ -317,7 +327,7 @@ checkExpr (DecafBinExpr expr1 op expr2 pos') =
                         then pushError (pos expr2)"Argument of arithmetic operator must be integral"
                         else return True -- doesn't matter
                        return DecafInteger
-                 DecafBinRelOp _ _ ->
+                 DecafBinRelOp {} ->
                      do
                        if t1 /= DecafInteger
                         then pushError (pos expr1)"Argument of relative operator must be integral"
@@ -326,7 +336,7 @@ checkExpr (DecafBinExpr expr1 op expr2 pos') =
                         then pushError (pos expr2)"Argument of relative operator must be integral"
                         else return True
                        return DecafBoolean
-                 DecafBinEqOp _ _-> 
+                 DecafBinEqOp {} -> 
                        do if t1 /= t2
                            then pushError pos' "Arguments of \"==\" must be of the same type"
                            else return True
@@ -334,7 +344,7 @@ checkExpr (DecafBinExpr expr1 op expr2 pos') =
                             then pushError pos' "Arguments of \"==\" must be integral or boolean"
                             else return True
                           return DecafBoolean
-                 DecafBinCondOp _ _->
+                 DecafBinCondOp {} ->
                      do
                        if t1 /= DecafBoolean
                         then pushError (pos expr1)"Argument of logical operator must be boolean"
@@ -389,7 +399,8 @@ checker :: String -> Bool
 checker input =
     case ps program input of
         RSuccess prog ->
-            let (_, (errors, _)) =  runChecker (checkProgram prog) ([], mkSymbolTree)
+            let (_, s) =  runChecker (checkProgram prog) mkCheckerState
+                errors = cstErrors s
             in length errors <= 0
         RError s -> error s -- should be a valid program
 
@@ -398,7 +409,9 @@ checker input =
 checkFile :: String -> String -> Report ([SemanticError], SymbolTree, String, String)
 checkFile str file =
     case ps program str of
-        RSuccess prog -> let (_,(e,t)) = runChecker (checkProgram prog) ([], mkSymbolTree)
+        RSuccess prog -> let (_,s) = runChecker (checkProgram prog) mkCheckerState
+                             e = cstErrors s
+                             t = cstTable s
                          in RSuccess (e, t, displayDebug (prog, t), displayErrors e)
         RError str -> RError str
   where
