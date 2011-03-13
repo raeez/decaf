@@ -7,6 +7,9 @@ data Context a = Root
 
 type Zipper a = (Tree a, Context a)
 
+tree :: Zipper a -> Tree a
+tree (t, _) = t
+
 context :: Zipper a -> Context a
 context (_, c) = c
 
@@ -42,15 +45,16 @@ isRoot _ = False
 
 addChild :: a -> Zipper a -> Zipper a
 addChild v (Node val children, ctx) = (tree'', ctx')
-    where
-      newNodes = children ++ [Node v []]
-      tree' = Node val newNodes -- insert node
-      nodeNumber = length newNodes - 1-- get it's number
-      (tree'', ctx') = select nodeNumber (tree', ctx) -- focus on the new node
+  where
+    newNodes = children ++ [Node v []]
+    tree' = Node val newNodes                       -- insert node
+    nodeNumber = length newNodes - 1                -- get it's number
+    (tree'', ctx') = select nodeNumber (tree', ctx) -- focus on the new node
 
 modifyContent :: (a -> a) -> Zipper a -> Zipper a
 modifyContent f = modify changecontent
-    where changecontent (Node val children) = Node (f val) children
+  where
+    changecontent (Node val children) = Node (f val) children
 
 getContent :: Zipper a -> a
 getContent (Node val _, _) = val
