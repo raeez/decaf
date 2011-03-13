@@ -3,7 +3,8 @@ import Numeric
 import Decaf.Data.Tree
 import Decaf.IR.Class
 
--- | IRNode encapsulates common operations on the Abstract Syntax Tree
+-- | class 'Location' encapsulates fetching the identifier
+-- for Locations & Declarations
 class Location a where
     ident :: a -> DecafIdentifier
 
