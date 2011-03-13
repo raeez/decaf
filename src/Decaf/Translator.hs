@@ -11,6 +11,10 @@ import Decaf.Data.Zipper
 --        function prologue
 --        function epilogue
 --        function post-return
+--        handle cfg etc.
+--        handle relExpr
+--        handle expr
+--        calculate offset address for arrays
 
 data Namespace = Namespace
     { temp :: Int
@@ -77,7 +81,7 @@ translateProgram st program =
 translateMethod :: SymbolTree -> DecafMethod -> Translator LIRUnit
 translateMethod st method =
     do ns <- getNS
-       return (case symLookup (methodID method) (getTable st) of
+       return (case symLookup (methodID method) (content $ tree st) of
         Just (index, MethodRec _ (label, count)) ->
             LIRUnit (LIRLabel (label ++ show count)) (translateBody (select (rindex index) st) ns) -- ^ label this method and select the corresponding nested SymbolTree
         _ -> LIRUnit (LIRLabel ("Translator.hs:71 Invalid SymbolTable; could not find '" ++ methodID method ++ "' symbol")) []) -- ^ should not happen
@@ -153,14 +157,12 @@ translateStm st (DecafRetStm Nothing _) =
     return [LIRRetInst]
 
 translateStm st (DecafBreakStm _) =
-    return [LIRJumpLabelInst endlabel]
-  where
-    endlabel = LIRLabel "TODOBREAKSTATEMENT"
+    do let endlabel = LIRLabel "TODO__BREAK__STATEMENT"
+       return [LIRJumpLabelInst endlabel]
 
 translateStm st (DecafContStm _) =
-    return [LIRJumpLabelInst startlabel]
-  where
-    startlabel = LIRLabel "TODOCONTSTATEMENT"
+    do let looplabel = LIRLabel "TODO__CONT__STATEMENT"
+       return [LIRJumpLabelInst looplabel]
 
 translateStm st (DecafBlockStm block _) =
     translateBlock st block
@@ -177,6 +179,3 @@ translateRelExpr st expr = LIROperRelExpr $ LIRRegOperand $ RAX
 
 translateExpr :: SymbolTree -> DecafExpr -> LIROperand
 translateExpr st expr = LIRRegOperand $ RAX
-
-getTable :: SymbolTree -> SymbolTable
-getTable = (content . tree)
