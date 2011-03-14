@@ -34,7 +34,7 @@ pushError (l,c) str = Checker (\(e,t) -> (False, (e ++ [err], t)))
 addSymbol :: SymbolRecord -> Checker Bool
 addSymbol sr = Checker (\(e,t) -> (True, (e, modifyContent g t)))
   where
-    g (SymbolTable rs bt) = SymbolTable (sr : rs) bt
+    g (SymbolTable rs bt) = SymbolTable (rs ++ [sr]) bt
 
 local :: BlockType -> Checker a -> Checker a
 local tp m = Checker (\(e,t)-> let (a, (e', t')) = runChecker m (e, addChild (SymbolTable [] tp) t)

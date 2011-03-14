@@ -21,14 +21,11 @@ data LIRInst = LIRRegAssignInst LIRReg LIRExpr
              | LIRJumpRegInst LIRReg LIROffset
              | LIRJumpLabelInst LIRLabel
              | LIRIfInst LIRRelExpr LIRLabel
-             | LIRCallInst LIRCall
+             | LIRCallAssignInst LIRReg LIRProc LIRReg
+             | LIRCallInst LIRProc LIRReg
              | LIRRetOperInst LIROperand
              | LIRRetInst
              | LIRLabelInst LIRLabel
-             deriving (Show, Eq)
-
-data LIRCall = LIRCallAssign LIRReg LIRProc LIRReg -- ^ last reg is where to store retaddr
-             | LIRCall LIRProc LIRReg              -- ^ last reg is where to store retaddr
              deriving (Show, Eq)
 
 data LIRProc = LIRProcLabel String
@@ -46,7 +43,7 @@ data LIRRelExpr = LIRBinRelExpr LIROperand LIRRelOp LIROperand
                 deriving (Show, Eq)
 
 data LIRBinOp = LADD
-              | LMIN
+              | LSUB
               | LMUL
               | LDIV
               | LMOD
@@ -135,7 +132,8 @@ instance IRNode LIRInst where
     pp (LIRJumpRegInst reg offset) = "JMP " ++ pp reg ++ "[" ++ show offset ++ "]"
     pp (LIRJumpLabelInst label) = "JMP " ++ pp label
     pp (LIRIfInst expr label) = "IF " ++ pp expr ++ " JMP " ++ pp label
-    pp (LIRCallInst call) = pp call
+    pp (LIRCallAssignInst reg proc reg') = pp reg ++ " <- call " ++ pp proc ++ ", " ++ pp reg'
+    pp (LIRCallInst proc reg) = "call " ++ pp proc ++ ", " ++ pp reg
     pp (LIRRetOperInst operand) = "RET " ++ pp operand
     pp LIRRetInst = "RET"
     pp (LIRLabelInst label) = pp label
@@ -147,17 +145,11 @@ instance IRNode LIRInst where
     treeify (LIRJumpRegInst reg offset) = Node "JMP" [treeify reg, treeify offset]
     treeify (LIRJumpLabelInst label) = Node "JMP" [treeify label]
     treeify (LIRIfInst expr label) = Node "IF" [treeify expr, treeify label]
-    treeify (LIRCallInst call) = Node "CALL" [treeify call]
+    treeify (LIRCallAssignInst reg proc reg') = Node "CALLASSIGN" [treeify reg, treeify proc, treeify reg']
+    treeify (LIRCallInst proc reg) = Node "CALL" [treeify proc, treeify reg]
     treeify (LIRRetOperInst operand) = Node "RET" [treeify operand]
     treeify LIRRetInst = Node "RET" []
     treeify (LIRLabelInst label) = Node (pp label) []
-    pos _     = error "LIR has no associated position"
-
-instance IRNode LIRCall where
-    pp (LIRCallAssign reg proc reg') = pp reg ++ " <- call " ++ pp proc ++ ", " ++ pp reg'
-    pp (LIRCall proc reg) = "call " ++ pp proc ++ ", " ++ pp reg
-    treeify (LIRCallAssign reg proc reg') = Node "CALLASSIGN" [treeify reg, treeify proc, treeify reg']
-    treeify (LIRCall proc reg) = Node "CALL" [treeify proc, treeify reg]
     pos _     = error "LIR has no associated position"
 
 instance IRNode LIRProc where
@@ -187,7 +179,7 @@ instance IRNode LIRRelExpr where
 
 instance IRNode LIRBinOp where
     pp (LADD) = "ADD"
-    pp (LMIN) = "SUB"
+    pp (LSUB) = "SUB"
     pp (LMUL) = "MUL"
     pp (LDIV) = "DIV"
     pp (LMOD) = "MOD"
