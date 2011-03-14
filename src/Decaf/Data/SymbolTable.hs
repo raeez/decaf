@@ -41,7 +41,7 @@ symType (VarRec v _) = varType v
 symType (MethodRec m _) = methodType m
 symType (ArrayRec a _) = arrayType a
 
--- | Lookup a symbol
+-- | Lookup a symbol in the current SymbolTable
 symLookup ::  String -> SymbolTable -> Maybe (Int, SymbolRecord)
 symLookup ident table = ilookup 0 ident (zip (map symID recs) recs)
   where
@@ -52,6 +52,7 @@ symLookup ident table = ilookup 0 ident (zip (map symID recs) recs)
                                     then Just (i, val)
                                     else ilookup (i+1) id xs
 
+-- | Lookup a symbol in the current SymbolTable, and all parent SymbolTable's
 globalSymLookup :: String -> SymbolTree -> Maybe SymbolRecord
 globalSymLookup ident st = let table = (content . tree) st
                            in case symLookup ident table of
@@ -107,15 +108,15 @@ getRegCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
 
 getGlobalCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
                          let n = globalCount c
-                         in (n, s{csCounter=c{regCount = n+1}}))
+                         in (n, s{csCounter=c{globalCount = n+1}}))
 
 getMethodCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
                          let n = methodCount c
-                         in (n, s{csCounter=c{regCount = n+1}}))
+                         in (n, s{csCounter=c{methodCount = n+1}}))
 
 getStringCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
                          let n = stringCount c
-                         in (n, s{csCounter=c{regCount = n+1}}))
+                         in (n, s{csCounter=c{stringCount = n+1}}))
 
 numberTree :: Tree SymbolTable -> RegisterCounter (Tree SymbolTable)
 numberTree t = 
