@@ -19,6 +19,7 @@ data SymbolTable = SymbolTable
 data SymbolRecord = VarRec DecafVar SymbolicRegister
                   | MethodRec DecafMethod MethodLabel
                   | ArrayRec DecafArr GlobalOffset
+                  | StringRec DecafString StringLabel
                   deriving (Show, Eq)
 
 -- | Symbol representing the various styleof block in Decaf
@@ -134,3 +135,5 @@ numberRec (MethodRec a _) = do c <- getMethodCount
 
 numberRec (ArrayRec a _) = do c <- getGlobalCount
                               return $ ArrayRec a c
+numberRec (StringRec a _) = do c <- getStringCount
+                               return $ String a c
