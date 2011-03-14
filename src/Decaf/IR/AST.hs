@@ -161,10 +161,10 @@ data DecafCondOp = DecafAndOp DecafPosition
 
 -- | Abstract Syntax: A literal construct.
 data DecafLiteral = DecafIntLit DecafInteger DecafPosition
-               | DecafBoolLit Bool  DecafPosition
-               | DecafStrLit  DecafString DecafPosition
-               | DecafCharLit  DecafCharacter DecafPosition
-               deriving (Show, Eq)
+                  | DecafBoolLit Bool DecafPosition
+                  | DecafStrLit DecafString DecafPosition
+                  | DecafCharLit DecafCharacter DecafPosition
+                  deriving (Show, Eq)
 
 -- | Abstract Syntax: Integers can be either base Decimal or Hexadecimal.
 data DecafInteger = DecafDec String

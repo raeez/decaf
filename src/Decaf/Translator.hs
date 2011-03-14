@@ -1,4 +1,5 @@
 module Decaf.Translator where
+import Data.Char
 import Decaf.Data.SymbolTable
 import Decaf.IR.Class
 import Decaf.IR.AST
@@ -11,9 +12,6 @@ import Decaf.Data.Zipper
 --        function prologue
 --        function epilogue
 --        function post-return
---        handle cfg etc.
---        handle relExpr
---        calculate offset address for arrays (negative count + size)
 
 data Namespace = Namespace
     { temp :: Int
@@ -100,27 +98,20 @@ translateMethod st method =
     countStatics (_:xs) = 1 + (countStatics xs)
 
 -- | Given a SymbolTree, Translate a single DecafStatement into [LIRInst]
--- TODO add runtime bounds check on array
 translateStm :: SymbolTree -> DecafStm -> Translator [LIRInst]
 translateStm st (DecafAssignStm loc op expr _) =
-    do (instructions1, LIRRegOperand reg) <- translateOperand st loc
+    do (instructions1, LIRRegOperand reg) <- translateLocation st loc
        (instructions2, operand) <- translateExpr st expr
        return (instructions1
            ++ instructions2
            ++ [LIRRegAssignInst reg (LIROperExpr operand)])
 
-translateStm st (DecafMethodStm (DecafPureMethodCall mid args _) _) =
-    return [LIRCallInst (LIRCall func (SREG "ip"))]
-  where
-    func = LIRProcLabel (case globalSymLookup mid st of
-                            Just (MethodRec _ (label, count)) -> methodLabel mid count
-                            _ -> "Translator.hs:120 Invalid SymbolTable; could not find a valid symbol for'" ++ mid ++ "'")
+-- | Given a SymbolTree, Translate a single DecafMethodStm into [LIRInst]
+-- TODO implement stack wind/unwind
+translateStm st (DecafMethodStm mc _) =
+    do (instructions, operand) <- translateMethodCall st mc
+       return instructions
 
-translateStm st (DecafMethodStm (DecafMethodCallout mid args _) _) =
-    return [LIRCallInst (LIRCall func (SREG "ip"))]
-  where
-    func = LIRProcLabel mid
-    
 translateStm st (DecafIfStm expr block (Just elseblock) _) =
      do l <- incLabel
         trueblock <- translateBlock st block
@@ -186,27 +177,79 @@ translateBlock st block =
   where
     translateBlockBody st' ns = concat $ translate (mapM (translateStm st') (blockStms block)) ns
 
-translateRelExpr :: SymbolTree -> DecafExpr -> LIRRelExpr
+translateRelExpr :: SymbolTree -> DecafExpr -> LIRRelExpr -- ^ placeholder
 translateRelExpr st expr = LIROperRelExpr $ LIRRegOperand RAX
 
 translateExpr :: SymbolTree -> DecafExpr -> Translator ([LIRInst], LIROperand)
 translateExpr st (DecafLocExpr loc _) =
-    translateOperand st loc
+    translateLocation st loc
 
-translateExpr st _ =
-    return ([LIRLabelInst (LIRLabel $ "Translator.hs:220 translateExpr not fully implemented")], LIRRegOperand RAX)
+translateExpr st (DecafMethodExpr mc _) =
+    translateMethodCall st mc
 
---translateExpr st (DecafMethodExpr DecafMethodCall DecafPosition)
---translateExpr st (DecafLitExpr DecafLiteral DecafPosition)
---translateExpr st (DecafBinExpr DecafExpr DecafBinOp DecafExpr DecafPosition)
---translateExpr st (DecafNotExpr DecafExpr DecafPosition)
---translateExpr st (DecafMinExpr DecafExpr DecafPosition)
---translateExpr st (DecafParenExpr DecafExpr DecafPosition)
---translateExpr _ _ = error "Translator.hs:212 Invalid expression tree."
+translateExpr st (DecafLitExpr lit _) =
+    do operand <- translateLiteral st lit
+       return ([], operand)
+
+translateExpr st (DecafBinExpr expr binop expr' _) =
+    do (instructions1, operand1) <- translateExpr st expr
+       (instructions2, operand2) <- translateExpr st expr'
+       t <- incTemp
+       let s = SREG (show t)
+           binexpr = LIRBinExpr operand1 binop' operand2
+       return (instructions1
+           ++ instructions2
+           ++ [LIRRegAssignInst s binexpr], LIRRegOperand s)
+  where
+    binop' = case binop of
+                 DecafBinArithOp {} -> LADD
+                 DecafBinRelOp {} -> LMOD
+                 DecafBinEqOp {} -> LAND
+                 DecafBinCondOp {} -> LOR
+
+translateExpr st (DecafNotExpr expr _) =
+    do t <- incTemp
+       (instructions, operand) <- translateExpr st expr
+       let unexpr = LIRUnExpr LNEG operand
+           s = SREG (show t)
+       return (instructions ++ [LIRRegAssignInst s unexpr], LIRRegOperand s)
+
+translateExpr st (DecafMinExpr expr _) =
+    do t <- incTemp
+       (instructions, operand) <- translateExpr st expr
+       let unexpr = LIRUnExpr LNOT operand
+           s = SREG (show t)
+       return (instructions ++ [LIRRegAssignInst s unexpr], LIRRegOperand s)
+
+translateExpr st (DecafParenExpr expr _) =
+    do t <- incTemp
+       (instructions, operand) <- translateExpr st expr
+       let o = LIROperExpr operand 
+           s = SREG (show t)
+       return (instructions ++ [LIRRegAssignInst s o], LIRRegOperand s)
+
+translateExpr _ _ =
+    return ([LIRLabelInst (LIRLabel $ "Translator.hs:212 Invalid expression tree")], LIRIntOperand $ LIRInt 0)
+
+translateLiteral :: SymbolTree -> DecafLiteral -> Translator LIROperand
+translateLiteral _ (DecafIntLit i _) = return $ LIRIntOperand $ LIRInt (readDecafInteger i)
+translateLiteral _ (DecafBoolLit b _) = return $ LIRIntOperand $ LIRInt (if b then 1 else 0) -- ^ TODO figure out if we want to store booleans in 8-byte integers
+translateLiteral _ (DecafCharLit c _) = return $ LIRIntOperand $ LIRInt (ord c)
+
+translateMethodCall :: SymbolTree -> DecafMethodCall -> Translator ([LIRInst], LIROperand)
+translateMethodCall st meth =
+    do t <- incTemp
+       return ([LIRCallAssignInst (SREG $ show t) func (SREG "ip")], LIRRegOperand $ SREG $ show t)
+  where
+    func = case meth of
+               (DecafPureMethodCall {}) -> LIRProcLabel (case globalSymLookup (methodCallID meth) st of
+                                                       Just (MethodRec _ (label, count)) -> methodLabel (methodCallID meth) count
+                                                       _ -> "Translator.hs:120 Invalid SymbolTable; could not find a valid symbol for'" ++ (methodCallID meth) ++ "'")
+               (DecafMethodCallout {})-> LIRProcLabel (methodCalloutID meth)
 
 -- TODO add runtime bounds check on array
-translateOperand :: SymbolTree -> DecafLoc -> Translator ([LIRInst], LIROperand)
-translateOperand st loc =
+translateLocation :: SymbolTree -> DecafLoc -> Translator ([LIRInst], LIROperand)
+translateLocation st loc =
     (case globalSymLookup (ident loc) st of
         Just (VarRec _ sr) -> return ([], LIRRegOperand $ SREG (show sr))
         Just (ArrayRec arr o) -> incTemp >>= \t -> (do (prep, index) <- translateExpr st (arrLocExpr loc)
@@ -217,7 +260,7 @@ translateOperand st loc =
         let arrlen = readDecafInteger len
             size = (case ty of
                         DecafInteger -> 8 -- ^ size in bytes
-                        DecafBoolean -> 1
+                        DecafBoolean -> 8
                         _ -> error "Translate.hs:217 Array cannot have type void")
         in LIRRegOffMemAddr (SREG "gp") (LIRInt (offset + size*index)) (LIRInt size) -- ^ TODO offset must include previous arrays length * size
 
