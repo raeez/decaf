@@ -1,0 +1,11 @@
+class Program {
+	  boolean t(boolean c) {
+  		  callout("printf", "test\n");
+		  return c;
+	  }	  
+
+	  void main() { 
+	  	   if (t(false) || t(false)) {}
+	  }
+}
+

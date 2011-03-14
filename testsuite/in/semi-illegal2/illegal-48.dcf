@@ -1,0 +1,4 @@
+class Program {
+	  void test(int i) {}
+	  void main() { test(true); }
+}

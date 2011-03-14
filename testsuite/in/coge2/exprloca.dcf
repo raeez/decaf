@@ -1,0 +1,7 @@
+class Program {
+	  void main() {
+	  	   int a[10];
+		   a[5] = 23;
+	   	   callout ("printf", "%d\n", a[5]);
+	  }
+}

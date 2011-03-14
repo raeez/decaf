@@ -1,0 +1,6 @@
+class Program {
+	  void main() {
+	  		  boolean i;
+			  i = (4 < 5);
+	  }
+}

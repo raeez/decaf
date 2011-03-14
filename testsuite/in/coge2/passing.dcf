@@ -1,0 +1,9 @@
+class Program {
+	  void t (int a)
+	  {
+		  callout("printf", "%d\n", a);
+	  }
+	  void main() { 
+	  	   t(666);
+	  }
+}
