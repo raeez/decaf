@@ -8,7 +8,7 @@ import Decaf.Util.Report
 import Decaf.IR.Class
 import Decaf.IR.AST
 import Decaf.Parser
-import Decaf.Checker
+import Decaf.Checker hiding (check)
 
 basename :: String -> String
 basename f = fst $ break (=='.') f

@@ -4,10 +4,6 @@ import Decaf.IR.Class
 import Decaf.IR.AST
 import Decaf.IR.LIR
 import Decaf.Translator
-
-
-
-
 {- fix 
 
 correct counting in symbol table
@@ -57,21 +53,21 @@ convertLIRInsts insts next = (uncurry (ControlNode "")) $ convHelp [] insts
 -}
 
 -- CHANGE FROM LIRInst to new itermediate ' type
-convertLIRInsts :: [LIRInst] -> ControlPath
+convertLIRInsts :: [CGInst] -> ControlPath
 convertLIRInsts insts = convHelp [] [] insts
   where
     convHelp :: ControlPath -> [LIRInst] -> [LIRInst] -> ControlPath
     convHelp nodes body [] = nodes ++ [mkBasicBlock body]
     convHelp nodes body (inst:is) =
         case inst of
-          LIRCallInst {-label-} -> convHelp (nodes ++ [mkBasicBlock (body++inst)]) [] is
-          LIRRetInst -> convHelp (nodes++ [mkBasicBlock (body++inst)]) [] is
-          LIRIfInst reg block melse num ->
+          CGLIRInst (LIRCallInst {}) -> convHelp (nodes ++ [mkBasicBlock (body++inst)]) [] is -- fix this
+          CGLIRInst LIRRetInst -> convHelp (nodes++ [mkBasicBlock (body++inst)]) [] is
+          CGIf reg block melse num ->
               convHelp (nodes ++ [mkBranch reg (convHelp [] [] block) eb num]) [] is
                 where eb = case melse of 
                              Just block -> convHelp [] [] block
                              Nothing -> []
-          LIR'Expr (LIRLogExpr expr1 op expr2) reg ->
+          CGExprInst (CGLogExpr expr1 op expr2) reg ->
               case op of
 -- add code to fill in final value in reg
                 LAND -> convHelp (nodes++(convHelp [] [] [expr1])
@@ -89,5 +85,25 @@ convertLIRInsts insts = convHelp [] [] insts
                     (LIRRegAssignInst reg (LIROperExpr.LIRRegOperand $ (exprReg expr2)))
                   retValBlock b = [mkBasicBlock [LIRRegAssignInst reg (LIROperExpr (LIRIntOperand (LIRInt b)))]]
 
-          LIR'Expr (LIRFlatExpr insts) _ ->
+          CGExprInst (CGFlatExpr insts) _ ->
               convHelp nodes (body ++ insts)
+
+          otherwise -> convHelp nodes (body++[inst]) is
+
+
+
+convertProgram :: LIRProgram -> ControlGraph
+convertProgram prog =
+    ControlGraph (map (convertLIRInsts.g) (progUnits prog))
+  where g (LIRUnit lab insts) = (LIRLabelInst lab) : insts
+
+
+translateCG :: ControlGraph -> [LIRInst]
+translateCG g = concatMap (map h) (cgNodes g)
+  where 
+    h (BasicBlock insts) = insts
+    h (Branch {condReg = reg, trueBlock = tb, falseBlock = fb, branchNum = num}) = 
+        (LIRIfInst reg (trueLabel num)) ++ (h fb) ++ (h tb)
+
+
+

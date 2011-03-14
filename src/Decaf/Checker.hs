@@ -209,7 +209,7 @@ checkCalloutArg :: DecafCalloutArg -> Checker Bool
 checkCalloutArg carg =
     case carg of
       DecafCalloutArgExpr expr _ -> checkExpr expr >> return True
-      DecafCalloutArgStr _ _ -> return True
+      DecafCalloutArgStr str _ -> addSymbol $ StringRec str 0
 
 checkVarDec :: DecafVar -> Checker Bool
 checkVarDec (DecafVar t id pos') = 

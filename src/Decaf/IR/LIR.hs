@@ -3,14 +3,24 @@ import Numeric
 import Decaf.IR.Class
 import Decaf.Data.Tree
 
-data LIRProgram = LIRProgram
+
+data CGInst = CGLIRInst LIRInst
+            | CGIf LIRReg [CGInst] (Maybe [CGInst]) JumpLabel
+            | CGExprInst CGExpr LIRReg
+
+data CGExpr = CGLogExpr CGExprInst LIRBinOp CGExprInst
+            | CGFlatExpr [LIRInst]
+type JumpLabel = Int
+
+
+data CGProgram = CGProgram
     { progLabel :: LIRLabel
-    , progUnits :: [LIRUnit]
+    , progUnits :: [CGUnit]
     } deriving (Show, Eq)
 
-data LIRUnit = LIRUnit
+data CGUnit = CGUnit
     { unitLabel ::LIRLabel
-    , unitInstructions :: [LIRInst]
+    , unitInstructions :: [CGInst]
     } deriving (Show, Eq)
 
 data LIRInst = LIRRegAssignInst LIRReg LIRExpr
@@ -27,6 +37,7 @@ data LIRInst = LIRRegAssignInst LIRReg LIRExpr
              | LIRRetInst
              | LIRLabelInst LIRLabel
              deriving (Show, Eq)
+
 
 data LIRProc = LIRProcLabel String
              | LIRProcReg LIRReg
