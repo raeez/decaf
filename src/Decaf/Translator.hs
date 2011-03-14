@@ -8,10 +8,15 @@ import Decaf.Data.Tree
 import Decaf.Data.Zipper
 
 -- TODO
--- handle function pre-call
---        function prologue
---        function epilogue
---        function post-return
+-- handle translateMethod: function pre-call
+--        translateMethod: function prologue
+--        translateMethod: function epilogue
+--        translateMethod: function post-return
+--        translateMethod: implement stack wind/unwind
+--        translateLiteral: figure out if we want to store booleans in 8-byte integers
+--        translateLocation: add runtime bounds check on array
+--        translateLocation: offset must include previous arrays length * size
+--        ??: runtime check: control falling off edge?
 
 data Namespace = Namespace
     { temp :: Int
@@ -78,6 +83,7 @@ translateProgram st program =
     units ns = translate (mapM (translateMethod st) (methods program)) ns
 
 -- | Given a SymbolTree, Translate a DecafMethod into an LIRUnit
+-- TODO implement stack wind/unwind
 translateMethod :: SymbolTree -> DecafMethod -> Translator LIRUnit
 translateMethod st method =
     do ns <- getNS
@@ -107,7 +113,6 @@ translateStm st (DecafAssignStm loc op expr _) =
            ++ [LIRRegAssignInst reg (LIROperExpr operand)])
 
 -- | Given a SymbolTree, Translate a single DecafMethodStm into [LIRInst]
--- TODO implement stack wind/unwind
 translateStm st (DecafMethodStm mc _) =
     do (instructions, operand) <- translateMethodCall st mc
        return instructions
