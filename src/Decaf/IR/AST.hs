@@ -423,11 +423,11 @@ instance IRNode DecafInteger where
   pos _     = error "DecafInteger has no associated position"
 
 -- | 'readDecafInteger' parses a DecafInteger IRNode and returns a Haskell integer
-readDecafInteger :: DecafInteger -> Integer
+readDecafInteger :: DecafInteger -> Int
 readDecafInteger (DecafDec s) =
     if head s == '-'
-      then -(read (tail s) :: Integer)
-      else read  s :: Integer
+      then -(read (tail s) :: Int)
+      else read  s :: Int
 
 readDecafInteger (DecafHex s) =
     if head s == '-'
