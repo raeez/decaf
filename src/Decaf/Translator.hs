@@ -16,8 +16,6 @@ import Decaf.Data.Zipper
 --        translateLiteral: figure out if we want to store booleans in 8-byte integers
 --        translateLocation: add runtime bounds check on array
 --        translateLocation: offset must include previous arrays length * size
---        translateExpr: implement translateRelExpr and map the rest of the
---        rel conditions
 --        ??: runtime check: control falling off edge?
 
 data Namespace = Namespace
@@ -134,19 +132,36 @@ translateStm st (DecafMethodStm mc _) =
        return instructions
 
 translateStm st (DecafIfStm expr block (Just elseblock) _) =
-     do l <- incLabel
+     do ns <- getNS
+        (instructions, relexpr) <- translateRelExpr st expr ns
+        l <- incLabel
         trueblock <- translateBlock st block
         elseblock <- translateBlock st elseblock
-        return ([LIRIfInst (translateRelExpr st expr) (trueLabel l)]
+        return (instructions
+            ++ [LIRIfInst relexpr (trueLabel l)]
             ++ elseblock
             ++ [LIRJumpLabelInst (endLabel l)]
             ++ [LIRLabelInst (trueLabel l)]
             ++ trueblock
             ++ [LIRLabelInst (endLabel l)])
 
+translateStm st (DecafIfStm expr block Nothing _) =
+    do ns <- getNS
+       (instructions, relexpr) <- translateRelExpr st expr ns
+       l <- incLabel
+       trueblock <- withScope l $ translateBlock st block
+       return (instructions
+           ++ [LIRIfInst relexpr (trueLabel l)]
+           ++ [LIRJumpLabelInst (endLabel l)]
+           ++ [LIRLabelInst (trueLabel l)]
+           ++ trueblock
+           ++ [LIRLabelInst (endLabel l)])
+
 translateStm st (DecafForStm ident expr expr' block _) =
     do  l <- incLabel
         (instructions, operand) <- translateExpr st expr
+        ns <- getNS
+        (instructions2, relexpr) <- translateRelExpr st expr' ns
         forblock <- withScope l $ translateBlock st block
         let ivarlabel = (case symLookup ident ((content . tree) st) of
                             Just (_, (VarRec _ label)) -> show label
@@ -154,21 +169,13 @@ translateStm st (DecafForStm ident expr expr' block _) =
         return (instructions
             ++ [LIRRegAssignInst (SREG ivarlabel) (LIROperExpr operand)]
             ++ [LIRLabelInst (loopLabel l)]
-            ++ [LIRIfInst (translateRelExpr st expr') (trueLabel l)]
+            ++ instructions2
+            ++ [LIRIfInst relexpr (trueLabel l)]
             ++ [LIRJumpLabelInst (endLabel l)]
             ++ [LIRLabelInst (trueLabel l)]
             ++ forblock
             ++ [LIRJumpLabelInst (loopLabel l)]
             ++ [LIRLabelInst (endLabel l)])
-
-translateStm st (DecafIfStm expr block Nothing _) =
-    do l <- incLabel
-       trueblock <- withScope l $ translateBlock st block
-       return ([LIRIfInst (translateRelExpr st expr) (trueLabel l)]
-           ++ [LIRJumpLabelInst (endLabel l)]
-           ++ [LIRLabelInst (trueLabel l)]
-           ++ trueblock
-           ++ [LIRLabelInst (endLabel l)])
 
 translateStm st (DecafRetStm (Just expr) _) =
     do (instructions, operand) <- translateExpr st expr
@@ -198,8 +205,21 @@ translateBlock st block =
   where
     translateBlockBody st' ns = concat $ translate (mapM (translateStm st') (blockStms block)) ns
 
-translateRelExpr :: SymbolTree -> DecafExpr -> LIRRelExpr -- ^ a placeholder;
-translateRelExpr st expr = LIROperRelExpr $ LIRRegOperand RAX
+translateRelExpr :: SymbolTree -> DecafExpr -> Namespace -> Translator ([LIRInst], LIRRelExpr)
+translateRelExpr st expr ns = case translate (translateExpr st expr) ns of
+                                  ([], oper@(LIRRegOperand {})) -> return ([], LIROperRelExpr oper)
+                                  ([], oper@(LIRIntOperand {})) -> return ([], LIROperRelExpr oper)
+                                  (instructions, oper) -> case last instructions of
+                                                              LIRRegAssignInst s (LIRBinExpr operand (LIRBinRelOp o) operand') ->
+                                                                  return (instructions, LIROperRelExpr oper)
+
+                                                              LIRRegAssignInst s (LIRUnExpr LNOT operand) ->
+                                                                  return (instructions, LIROperRelExpr oper)
+
+                                                              LIRRegAssignInst s (LIROperExpr operand) ->
+                                                                  return (instructions, LIROperRelExpr oper)
+
+                                                              _ -> return ([LIRLabelInst $ LIRLabel $ "Translator.hs:208 Invalid Expression tree; not of type relExpr"], LIROperRelExpr $ LIRRegOperand RAX)
 
 translateExpr :: SymbolTree -> DecafExpr -> Translator ([LIRInst], LIROperand)
 translateExpr st (DecafLocExpr loc _) =
@@ -212,8 +232,6 @@ translateExpr st (DecafLitExpr lit _) =
     do operand <- translateLiteral st lit
        return ([], operand)
 
--- TODO implement translateRelExpr and map the rest of the
--- operations (rel operations)
 translateExpr st (DecafBinExpr expr binop expr' _) =
     do (instructions1, operand1) <- translateExpr st expr
        (instructions2, operand2) <- translateExpr st expr'
@@ -242,14 +260,14 @@ translateExpr st (DecafBinExpr expr binop expr' _) =
 translateExpr st (DecafNotExpr expr _) =
     do t <- incTemp
        (instructions, operand) <- translateExpr st expr
-       let unexpr = LIRUnExpr LNEG operand
+       let unexpr = LIRUnExpr LNOT operand
            s = SREG (show t)
        return (instructions ++ [LIRRegAssignInst s unexpr], LIRRegOperand s)
 
 translateExpr st (DecafMinExpr expr _) =
     do t <- incTemp
        (instructions, operand) <- translateExpr st expr
-       let unexpr = LIRUnExpr LNOT operand
+       let unexpr = LIRUnExpr LNEG operand
            s = SREG (show t)
        return (instructions ++ [LIRRegAssignInst s unexpr], LIRRegOperand s)
 
