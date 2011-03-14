@@ -43,7 +43,7 @@ data LIRRelExpr = LIRBinRelExpr LIROperand LIRRelOp LIROperand
                 deriving (Show, Eq)
 
 data LIRBinOp = LADD
-              | LMIN
+              | LSUB
               | LMUL
               | LDIV
               | LMOD
@@ -179,7 +179,7 @@ instance IRNode LIRRelExpr where
 
 instance IRNode LIRBinOp where
     pp (LADD) = "ADD"
-    pp (LMIN) = "SUB"
+    pp (LSUB) = "SUB"
     pp (LMUL) = "MUL"
     pp (LDIV) = "DIV"
     pp (LMOD) = "MOD"

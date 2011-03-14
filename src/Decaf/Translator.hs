@@ -16,6 +16,8 @@ import Decaf.Data.Zipper
 --        translateLiteral: figure out if we want to store booleans in 8-byte integers
 --        translateLocation: add runtime bounds check on array
 --        translateLocation: offset must include previous arrays length * size
+--        translateExpr: implement translateRelExpr and map the rest of the
+--        rel conditions
 --        ??: runtime check: control falling off edge?
 
 data Namespace = Namespace
@@ -196,6 +198,8 @@ translateExpr st (DecafLitExpr lit _) =
     do operand <- translateLiteral st lit
        return ([], operand)
 
+-- TODO implement translateRelExpr and map the rest of the
+-- operations (rel operations)
 translateExpr st (DecafBinExpr expr binop expr' _) =
     do (instructions1, operand1) <- translateExpr st expr
        (instructions2, operand2) <- translateExpr st expr'
@@ -207,10 +211,15 @@ translateExpr st (DecafBinExpr expr binop expr' _) =
            ++ [LIRRegAssignInst s binexpr], LIRRegOperand s)
   where
     binop' = case binop of
-                 DecafBinArithOp {} -> LADD
+                 DecafBinArithOp (DecafPlusOp _) _ -> LADD
+                 DecafBinArithOp (DecafMinOp _) _ -> LSUB
+                 DecafBinArithOp (DecafMulOp _) _ -> LMUL
+                 DecafBinArithOp (DecafDivOp _) _ -> LDIV
+                 DecafBinArithOp (DecafModOp _) _ -> LMOD
+                 DecafBinCondOp (DecafAndOp _) _ -> LAND
+                 DecafBinCondOp (DecafOrOp _) _ -> LOR
                  DecafBinRelOp {} -> LMOD
                  DecafBinEqOp {} -> LAND
-                 DecafBinCondOp {} -> LOR
 
 translateExpr st (DecafNotExpr expr _) =
     do t <- incTemp
