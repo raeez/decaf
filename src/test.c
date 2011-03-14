@@ -63,6 +63,8 @@ class Program {
     callout ("printf", "one");
     b = 2;
     a = 3 + a;
+    a -= 100;
+    a = 2 * 100;
     callout("printf_035", "Man oh man");
     return a;
     }
