@@ -110,9 +110,23 @@ translateStm :: SymbolTree -> DecafStm -> Translator [LIRInst]
 translateStm st (DecafAssignStm loc op expr _) =
     do (instructions1, LIRRegOperand reg) <- translateLocation st loc
        (instructions2, operand) <- translateExpr st expr
+       (instructions3, operand2) <- expr' reg operand
        return (instructions1
            ++ instructions2
-           ++ [LIRRegAssignInst reg (LIROperExpr operand)])
+           ++ instructions3
+           ++ [LIRRegAssignInst reg (LIROperExpr operand2)])
+  where
+    expr' reg oper = case op of
+                         DecafEq _ -> return ([], oper)
+                         DecafPlusEq _ -> do t <- incTemp
+                                             let bexpr = LIRBinExpr (LIRRegOperand reg) LADD oper
+                                                 s = SREG (show t)
+                                             return ([LIRRegAssignInst s bexpr], LIRRegOperand $ s)
+
+                         DecafMinusEq _ -> do t <- incTemp
+                                              let bexpr = LIRBinExpr (LIRRegOperand reg) LSUB oper
+                                                  s = SREG (show t)
+                                              return ([LIRRegAssignInst s bexpr], LIRRegOperand $ s)
 
 -- | Given a SymbolTree, Translate a single DecafMethodStm into [LIRInst]
 translateStm st (DecafMethodStm mc _) =
@@ -184,7 +198,7 @@ translateBlock st block =
   where
     translateBlockBody st' ns = concat $ translate (mapM (translateStm st') (blockStms block)) ns
 
-translateRelExpr :: SymbolTree -> DecafExpr -> LIRRelExpr -- ^ placeholder
+translateRelExpr :: SymbolTree -> DecafExpr -> LIRRelExpr -- ^ a placeholder;
 translateRelExpr st expr = LIROperRelExpr $ LIRRegOperand RAX
 
 translateExpr :: SymbolTree -> DecafExpr -> Translator ([LIRInst], LIROperand)
@@ -218,8 +232,12 @@ translateExpr st (DecafBinExpr expr binop expr' _) =
                  DecafBinArithOp (DecafModOp _) _ -> LMOD
                  DecafBinCondOp (DecafAndOp _) _ -> LAND
                  DecafBinCondOp (DecafOrOp _) _ -> LOR
-                 DecafBinRelOp {} -> LMOD
-                 DecafBinEqOp {} -> LAND
+                 DecafBinRelOp (DecafLTOp _) _ -> LIRBinRelOp LLT
+                 DecafBinRelOp (DecafGTOp _) _ -> LIRBinRelOp LGT
+                 DecafBinRelOp (DecafLTEOp _) _ -> LIRBinRelOp LLTE
+                 DecafBinRelOp (DecafGTEOp _) _ -> LIRBinRelOp LGTE
+                 DecafBinEqOp (DecafEqOp _) _ -> LIRBinRelOp LEQ
+                 DecafBinEqOp (DecafNEqOp _) _ -> LIRBinRelOp LNEQ
 
 translateExpr st (DecafNotExpr expr _) =
     do t <- incTemp
