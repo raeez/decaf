@@ -87,7 +87,11 @@ data DecafCalloutArg = DecafCalloutArgExpr DecafExpr DecafPosition
 
 -- | Abstract Syntax: Memory Location
 data DecafLoc = DecafVarLoc DecafIdentifier DecafPosition
-              | DecafArrLoc DecafIdentifier DecafExpr DecafPosition
+              | DecafArrLoc
+                  { arrLocIdent :: DecafIdentifier
+                  , arrLocExpr :: DecafExpr
+                  , arrLocPos :: DecafPosition
+                  }
               deriving (Show, Eq)
 
 -- | Abstract Syntax: An abstract Decaf Expression Tree.

@@ -23,7 +23,7 @@ data Namespace = Namespace
     }
 
 mkNamespace :: Namespace
-mkNamespace = Namespace 0 0 [] [0]
+mkNamespace = Namespace 4096 0 [] [0] -- ^ need to replace 4096 with ending point of SymbolTable.numberTree
 
 newtype Translator a = Translator
     { runTranslator :: Namespace -> (a, Namespace) }
@@ -103,21 +103,11 @@ translateMethod st method =
 -- TODO add runtime bounds check on array
 translateStm :: SymbolTree -> DecafStm -> Translator [LIRInst]
 translateStm st (DecafAssignStm loc op expr _) =
-    do (instructions, oper) <- translateExpr st expr
-       return (instructions
-           ++ [lir oper])
-  where
-    lir operand = case globalSymLookup (ident loc) st of
-                      Just (VarRec _ sr) -> LIRRegAssignInst (SREG (show sr)) (LIROperExpr operand)
-                      Just (ArrayRec arr o) -> LIRStoreInst (memaddr arr o) operand
-                      _ -> LIRLabelInst (LIRLabel $ "Translator.hs:107 Invalid SymbolTable; could not find '" ++ ident loc ++ "' symbol in\n" ++ show st)
-
-    memaddr (DecafArr ty _ len _) offset = let arrlen = readDecafInteger len
-                                               size = (case ty of
-                                                      DecafInteger -> 8
-                                                      DecafBoolean -> 1
-                                                      _ -> error "Translate.hs:112 Array cannot have type void")
-                                      in LIRRegOffMemAddr (SREG "gp") (LIRInt offset) (LIRInt size) -- TODO offset must include previous arrays length * size
+    do (instructions1, LIRRegOperand reg) <- translateOperand st loc
+       (instructions2, operand) <- translateExpr st expr
+       return (instructions1
+           ++ instructions2
+           ++ [LIRRegAssignInst reg (LIROperExpr operand)])
 
 translateStm st (DecafMethodStm (DecafPureMethodCall mid args _) _) =
     return [LIRCallInst (LIRCall func (SREG "ip"))]
@@ -135,14 +125,12 @@ translateStm st (DecafIfStm expr block (Just elseblock) _) =
      do l <- incLabel
         trueblock <- translateBlock st block
         elseblock <- translateBlock st elseblock
-        let truelabel = LIRLabel $ "LTRUE" ++ show l
-            endlabel = LIRLabel $ "LEND" ++ show l
-        return ([LIRIfInst (translateRelExpr st expr) truelabel]
+        return ([LIRIfInst (translateRelExpr st expr) (trueLabel l)]
             ++ elseblock
-            ++ [LIRJumpLabelInst endlabel]
-            ++ [LIRLabelInst truelabel]
+            ++ [LIRJumpLabelInst (endLabel l)]
+            ++ [LIRLabelInst (trueLabel l)]
             ++ trueblock
-            ++ [LIRLabelInst endlabel])
+            ++ [LIRLabelInst (endLabel l)])
 
 translateStm st (DecafForStm ident expr expr' block _) =
     do  l <- incLabel
@@ -150,7 +138,7 @@ translateStm st (DecafForStm ident expr expr' block _) =
         forblock <- withScope l $ translateBlock st block
         let ivarlabel = (case symLookup ident ((content . tree) st) of
                             Just (_, (VarRec _ label)) -> show label
-                            Nothing -> error "Translator.hs:153 Invalid SymbolTable; could not find a valid symbol for'" ++ show ident ++ "'")
+                            Nothing -> error "Translator.hs:151 Invalid SymbolTable; could not find a valid symbol for'" ++ show ident ++ "'")
         return (instructions
             ++ [LIRRegAssignInst (SREG ivarlabel) (LIROperExpr operand)]
             ++ [LIRLabelInst (loopLabel l)]
@@ -199,10 +187,39 @@ translateBlock st block =
     translateBlockBody st' ns = concat $ translate (mapM (translateStm st') (blockStms block)) ns
 
 translateRelExpr :: SymbolTree -> DecafExpr -> LIRRelExpr
-translateRelExpr st expr = LIROperRelExpr $ LIRRegOperand $ RAX
+translateRelExpr st expr = LIROperRelExpr $ LIRRegOperand RAX
 
 translateExpr :: SymbolTree -> DecafExpr -> Translator ([LIRInst], LIROperand)
-translateExpr st expr = return ([], LIRRegOperand RAX)
+translateExpr st (DecafLocExpr loc _) =
+    translateOperand st loc
+
+translateExpr st _ =
+    return ([LIRLabelInst (LIRLabel $ "Translator.hs:220 translateExpr not fully implemented")], LIRRegOperand RAX)
+
+--translateExpr st (DecafMethodExpr DecafMethodCall DecafPosition)
+--translateExpr st (DecafLitExpr DecafLiteral DecafPosition)
+--translateExpr st (DecafBinExpr DecafExpr DecafBinOp DecafExpr DecafPosition)
+--translateExpr st (DecafNotExpr DecafExpr DecafPosition)
+--translateExpr st (DecafMinExpr DecafExpr DecafPosition)
+--translateExpr st (DecafParenExpr DecafExpr DecafPosition)
+--translateExpr _ _ = error "Translator.hs:212 Invalid expression tree."
+
+-- TODO add runtime bounds check on array
+translateOperand :: SymbolTree -> DecafLoc -> Translator ([LIRInst], LIROperand)
+translateOperand st loc =
+    (case globalSymLookup (ident loc) st of
+        Just (VarRec _ sr) -> return ([], LIRRegOperand $ SREG (show sr))
+        Just (ArrayRec arr o) -> incTemp >>= \t -> (do (prep, index) <- translateExpr st (arrLocExpr loc)
+                                                       return (prep ++ [LIRLoadInst (SREG $ show t) (memaddr arr o index)], LIRRegOperand (SREG $ show t))) -- ^ replace 0 with the array's real index
+        _ -> return ([LIRLabelInst (LIRLabel $ "Translator.hs:235 Invalid SymbolTable; could not find '" ++ ident loc ++ "' symbol in\n" ++ show st)], LIRRegOperand $ SREG "--"))
+  where
+    memaddr (DecafArr ty _ len _) offset (LIRIntOperand (LIRInt index)) =
+        let arrlen = readDecafInteger len
+            size = (case ty of
+                        DecafInteger -> 8 -- ^ size in bytes
+                        DecafBoolean -> 1
+                        _ -> error "Translate.hs:217 Array cannot have type void")
+        in LIRRegOffMemAddr (SREG "gp") (LIRInt (offset + size*index)) (LIRInt size) -- ^ TODO offset must include previous arrays length * size
 
 methodLabel :: String -> Int -> String
 methodLabel methodname c = "__func__" ++ show c ++ "__" ++ methodname
