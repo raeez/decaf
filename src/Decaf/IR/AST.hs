@@ -76,8 +76,16 @@ data DecafAssignOp = DecafEq DecafPosition
                    deriving (Show, Eq)
 
 -- | Abstract Syntax: Method call, either defined within Decaf or externally, used in 'DecafAssignStm'
-data DecafMethodCall = DecafPureMethodCall { methodCallID :: DecafIdentifier, methodCallArgs :: [DecafExpr], methodCallPos :: DecafPosition}
-                     | DecafMethodCallout { methodCalloutID :: DecafString, methodCalloutArgs :: [DecafCalloutArg], methodCalloutPos :: DecafPosition}
+data DecafMethodCall = DecafPureMethodCall
+                        { methodCallID :: DecafIdentifier
+                        , methodCallArgs :: [DecafExpr]
+                        , methodCallPos :: DecafPosition
+                        }
+                     | DecafMethodCallout
+                        { methodCalloutID :: DecafString
+                        , methodCalloutArgs :: [DecafCalloutArg]
+                        , methodCalloutPos :: DecafPosition
+                        }
                      deriving (Show, Eq)
 
 -- | Abstract Syntax: Argument passed to 'DecafMethodCallout'

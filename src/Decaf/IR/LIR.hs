@@ -3,8 +3,14 @@ import Numeric
 import Decaf.IR.Class
 import Decaf.Data.Tree
 
+boundsLabel :: Int -> String
+boundsLabel c = "__boundscheck" ++ show c
+
+stringLabel :: String -> Int -> String
+stringLabel s c = "__str" ++ show c ++ "__" ++ s
+
 methodLabel :: String -> Int -> String
-methodLabel methodname c = "__func__" ++ show c ++ "__" ++ methodname
+methodLabel m c = "__proc" ++ show c ++ "__" ++ m
 
 loopLabel :: Int -> LIRLabel
 loopLabel l = LIRLabel $ "LLOOP" ++ show l
@@ -14,7 +20,6 @@ endLabel l = LIRLabel $ "LEND" ++ show l
 
 trueLabel :: Int -> LIRLabel
 trueLabel l = LIRLabel $ "LTRUE" ++ show l
-
 data LIRProgram = LIRProgram
     { lirProgLabel :: LIRLabel
     , lirProgUnits :: [LIRUnit]
@@ -88,6 +93,7 @@ data LIRMemAddr = LIRRegMemAddr LIRReg LIRSize
 
 data LIROperand = LIRRegOperand LIRReg
                 | LIRIntOperand LIRInt
+                | LIRStringOperand String
                 deriving (Show, Eq)
 
 data LIRReg = RAX
@@ -110,6 +116,18 @@ data LIRReg = RAX
             deriving (Show, Eq)
 
 type LIRSize = LIRInt
+
+byte :: LIRInt
+byte = LIRInt 1
+
+word :: LIRInt
+word = LIRInt 2
+
+dword :: LIRInt
+dword = LIRInt 4
+
+qword :: LIRInt
+qword = LIRInt 8
 
 type LIROffset = LIRInt
 
@@ -216,12 +234,12 @@ instance IRNode LIRUnOp where
     pos _     = error "LIR has no associated position"
 
 instance IRNode LIRRelOp where
+    pp (LEQ) = "=="
     pp (LNEQ) = "!="
     pp (LGT) = ">"
     pp (LGTE) = ">="
     pp (LLT) = "<"
     pp (LLTE) = "<="
-    pp x = show x
     treeify a = Node (pp a) []
     pos _     = error "LIR has no associated position"
 
@@ -262,7 +280,7 @@ instance IRNode LIRReg where
     pos _     = error "LIR has no associated position"
 
 instance IRNode LIRInt where
-    pp (LIRInt i) = "0x" ++ showHex i ""
+    pp (LIRInt i) = "0x" ++ (if i < 0 then "-" else "") ++ showHex (abs i) ""
     treeify i = Node (pp i) []
     pos _     = error "LIR has no associated position"
 
