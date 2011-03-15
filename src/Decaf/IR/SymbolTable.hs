@@ -133,10 +133,8 @@ numberTree t =
 numberRec :: SymbolRecord -> RegisterCounter SymbolRecord
 numberRec (VarRec a _) = do c <- getRegCount
                             return $ VarRec a c
-
 numberRec (MethodRec a _) = do c <- getMethodCount
                                return $ MethodRec a ("meth", c)
-
 numberRec (ArrayRec a _) = do c <- getGlobalCount (readDecafInteger (arrayLength a))
                               return $ ArrayRec a c
 numberRec (StringRec a _) = do c <- getStringCount

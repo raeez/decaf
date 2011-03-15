@@ -4,6 +4,7 @@ import Decaf.Util.Report
 import Decaf.IR.Class
 import Decaf.IR.AST
 import Decaf.IR.SymbolTable
+import Decaf.IR.LIR -- just for exception messages
 import Decaf.Parser
 
 -- | A single instance of a semantic error
@@ -255,7 +256,9 @@ checkMethodDec meth@(DecafMethod t id args body pos') =
 
 checkProgram :: DecafProgram -> Checker Bool
 checkProgram (DecafProgram fields methods) =
-    do foldl (>>) (return False) (map checkFieldDec fields)
+    do addSymbol $ StringRec missingRetMessage  0
+       addSymbol $ StringRec outOfBoundsMessage 0  -- needed for translator
+       foldl (>>) (return False) (map checkFieldDec fields)
        foldl (>>) (return False) (map checkMethodDec methods)
        b <- lookNear "main"
        case b of
