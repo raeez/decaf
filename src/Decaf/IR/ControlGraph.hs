@@ -105,12 +105,12 @@ symToInt  reg = error "attempted to label if using non-symbolic register"
 
 convertProgram :: CGProgram -> ControlGraph
 convertProgram prog =
-    ControlGraph (map (convertLIRInsts.g) (progUnits prog))
+    ControlGraph (map (convertLIRInsts.g) (cgProgUnits prog))
   where g (CGUnit lab insts) = (CGLIRInst $ LIRLabelInst lab) : insts
 
 
-translateCG :: ControlGraph -> [LIRInst]
-translateCG g = concatMap (concatMap h) (cgNodes g)
+translateCG :: ControlGraph -> LIRProgram
+translateCG g = LIRProgram (LIRLabel "prog") $ map ((LIRUnit (LIRLabel "")).concatMap h) (cgNodes g)
   where 
     h :: ControlNode -> [LIRInst]
     h (BasicBlock insts) = insts

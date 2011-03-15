@@ -23,18 +23,23 @@ cgOper _ = error "Tried to mkBranch for improper CGExprInst"
 
 
 data CGProgram = CGProgram
-    { progLabel :: LIRLabel
-    , progUnits :: [CGUnit]
+    { cgProgLabel :: LIRLabel
+    , cgProgUnits :: [CGUnit]
     } deriving (Show, Eq)
 
 data CGUnit = CGUnit
-    { unitLabel ::LIRLabel
-    , unitInstructions :: [CGInst]
+    { cgUnitLabel ::LIRLabel
+    , cgUnitInstructions :: [CGInst]
+    } deriving (Show, Eq)
+
+data LIRProgram = LIRProgram
+    { lirProgLabel :: LIRLabel
+    , lirProgUnits :: [LIRUnit]
     } deriving (Show, Eq)
 
 data LIRUnit = LIRUnit
-    { lirunitLabel ::LIRLabel
-    , lirunitInstructions :: [LIRInst]
+    { lirUnitLabel ::LIRLabel
+    , lirUnitInstructions :: [LIRInst]
     } deriving (Show, Eq)
 
 data LIRInst = LIRRegAssignInst LIRReg LIRExpr

@@ -134,7 +134,7 @@ numberRec (VarRec a _) = do c <- getRegCount
 numberRec (MethodRec a _) = do c <- getMethodCount
                                return $ MethodRec a ("meth", c)
 
-numberRec (ArrayRec a _) = do c <- getGlobalCount (arrayLength a)
+numberRec (ArrayRec a _) = do c <- getGlobalCount (readDecafInteger (arrayLength a))
                               return $ ArrayRec a c
 numberRec (StringRec a _) = do c <- getStringCount
                                return $ StringRec a c
