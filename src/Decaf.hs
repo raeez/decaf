@@ -4,6 +4,7 @@ module Decaf
     , module Decaf.Parser
     , module Decaf.Checker
     , module Decaf.Translator
+    , module Decaf.InstructionSelector
     --, module Decaf.Data.ContextTree
     , module Decaf.Data.Tree
     , module Decaf.Data.Zipper
@@ -29,3 +30,4 @@ import Decaf.Scanner
 import Decaf.Parser
 import Decaf.Checker
 import Decaf.Translator
+import Decaf.InstructionSelector

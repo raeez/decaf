@@ -208,7 +208,7 @@ translateStm st (DecafBlockStm block _) =
     translateBlock st block
 
 translateBlock :: SymbolTree -> DecafBlock -> Translator [CFGInst]
-translateBlock st (DecafBlock _ [] _) = return []
+translateBlock st (DecafBlock _ [] _) = withBlock (return [])
 translateBlock st block =
     withBlock (do b <- getBlock
                   ns <- getNS

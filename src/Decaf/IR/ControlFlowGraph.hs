@@ -112,7 +112,6 @@ convertProgram prog =
     ControlGraph (map (convertLIRInsts.g) (cgProgUnits prog))
   where g (CFGUnit lab insts) = (CFGLIRInst $ LIRLabelInst lab) : insts
 
-
 translateCFG :: ControlGraph -> LIRProgram
 translateCFG g = LIRProgram (LIRLabel "prog") $ map ((LIRUnit (LIRLabel "")).concatMap h) (cgNodes g)
   where 
