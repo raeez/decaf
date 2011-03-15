@@ -1,0 +1,14 @@
+class Program {
+	  void main() 
+		   {
+		        boolean a;
+				if (a) {
+				   callout("printf", "true");
+				}
+				else
+				{
+				   callout("printf", "false");
+				}
+		   }
+	  }
+}

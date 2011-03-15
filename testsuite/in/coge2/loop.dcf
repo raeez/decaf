@@ -1,0 +1,7 @@
+class Program {
+	  void main() {
+	  	   for i=10,1 {
+		   	   callout ("printf", "hello\n");
+		   }
+	  }
+}

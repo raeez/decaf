@@ -1,0 +1,12 @@
+class Program {
+      void main()
+      {
+	  int a[10];
+	  a[0] = 1;
+	  a[1] = 1;
+	  for i=2,9 {
+	      a[i] = a[i-1] + a[i-2];
+	      callout ("printf", "fib(%d)= %d", i, a[i]);
+	  }
+      }
+}

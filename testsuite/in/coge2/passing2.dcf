@@ -1,0 +1,9 @@
+class Program {
+	  int t ()
+	  {
+		  return 333;
+	  }
+	  void main() { 
+		  callout("printf", "%d\n", t());
+	  }
+}

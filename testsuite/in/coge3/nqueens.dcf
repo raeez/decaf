@@ -1,0 +1,38 @@
+class Program {
+      int pos[8];
+      int count;
+
+      void search(int i)
+      {	  
+      	  if (i==8)  { count += 1; return; }
+	  for p=0,7 {
+	      boolean conf;
+	      conf = false;
+	      	   
+	      if (i>0) 
+	      {
+	      	  for j=0,i-1 {
+		      if (pos[j] == p || pos[j]+(i-j) == p || pos[j]-(i-j)==p) 
+		      {
+			  conf = true;
+			  break;
+		      }
+		  }
+	      } 
+
+	      if (!conf)
+	      {
+		  pos[i] = p;
+		  search(i+1);
+	      }
+	  }
+      }
+
+
+      void main()
+      {
+	count = 0;
+	search(0);
+	callout ("printf", "8 queens has %d solutions\n", count);
+      }
+}
