@@ -34,8 +34,14 @@ genExpr reg expr =
                                 ++ imul op2'    ++ sep
                                 ++ mov reg RAX
 
-      -- LIRBinExpr op1' LDIV  op2' -> ">>>>mov " ++ intelasm reg ++ ", " ++ intelasm op1' ++ "\n        " ++ ">>>>idiv " ++ intelasm reg ++ ", " ++ intelasm op2'
-      -- LIRBinExpr op1' LMOD  op2' -> ">>>>mov " ++ intelasm reg ++ ", " ++ intelasm op1' ++ "\n        " ++ ">>>>idiv " ++ intelasm reg ++ ", " ++ intelasm op2'
+      LIRBinExpr op1' LDIV  op2' -> mov RAX op1' ++ sep
+                                ++ idiv op2'     ++ sep
+                                ++ mov reg RAX
+
+      LIRBinExpr op1' LMOD  op2' -> mov RAX op1' ++ sep
+                                ++ idiv op2'
+                                ++ mov reg RDX
+
       _ -> "******************* " ++ intelasm reg ++ " <- " ++ intelasm expr
 
 instance ASM SymbolTable where
