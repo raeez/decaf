@@ -2,6 +2,7 @@ module Main where
 import Decaf
 import Decaf.Util.InteractiveGrapher
 import Decaf.RegisterAllocator
+import Decaf.IR.ASM
 
 --t' =  (top . (runLabelCounter mkCounter) . numberTree . tree) t
 main = do source <- readFile "test.c"
@@ -13,4 +14,5 @@ main = do source <- readFile "test.c"
           putStrLn $ pp $ translateCFG . convertProgram $ lir
           let prog = (translateCFG . convertProgram) lir
               results = allocateRegisters t prog 
-          mapM (putStrLn.(++"\n").show) results
+          --mapM (putStrLn.(++"\n").show) results
+          (putStrLn . intelasm) prog

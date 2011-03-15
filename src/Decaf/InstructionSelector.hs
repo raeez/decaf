@@ -99,7 +99,9 @@ instance ASM LIRReg where
     intelasm (R13) = "r13"
     intelasm (R14) = "r14"
     intelasm (R15) = "r15"
-    intelasm (SREG i) = "s" ++ i
+    intelasm (GP)  = "GP"
+    intelasm (IP)  = "IP"
+    intelasm (SREG i) = "s" ++ (show i)
 
 instance ASM LIRInt where
     intelasm (LIRInt i) = "0x" ++ (if i < 0 then "-" else "") ++ showHex (abs i) ""
