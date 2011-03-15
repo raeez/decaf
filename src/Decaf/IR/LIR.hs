@@ -35,6 +35,7 @@ data LIRInst = LIRRegAssignInst LIRReg LIRExpr
              | LIRCondAssignInst LIRReg LIRReg LIROperand    -- ^ Conditional Assign
              | LIRStoreInst LIRMemAddr LIROperand
              | LIRLoadInst LIRReg LIRMemAddr
+             | LIRTempLoadInst LIRReg LIRMemAddr
              | LIRJumpRegInst LIRReg LIROffset
              | LIRJumpLabelInst LIRLabel
              | LIRIfInst LIRRelExpr LIRLabel

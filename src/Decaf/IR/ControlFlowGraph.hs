@@ -59,26 +59,6 @@ mkBranch op num b1 b2 =
 data ControlGraph = ControlGraph {cgNodes :: [ControlPath]} -- a list of nodes for each method
 
 
-{-
--- continuation style
-convertLIRInsts :: [LIRInst] -> ControlNode -> [ControlNode]
-convertLIRInsts insts next = (uncurry (ControlNode "")) $ convHelp [] insts
-  where
-    convHelp body [] = (
-    convHelp body (inst:is) = 
-        let next' = convertLIRInsts is next 
-        in
-          case inst of
-            LIRCallInst {- label -} -> (body, (Call, [next']))
-            LIRRetInst -> (body, (Return, [next']))
-            {- other jumps, giving label -}
-            -- assumes that block already has jump to end label, that
-            -- else block hsa end label following it
-            LIRIfInst expr _ block (Maybe elseblock) ->
-                (body, (Next, (Branch (exprReg expr) (label block) (label elseblock),  [convertLIRInsts block next', convertLIRInsts elseblock next']))))
-            LIRLabelInst label -> (body, (Next, (uncurry (ControlNode label)) $ convHelp [] is)) -- kind of weird
--}
-
 -- CHANGE FROM LIRInst to new itermediate ' type
 convertLIRInsts :: [CFGInst] -> ControlPath
 convertLIRInsts insts = convHelp [] [] insts
@@ -140,6 +120,3 @@ translateCFG g = LIRProgram (LIRLabel "prog") $ map ((LIRUnit (LIRLabel "")).con
     h (BasicBlock insts) = insts
     h (Branch {condReg = reg, trueBlock = tb, falseBlock = fb, branchNumber = num}) = 
         [(LIRIfInst (LIROperRelExpr reg) (trueLabel num))] ++ (concatMap h fb) ++ (concatMap h tb)
-
-
-

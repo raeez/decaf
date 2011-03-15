@@ -24,8 +24,11 @@ class Program {
       }
       o = 20;
   }
-  int try(int a, int b, int one, int two, int three, int four, int five, int six, int seven, int eight, int nine) {
+  int try(int a, int b, int c, int d, int e, int f, int g, int h, int i) {
       int f;
+      if (true) {
+          callout ("printf");
+      }
       for f = 1, 10 {
           for f = 2, 200 {
               if ( f > 300) {
@@ -58,23 +61,14 @@ class Program {
     fill();
     integers[100] = 100;
     a = 3242 + a + a + (9234234 - a);
-    a += try(20000, 120313, 1,2,3,4,5,6,7,8,9);
+    a = try(1, 2, 3, 4, 5, 6, 7, 8, 9);
+    try(200, 20000);
     callout ("printf", "one");
     b = 2;
     a = 3 + a;
-    for i = 0, 100 {
-        if (i > 10 || i < 2) {
-            callout ("printf");
-    }}
-        
     a -= 100;
     a = 2 * 100;
     callout("printf_035", "Man oh man");
-    if (2 < 2 || 3 > 5 || 3 < 5 && 4 > 6 && a > 2 && (3 < 4 && a > 3) || a > 3) {
-        callout ("printf", "astoeuhtanoseuh");
-    } else {
-        callout ("printf_035", "tsaoeutnaoseuh");
-    }
     return a;
     }
 }

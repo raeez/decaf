@@ -10,11 +10,12 @@ import Decaf.Data.Tree
 import Decaf.Data.Zipper
 
 -- TODO
---        translateLocation: add runtime bounds check on array
+--        seed new with end off of old labels
 --        translateMethodPrologue: calculate the absolute load offset from RBP
 --        throw exception TODO (figure this out)
 --        ??: move the return value into RAX
 --        ??: runtime check: control falling off edge?
+magic_number = 0xbadbeef
 
 data Namespace = Namespace
     { temp :: Int
@@ -119,8 +120,8 @@ translateMethodPrologue st (DecafMethod _ ident args _ _) =
        return (regvars ++ stackvars)
   where
     genRegVar (reg, arg) = CFGLIRInst $ LIRRegAssignInst (symVar arg st) (LIROperExpr $ LIRRegOperand reg)
-    genStackVar arg = do let mem = LIRRegOffMemAddr RBP (LIRInt 10000) qword -- ^ TODO calculate the offset from RBP
-                         return $ CFGLIRInst $ LIRLoadInst (symVar arg st) mem
+    genStackVar arg = do let mem = LIRRegOffMemAddr RBP (LIRInt magic_number) qword -- ^ TODO calculate the offset from RBP; replace magic_number
+                         return $ CFGLIRInst $ LIRTempLoadInst (symVar arg st) mem
 
 --checked
 -- | Given a SymbolTree, Translate a single DecafStatement into [CFGInst]
@@ -153,13 +154,11 @@ translateStm st (DecafAssignStm loc op expr _) =
                                                   s = SREG (show t)
                                               return ([CFGLIRInst $ LIRRegAssignInst s bexpr], LIRRegOperand $ s)
 
---checked below
 -- | Given a SymbolTree, Translate a single DecafMethodStm into [CFGInst]
 translateStm st (DecafMethodStm mc _) =
     do (instructions, operand) <- translateMethodCall st mc
        return instructions
 
---checked
 translateStm st (DecafIfStm expr block melse _) =
      do ns <- getNS
         (instructions, LIROperRelExpr relexpr) <- translateRelExpr st expr ns
@@ -172,24 +171,6 @@ translateStm st (DecafIfStm expr block melse _) =
             ++ [CFGIf relexpr l -- numbering based on registers so that short-circuit evaluation doesn't clash (SCE takes new if label from expr number)
                 trueblock elseblock])
 
-{-                         (trueblock++[CFGLIRInst $ LIRLabelInst (endLabel l)]) 
-                         (elseblock++[CFGLIRInst (LIRJumpLabelInst (endLabel l)),
-                                                CFGLIRInst (LIRLabelInst (trueLabel l))])]) -}
-
-{-translateStm st (DecafIfStm expr block Nothing _) =
-    do ns <- getNS
-       (instructions, relexpr) <- translateRelExpr st expr ns
-       l <- incLabel
-       trueblock <- withScope l $ translateBlock st block
-       return (instructions
-           ++ [LIRIfInst relexpr (trueLabel l)]
-           ++ [LIRJumpLabelInst (endLabel l)]
-           ++ [LIRLabelInst (trueLabel l)]
-           ++ trueblock
-           ++ [LIRLabelInst (endLabel l)])
--}
-
---checked
 translateStm st (DecafForStm ident expr expr' block _) =
     do  l <- incLabel
         (instructions, operand) <- translateExpr st expr
@@ -267,9 +248,8 @@ translateRelExpr st expr ns =
                                     return (instructions, LIROperRelExpr oper)
                                 CFGExprInst {} -> 
                                     return (instructions, LIROperRelExpr oper)
-                                
 
-                                _ -> return ([CFGLIRInst $ LIRLabelInst $ LIRLabel $ "Translator.hs:208 Invalid Expression tree; not of type relExpr"], LIROperRelExpr $ LIRRegOperand RAX)
+                                _ -> return ([CFGLIRInst $ LIRLabelInst $ LIRLabel $ "Translator.hs:translateRelExpr Invalid Expression tree; not of type relExpr"], LIROperRelExpr $ LIRRegOperand RAX)
 
 translateExpr :: SymbolTree -> DecafExpr -> Translator ([CFGInst], LIROperand)
 translateExpr st (DecafLocExpr loc _) =
@@ -310,20 +290,13 @@ translateExpr st (DecafBinExpr expr binop expr' _) =
         CFGExprInst (CFGFlatExpr (insts1 ++ insts2) s)
     mergeFlatExprs2 (CFGExprInst (CFGFlatExpr insts1 _)) insts2@(x:xs) s = 
         CFGExprInst (CFGFlatExpr (insts1 ++ insts2) s)
-{-    mergeFlatExprs insts1@(x:xs) [CFGExprInst (CFGFlatExpr insts2)] s = 
-        CFGExprInst $ CFGFlatExpr (insts1 ++ insts2) s
-    mergeFlatExprs insts1@(x:xs) insts2@(y:ys) s = 
-        CFGExprInst $ CFGFlatExpr (insts1 ++ insts2) s
--}    
-        
+
     binop' = case binop of
                  DecafBinArithOp (DecafPlusOp _) _ -> LADD
                  DecafBinArithOp (DecafMinOp _) _ -> LSUB
                  DecafBinArithOp (DecafMulOp _) _ -> LMUL
                  DecafBinArithOp (DecafDivOp _) _ -> LDIV
                  DecafBinArithOp (DecafModOp _) _ -> LMOD
---                 DecafBinCondOp (DecafAndOp _) _ -> LAND
---                 DecafBinCondOp (DecafOrOp _) _ -> LOR  -- shouldn't be needed...
                  DecafBinRelOp (DecafLTOp _) _ -> LIRBinRelOp LLT
                  DecafBinRelOp (DecafGTOp _) _ -> LIRBinRelOp LGT
                  DecafBinRelOp (DecafLTEOp _) _ -> LIRBinRelOp LLTE
@@ -359,7 +332,7 @@ translateExpr _ _ =
 --checked
 translateLiteral :: SymbolTree -> DecafLiteral -> Translator LIROperand
 translateLiteral _ (DecafIntLit i _) = return $ LIRIntOperand $ LIRInt (readDecafInteger i)
-translateLiteral _ (DecafBoolLit b _) = return $ LIRIntOperand $ LIRInt (if b then 1 else 0) -- ^ TODO figure out if we want to store booleans in 8-byte integers
+translateLiteral _ (DecafBoolLit b _) = return $ LIRIntOperand $ LIRInt (if b then 1 else 0)
 translateLiteral _ (DecafCharLit c _) = return $ LIRIntOperand $ LIRInt (ord c)
 
 translateMethodPrecall :: SymbolTree -> DecafMethodCall -> Translator [CFGInst]
@@ -448,5 +421,5 @@ arrayMemaddr (DecafArr ty _ len _) offset index =
         size = (case ty of
                     DecafInteger -> 8 -- ^ size in bytes
                     DecafBoolean -> 8
-                    _ -> error "Translate.hs: Array cannot have type void")
+                    _ -> error "Translate.hs:arrayMemaddr Array cannot have type void")
     in LIRRegOffMemAddr (SREG "gp") (LIRInt (offset + size*index)) (LIRInt size) -- ^ TODO offset must include previous arrays length * size
