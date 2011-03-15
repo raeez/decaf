@@ -11,7 +11,6 @@ import Decaf.Data.Zipper
 
 -- TODO
 --        codegen: LIRTempLoadInst -> calculate the absolute load offset from RBP, given the frame size
---        seed new with end off of old labels
 --        throw exception TODO (figure this out)
 --        ??: move the return value into RAX
 --        ??: runtime check: control falling off edge?
@@ -79,13 +78,13 @@ translateProgram ::  SymbolTree -> DecafProgram -> Translator CFGProgram
 translateProgram st program =
     do ns <- getNS
        declarations <- mapM translateField (fields program)
-       return $ CFGProgram (LIRLabel $ "START") (units (concat declarations) ns)
+       units <- mapM (translateMethod st (concat declarations)) (methods program)
+       eUnits <- mapM ($st) exceptionHandlers
+       return $ CFGProgram (LIRLabel $ "START") (units ++ [CFGUnit exceptionHeader (concat eUnits)])
   where
-    units decl ns = translate (mapM (translateMethod st decl) (methods program)) ns
     translateField (DecafVarField var _) = translateVarDeclaration st var
     translateField (DecafArrField arr _) = translateArrDeclaration st arr
 
---checked
 -- | Given a SymbolTree, Translate a DecafMethod into an LIRUnit
 translateMethod :: SymbolTree -> [CFGInst] -> DecafMethod -> Translator CFGUnit
 translateMethod st declarations method =
@@ -123,7 +122,6 @@ translateMethodPrologue st (DecafMethod _ ident args _ _) =
     genStackVar arg = do let mem = LIRRegOffMemAddr RBP (LIRInt magic_number) qword -- ^ TODO calculate the offset from RBP; replace magic_number
                          return $ CFGLIRInst $ LIRTempLoadInst (symVar arg st) mem
 
---checked
 -- | Given a SymbolTree, Translate a single DecafStatement into [CFGInst]
 translateStm :: SymbolTree -> DecafStm -> Translator [CFGInst]
 translateStm st (DecafAssignStm loc op expr _) =
@@ -335,6 +333,20 @@ translateLiteral _ (DecafIntLit i _) = return $ LIRIntOperand $ LIRInt (readDeca
 translateLiteral _ (DecafBoolLit b _) = return $ LIRIntOperand $ LIRInt (if b then 1 else 0)
 translateLiteral _ (DecafCharLit c _) = return $ LIRIntOperand $ LIRInt (ord c)
 
+translateMethodPostcall :: SymbolTree -> DecafMethodCall -> Translator [CFGInst]
+translateMethodPostcall st (DecafPureMethodCall ident exprs _) =
+    if mustRet
+      then return $ throwException missingRet
+      else return [CFGLIRInst $ LIRRetInst]
+  where
+    mustRet = let (DecafMethod ty _ _ _ _) = mLookup
+              in case ty of
+                     DecafVoid -> False
+                     _ -> True
+    mLookup = case symLookup ident (table st) of
+                  Just (index, MethodRec meth label) -> meth
+                  _ -> error $ "Translator.hs:translateMethodPostcall.mLookup Invalid SymbolTable; could not find a symbol for '" ++ ident ++ "'"
+
 translateMethodPrecall :: SymbolTree -> DecafMethodCall -> Translator [CFGInst]
 translateMethodPrecall st (DecafPureMethodCall ident exprs _) =
     do let numRegArgs = min 6 (length exprs)
@@ -374,8 +386,13 @@ translateMethodCall :: SymbolTree -> DecafMethodCall -> Translator ([CFGInst], L
 translateMethodCall st mc =
     do precall <- translateMethodPrecall st mc
        t <- incTemp
+       postcall <- case mc of
+                       mc@(DecafPureMethodCall _ _ _) -> translateMethodPostcall st mc
+                       _ -> return []
        return (precall
-            ++ [CFGLIRInst $ LIRCallAssignInst (SREG $ show t) func (SREG "ip")], LIRRegOperand $ SREG $ show t)
+            ++ [CFGLIRInst $ LIRCallAssignInst (SREG $ show t) func (SREG "ip")]
+            ++ postcall
+            , LIRRegOperand $ SREG $ show t)
   where
     func = case mc of
                (DecafPureMethodCall {}) -> LIRProcLabel (case globalSymLookup (methodCallID mc) st of
@@ -407,8 +424,9 @@ translateLocation st loc =
 arrayBoundsCheck :: SymbolTree -> DecafArr -> LIROperand -> Translator [CFGInst]
 arrayBoundsCheck st (DecafArr _ _ len _) indexOperand =
     do l <- incLabel
-       return ([CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LLT (LIRIntOperand $ LIRInt $ readDecafInteger len)) (LIRLabel $ boundsLabel l)] -- ++ throw exception TODO (figure this out)
-           ++ [CFGLIRInst $ LIRLabelInst $ LIRLabel $ boundsLabel l])
+       return ([CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LLT (LIRIntOperand $ LIRInt $ readDecafInteger len)) (boundsLabel l)]
+           ++ throwException outOfBounds
+           ++ [CFGLIRInst $ LIRLabelInst $ boundsLabel l])
 
 symVar :: DecafVar -> SymbolTree -> LIRReg
 symVar var st =
@@ -434,4 +452,26 @@ arrayMemaddr (DecafArr ty _ len _) offset operand =
                 DecafInteger -> 8 -- ^ size in bytes
                 DecafBoolean -> 8
                 _ -> error "Translate.hs:arrayMemaddr Array cannot have type void")
-    
+
+-- |'throwException' generates code for throwing an exception (our convention is to jump to the label __exception 
+throwException :: Int -> [CFGInst]
+throwException code = 
+    [CFGLIRInst $ LIRJumpLabelInst $ exceptionLabel code]
+
+exceptionHandlers = [missingRetHandler, outOfBoundsHandler]
+
+missingRetHandler :: SymbolTree ->Translator [CFGInst]
+missingRetHandler st =
+    do (instructions, operand) <- translateString st missingRetMessage
+       return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel 0]
+           ++ instructions
+           ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr operand)]
+           ++ [CFGLIRInst $ LIRCallInst (LIRProcLabel "printf") (SREG "ip")]
+
+outOfBoundsHandler :: SymbolTree -> Translator [CFGInst]
+outOfBoundsHandler st =
+    do (instructions, operand) <- translateString st outOfBoundsMessage
+       return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel 1]
+            ++ instructions
+            ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr operand)]
+            ++ [CFGLIRInst $ LIRCallInst (LIRProcLabel "printf") (SREG "ip")]

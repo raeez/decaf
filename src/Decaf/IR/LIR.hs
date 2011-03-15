@@ -3,8 +3,26 @@ import Numeric
 import Decaf.IR.Class
 import Decaf.Data.Tree
 
-boundsLabel :: Int -> String
-boundsLabel c = "__boundscheck" ++ show c
+missingRetMessage :: String
+missingRetMessage = "EXCEPTION: ARRAY OUT OF BOUNDS"
+
+missingRet :: Int
+missingRet = 0
+
+outOfBoundsMessage :: String
+outOfBoundsMessage = "EXCEPTION: MISSING RETURN STATEMENT"
+
+outOfBounds :: Int
+outOfBounds = 1
+
+exceptionHeader :: LIRLabel
+exceptionHeader = LIRLabel "__exceptions"
+
+exceptionLabel :: Int -> LIRLabel
+exceptionLabel c = LIRLabel $ "__exception" ++ show c
+
+boundsLabel :: Int -> LIRLabel
+boundsLabel c = LIRLabel $ "__boundscheck" ++ show c
 
 stringLabel :: Int -> String
 stringLabel  c = "__string" ++ show c
