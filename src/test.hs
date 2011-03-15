@@ -9,4 +9,4 @@ main = do source <- readFile "test.c"
           let
               (a, b) = runRegisterCounter (numberTree $ tree t) (CounterState mkCounter)
               (lir, _) = runTranslator (translateProgram (top a) p) mkNamespace
-          putStrLn $ pp $ lir
+          putStrLn $ pp $ LIRUnit (LIRLabel "hi") . translateCG . convertProgram $ lir
