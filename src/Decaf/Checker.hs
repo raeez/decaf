@@ -1,16 +1,16 @@
 module Decaf.Checker where
-import Decaf.IR.Class
-import Decaf.IR.AST
-import Decaf.Parser
-import Decaf.Data.SymbolTable
 import Decaf.Data.Zipper
 import Decaf.Util.Report
+import Decaf.IR.Class
+import Decaf.IR.AST
+import Decaf.IR.SymbolTable
+import Decaf.Parser
 
 -- | A single instance of a semantic error
 data SemanticError = SemanticError
     { message :: String
     , position :: DecafPosition
-    }
+    } deriving (Eq)
 
 data CheckerState = CST
     { cstErrors :: [SemanticError]
@@ -41,7 +41,7 @@ pushError (l,c) str = Checker (\s@(CST{cstErrors = e}) -> (False, s{cstErrors = 
 addSymbol :: SymbolRecord -> Checker Bool
 addSymbol sr = Checker (\s@(CST{cstTable = t}) -> (True, s{cstTable = modifyContent g t}))
   where
-    g (SymbolTable rs bt) = SymbolTable (sr : rs) bt
+    g (SymbolTable rs bt) = SymbolTable (rs ++ [sr]) bt
 
 local :: BlockType -> Checker a -> Checker a
 local tp m = Checker (\s@(CST{cstTable = t}) ->
@@ -56,23 +56,25 @@ get = Checker (\s -> (s, s))
 setCheckerContext :: SymbolTreeContext -> Checker()
 setCheckerContext c = Checker(\s@(CST{cstTable = t}) -> ((), s{cstTable = setContext c t}))
 
--- symbol table access functions
+-- | Search the current nesting level for the symbol 'id'
 lookNear :: DecafIdentifier -> Checker (Maybe SymbolRecord)
 lookNear id = do
                 st <- getST
-                let recs = symbolRecords . getContent $ st
-                return $ lookup id $ zip (map symID recs) recs
+                let table = getContent $ st
+                return $ (case symLookup id table of
+                              Just (_, a) -> Just a -- ^ we don't care about the index
+                              Nothing -> Nothing)
 
 lookFar :: DecafIdentifier -> Checker (Maybe SymbolRecord)
 lookFar id = do
                st <- getST
                return $ exists st
-  where exists st = let recs = symbolRecords . getContent $ st
-                    in case lookup id (zip (map symID recs) recs) of
+  where exists st = let table = getContent $ st
+                    in case symLookup id table of
                         Nothing -> if isRoot st
                                      then Nothing
                                      else exists $ parent st
-                        other -> other
+                        Just (_, a) -> Just a
 
 inFor :: Checker Bool
 inFor = do st <- getST
@@ -101,7 +103,7 @@ addRet = do st <- getST
               case blockType.getContent $ st of
                 MethodBlock _ -> 
                     do setCheckerContext (context st)
-                       addSymbol $ VarRec $ DecafVar DecafVoid "return" (0,0)
+                       addSymbol $ VarRec (DecafVar DecafVoid "return" (0,0)) (32)
                 _ -> goFun $ parent st
 
 -- Counter management for register/label assignment
@@ -152,7 +154,7 @@ checkStm (DecafIfStm expr block melse pos) =
 
 checkStm (DecafForStm id expr1 expr2 block pos') =
           do
-            addSymbol $ VarRec $ DecafVar DecafInteger id pos'
+            addSymbol $ VarRec (DecafVar DecafInteger id pos') (32)
             t1 <- checkExpr expr1
             t2 <- checkExpr expr2
             if t1 /= DecafInteger
@@ -217,14 +219,14 @@ checkCalloutArg :: DecafCalloutArg -> Checker Bool
 checkCalloutArg carg =
     case carg of
       DecafCalloutArgExpr expr _ -> checkExpr expr >> return True
-      DecafCalloutArgStr _ _ -> return True
+      DecafCalloutArgStr str _ -> addSymbol $ StringRec str 0
 
 checkVarDec :: DecafVar -> Checker Bool
 checkVarDec (DecafVar t id pos') = 
     do rec <- lookNear id
        case rec of 
-         Nothing -> addSymbol $ VarRec $ DecafVar t id pos'
-         Just (VarRec vrec) -> pushError pos' ("Variable " ++ id ++ " already defined at line number "++ show (fst (pos vrec)))
+         Nothing -> addSymbol $ VarRec (DecafVar t id pos') (32)
+         Just (VarRec vrec _) -> pushError pos' ("Variable " ++ id ++ " already defined at line number "++ show (fst (pos vrec)))
          Just _ -> error "Checker.hs:200 lookNear returned declaration of incorrect type; should be VarRec" -- TODO better error message
 
 checkFieldDec :: DecafField -> Checker Bool
@@ -236,18 +238,18 @@ checkFieldDec (DecafArrField arr@(DecafArr _ id len _) pos') =
                        let l = readDecafInteger len
                        if l <= 0 -- TODO needs to be fixed once I make checkLiteral
                         then pushError pos' "Arrays must have positive length"
-                        else addSymbol $ ArrayRec arr
-         Just (ArrayRec arec) -> pushError pos' ("Array " ++ id ++ " already defined at line number " ++ show (fst (pos arec)))
+                        else addSymbol $ ArrayRec arr (32)
+         Just (ArrayRec arec _) -> pushError pos' ("Array " ++ id ++ " already defined at line number " ++ show (fst (pos arec)))
          Just _ -> error "Checker.hs:209 lookNear returned declaration of incorrect type; should be ArrayRec" -- TODO better error message
 
 checkMethodDec :: DecafMethod -> Checker Bool
-checkMethodDec meth@(DecafMethod t id args body{-@(DecafBlock _ _ _)-} pos') = 
+checkMethodDec meth@(DecafMethod t id args body pos') = 
     do rec <- lookNear id
        case rec of
-         Nothing -> do addSymbol $ MethodRec meth
+         Nothing -> do addSymbol $ MethodRec meth ("", 32)
                        checkBlock (DecafBlock (args ++ (blockVars body)) (blockStms body) (blockPos body)) (MethodBlock t)
 
-         Just (MethodRec meth) -> pushError pos' ("Function " ++ id ++ " already defined at line number " ++ show(fst(pos meth)))
+         Just (MethodRec meth _) -> pushError pos' ("Function " ++ id ++ " already defined at line number " ++ show(fst(pos meth)))
          Just _ -> pushError pos' ("Variable with identifier "++ id ++ " already defined")
 
 
@@ -257,7 +259,7 @@ checkProgram (DecafProgram fields methods) =
        foldl (>>) (return False) (map checkMethodDec methods)
        b <- lookNear "main"
        case b of
-         Just (MethodRec (DecafMethod _ _ args _ p)) ->
+         Just (MethodRec (DecafMethod _ _ args _ p) _) ->
             if null args
             then return True
             else pushError p "Method \"main\" must have empty parameter list"
@@ -272,7 +274,7 @@ checkExpr (DecafLocExpr (DecafVarLoc id _) pos) =
                  Nothing -> pushError pos ("Undefined variable "++id) >> return DecafVoid
                  Just rec -> 
                      case rec of
-                       ArrayRec _ -> pushError pos "Must specify array index" >> return DecafVoid
+                       ArrayRec _ _ -> pushError pos "Must specify array index" >> return DecafVoid
                        _ -> return $ symType rec
 
 checkExpr (DecafLocExpr (DecafArrLoc id ind _) pos) =
@@ -286,8 +288,8 @@ checkExpr (DecafLocExpr (DecafArrLoc id ind _) pos) =
             do mrec <- lookFar id
                case mrec of
                  Nothing -> pushError pos ("Undefined variable "++id) >> return DecafVoid
-                 Just (ArrayRec arr) -> return $ arrayType arr
-                 Just (VarRec var) -> pushError pos (id++ " is not an array") >> return DecafVoid
+                 Just (ArrayRec arr _) -> return $ arrayType arr
+                 Just (VarRec var _) -> pushError pos (id++ " is not an array") >> return DecafVoid
 
 checkExpr (DecafExpr _ _ _) = error "AST has not had expression tree rewrite; concrete tree still present"
 
@@ -374,7 +376,7 @@ checkMethodArgs :: DecafMethodCall -> Checker DecafType
 checkMethodArgs (DecafPureMethodCall dID args pos) =
             do ex <- lookFar dID
                case ex of 
-                 Just (MethodRec decafMethod) -> 
+                 Just (MethodRec decafMethod _) ->
                    do types <- bindCat [] (map checkExpr args)
                       if all (== True) (zipWith (==) types (map varType (methodArg decafMethod)))
                          && (length types == length (methodArg decafMethod))
@@ -393,6 +395,15 @@ checkMethodArgs (DecafPureMethodCall dID args pos) =
                    t <- (head args)
                    bindCat (res++[t]) (tail args)
 checkMethodArgs _ = return DecafInteger
+
+-- | The 'check' function scans, parses and semantically checks a given decaf program
+-- 'check' returns a tuple of ([SemanticError], DecafProgram, SymbolTree)
+check :: String -> Report ([SemanticError], DecafProgram, SymbolTree)
+check str =
+    case ps program str of
+        RSuccess prog -> let (_,(e,t)) = runChecker (checkProgram prog) ([], mkSymbolTree)
+                         in RSuccess (e, prog, t)
+        RError str -> RError str
 
 -- | The 'checker' function returns 'True' on a semantically valid decaf program input, 'False' otherwise; utilized in testsuite
 checker :: String -> Bool

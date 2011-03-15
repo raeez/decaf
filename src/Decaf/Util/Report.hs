@@ -7,3 +7,9 @@ data Report a = RSuccess a
 getReport :: (Show a) => Report a -> String
 getReport (RSuccess a) = show a
 getReport (RError s) = s
+
+getRSuccess :: Report a -> a
+getRSuccess (RSuccess a) = a
+
+getRError :: Report a -> String
+getRError (RError s) = s

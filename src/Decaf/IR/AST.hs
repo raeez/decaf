@@ -3,7 +3,8 @@ import Numeric
 import Decaf.Data.Tree
 import Decaf.IR.Class
 
--- | IRNode encapsulates common operations on the Abstract Syntax Tree
+-- | class 'Location' encapsulates fetching the identifier
+-- for Locations & Declarations
 class Location a where
     ident :: a -> DecafIdentifier
 
@@ -75,8 +76,16 @@ data DecafAssignOp = DecafEq DecafPosition
                    deriving (Show, Eq)
 
 -- | Abstract Syntax: Method call, either defined within Decaf or externally, used in 'DecafAssignStm'
-data DecafMethodCall = DecafPureMethodCall { methodCallID :: DecafIdentifier, methodCallArgs :: [DecafExpr], methodCallPos :: DecafPosition}
-                     | DecafMethodCallout { methodCalloutID :: DecafString, methodCalloutArgs :: [DecafCalloutArg], methodCalloutPos :: DecafPosition}
+data DecafMethodCall = DecafPureMethodCall
+                        { methodCallID :: DecafIdentifier
+                        , methodCallArgs :: [DecafExpr]
+                        , methodCallPos :: DecafPosition
+                        }
+                     | DecafMethodCallout
+                        { methodCalloutID :: DecafString
+                        , methodCalloutArgs :: [DecafCalloutArg]
+                        , methodCalloutPos :: DecafPosition
+                        }
                      deriving (Show, Eq)
 
 -- | Abstract Syntax: Argument passed to 'DecafMethodCallout'
@@ -86,7 +95,11 @@ data DecafCalloutArg = DecafCalloutArgExpr DecafExpr DecafPosition
 
 -- | Abstract Syntax: Memory Location
 data DecafLoc = DecafVarLoc DecafIdentifier DecafPosition
-              | DecafArrLoc DecafIdentifier DecafExpr DecafPosition
+              | DecafArrLoc
+                  { arrLocIdent :: DecafIdentifier
+                  , arrLocExpr :: DecafExpr
+                  , arrLocPos :: DecafPosition
+                  }
               deriving (Show, Eq)
 
 -- | Abstract Syntax: An abstract Decaf Expression Tree.
@@ -156,10 +169,10 @@ data DecafCondOp = DecafAndOp DecafPosition
 
 -- | Abstract Syntax: A literal construct.
 data DecafLiteral = DecafIntLit DecafInteger DecafPosition
-               | DecafBoolLit Bool  DecafPosition
-               | DecafStrLit  DecafString DecafPosition
-               | DecafCharLit  DecafCharacter DecafPosition
-               deriving (Show, Eq)
+                  | DecafBoolLit Bool DecafPosition
+                  | DecafStrLit DecafString DecafPosition
+                  | DecafCharLit DecafCharacter DecafPosition
+                  deriving (Show, Eq)
 
 -- | Abstract Syntax: Integers can be either base Decimal or Hexadecimal.
 data DecafInteger = DecafDec String
@@ -422,11 +435,11 @@ instance IRNode DecafInteger where
   pos _     = error "DecafInteger has no associated position"
 
 -- | 'readDecafInteger' parses a DecafInteger IRNode and returns a Haskell integer
-readDecafInteger :: DecafInteger -> Integer
+readDecafInteger :: DecafInteger -> Int
 readDecafInteger (DecafDec s) =
     if head s == '-'
-      then -(read (tail s) :: Integer)
-      else read  s :: Integer
+      then -(read (tail s) :: Int)
+      else read  s :: Int
 
 readDecafInteger (DecafHex s) =
     if head s == '-'

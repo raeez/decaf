@@ -2,7 +2,7 @@ module Main where
 import System.Environment
 import System.Exit
 import Decaf.Util.Report
-import Decaf.Checker
+import Decaf.Checker hiding (check)
 
 main :: IO ()
 main = do args <- getArgs
