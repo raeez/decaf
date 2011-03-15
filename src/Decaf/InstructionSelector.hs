@@ -2,15 +2,65 @@ module Decaf.InstructionSelector where
 import Numeric
 import Decaf.IR.SymbolTable
 import Decaf.IR.LIR
+import Decaf.IR.AST
 import Decaf.IR.ASM
 
 -- TODO instance ASMProgram as opposed to IRProgram
 -- i.e. create a new internal representation for asm
 -- along with a monadic container (dsl for superoptimization)
 -- this code then just becomes the pretty printer into gnuasm, or intelasm
+--
+-- TODO implement div / mod
+-- TODO implement boolean expr assignments
+
+sep = "\n        "
+twoop t o1 o2 = t ++ " " ++ intelasm o1 ++ ", " ++ intelasm o2
+mov op1 op2 = twoop "mov" op1 op2
+add op1 op2 = twoop "add" op1 op2
+sub op1 op2 = twoop "sub" op1 op2
+cmp op1 op2 = twoop "cmp" op1 op2
+imul op = "imul " ++ intelasm op
+jmp label = "jmp " ++ intelasm label
+
+genExpr reg expr =
+  case expr of
+      LIRBinExpr op1' LSUB op2' -> mov reg op1' ++ sep
+                                ++ sub reg op2'
+
+      LIRBinExpr op1' LADD op2' -> mov reg op1' ++ sep
+                                ++ add reg op2'
+
+      LIRBinExpr op1' LMUL op2' -> mov RAX op1' ++ sep
+                                ++ imul op2'    ++ sep
+                                ++ mov reg RAX
+
+      -- LIRBinExpr op1' LDIV  op2' -> ">>>>mov " ++ intelasm reg ++ ", " ++ intelasm op1' ++ "\n        " ++ ">>>>idiv " ++ intelasm reg ++ ", " ++ intelasm op2'
+      -- LIRBinExpr op1' LMOD  op2' -> ">>>>mov " ++ intelasm reg ++ ", " ++ intelasm op1' ++ "\n        " ++ ">>>>idiv " ++ intelasm reg ++ ", " ++ intelasm op2'
+      _ -> "******************* " ++ intelasm reg ++ " <- " ++ intelasm expr
+
+instance ASM SymbolTable where
+    intelasm (SymbolTable records _) = "USE64\nsection .data:\n" ++ unlines (indentMap records) ++ "\n"
+      where
+        indentMap :: [SymbolRecord] -> [String]
+        indentMap [] = []
+        indentMap (x:xs) = case intelasm x of
+                               [] -> indentMap xs
+                               _ -> ["    " ++ intelasm x] ++ indentMap xs
+
+instance ASM SymbolRecord where
+    intelasm (VarRec (DecafVar ty ident _) sr) =
+        "g" ++ show sr ++ " dq 0"
+
+    intelasm (ArrayRec (DecafArr ty ident len _) go) =
+        arrayLabel go ++ ": dq " ++ foldl (\s1 -> \s2 -> s1++", "++s2) "0" (map (\_ -> "0") [1..readDecafInteger len])
+
+    intelasm (StringRec str sl) =
+        stringLabel sl ++ ": db " ++ show str ++ ", " ++ show 0
+
+    intelasm _ = ""
 
 instance ASM LIRProgram where
-    intelasm (LIRProgram label units) ="section .data:\n" ++ "section .text:\n" ++ unlines (map intelasm units)
+    intelasm (LIRProgram label units) = "section .text:\n    global main\n" ++ unlines (map intelasm units)
 
 instance ASM LIRUnit where
     intelasm (LIRUnit label insts) =
@@ -25,42 +75,72 @@ instance ASM LIRUnit where
                         in (repr:indentMap xs)
 
 instance ASM LIRInst where
-    intelasm (LIRRegAssignInst reg (LIROperExpr operand)) =
-        "mov " ++ intelasm reg ++ ", " ++ intelasm operand
+    intelasm (LIRRegAssignInst reg expr@(LIRBinExpr (LIRRegOperand reg') binop op2)) =
+        if reg == reg'
+          then case binop of
+                    LSUB -> sub reg op2
 
-    intelasm (LIRRegAssignInst reg expr) = "** " ++ intelasm reg ++ " <- " ++ intelasm expr
+                    LADD -> add reg op2
+
+                    _ -> genExpr reg expr
+          else genExpr reg expr
+
+    intelasm (LIRRegAssignInst reg expr@(LIRBinExpr op1 binop op2)) =
+        genExpr reg expr
+
+    intelasm (LIRRegAssignInst reg (LIRUnExpr LNEG operand)) =
+        mov reg operand ++ sep
+     ++ "neg " ++ intelasm reg 
+
+    intelasm (LIRRegAssignInst reg (LIRUnExpr LNOT operand)) =
+        mov reg operand ++ sep
+     ++ "not " ++ intelasm reg
+
+    intelasm (LIRRegAssignInst reg (LIROperExpr operand)) =
+        mov reg operand
 
     intelasm (LIRRegOffAssignInst reg offset size operand) = "******************* " ++ intelasm reg ++ "(" ++ intelasm offset ++ ", " ++ intelasm size ++ ") <- " ++ intelasm operand
     intelasm (LIRCondAssignInst reg reg' operand) = "******************* " ++ intelasm reg ++ " <- (" ++ intelasm reg' ++ ") " ++ intelasm operand
     intelasm (LIRStoreInst mem operand) =
-        "mov " ++ intelasm mem ++ ", " ++ intelasm operand
+        mov mem operand
+
     intelasm (LIRLoadInst reg mem) =
-        "mov " ++ intelasm reg ++ ", " ++ intelasm mem
-    intelasm (LIRTempLoadInst reg mem) = "******************* TEMPMOV " ++ intelasm reg ++ ",  " ++ intelasm mem
+        mov reg mem
 
     intelasm (LIRJumpRegInst reg offset) =
-        " JMP " ++ "[" ++ intelasm reg ++ show offset ++ "]"
+        "jmp " ++ "[" ++ intelasm reg ++ show offset ++ "]"
 
     intelasm (LIRJumpLabelInst label) =
-        "jmp " ++ intelasm label
+        jmp label
 
     intelasm (LIRIfInst (LIRBinRelExpr op1 binop op2) label) =
-        "cmp " ++ intelasm op1 ++ ", " ++ intelasm op2 ++ jtype
+        cmp op1 op2 ++ sep
+      ++ jtype
       where
         jtype = case binop of
-                    LEQ -> "\n        je " ++ intelasm label
-                    LNEQ -> "\n        jne " ++ intelasm label
-                    LGT -> "\n        jg " ++ intelasm label
-                    LGTE -> "\n        jge " ++ intelasm label
-                    LLT -> "\n        jl " ++ intelasm label
-                    LLTE -> "\n        jle " ++ intelasm label
+                    LEQ -> "je " ++ intelasm label
+                    LNEQ -> "jne " ++ intelasm label
+                    LGT -> "jg " ++ intelasm label
+                    LGTE -> "jge " ++ intelasm label
+                    LLT -> "jl " ++ intelasm label
+                    LLTE -> "jle " ++ intelasm label
 
-    intelasm (LIRIfInst expr label) = "******************* " ++ "IF " ++ intelasm expr ++ " jmp " ++ intelasm label
-    intelasm (LIRCallInst proc reg) = "******************* " ++ "call " ++ intelasm proc ++ ", " ++ intelasm reg
+    intelasm (LIRIfInst (LIRNotRelExpr operand) label) =
+        cmp operand (LIRIntOperand $ LIRInt 0) ++ sep
+     ++ "je " ++ intelasm label
 
-    intelasm LIRTempEnterInst = "******************* " ++ "ENTER"
+    intelasm (LIRIfInst (LIROperRelExpr operand) label) =
+        cmp operand (LIRIntOperand $ LIRInt 1) ++ sep
+     ++ "jge " ++ intelasm label
+
+    intelasm (LIRCallInst proc) =
+        "call " ++ intelasm proc
+
+    intelasm LIRTempEnterInst =
+        "push rbp\n        mov rbp, rsp\n        sub rsp, 100"
+
     intelasm LIRRetInst =
-        "mov rsp, rbp\n        mov rbp, [rsp]\n        sub rsp, 0x8\n        ret"
+        "mov rsp, rbp\n        pop rbp\n        ret"
 
     intelasm (LIRLabelInst label) = intelasm label
 
@@ -112,7 +192,7 @@ instance ASM LIRMemAddr where
 instance ASM LIROperand where
     intelasm (LIRRegOperand reg) = intelasm reg
     intelasm (LIRIntOperand i) = intelasm i
-    intelasm (LIRStringOperand s) = '.':s
+    intelasm (LIRStringOperand s) = s
 
 instance ASM LIRReg where
     intelasm (RAX) = "rax"
