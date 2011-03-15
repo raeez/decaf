@@ -9,16 +9,13 @@ import Decaf.IR.Class
 import Decaf.IR.AST
 import Decaf.IR.LIR
 import Decaf.Translator
+import Decaf.Data.Zipper
 
 import qualified Data.Map as Map
 import Data.Typeable
 import Data.Data
 
-
-data RealRegister = Register LIRReg
-                  | StackOffset Int
-
-
+{- horrible Data instance declarations -}
 instance Data LIRProgram where 
     gmapT f (LIRProgram lab units) = LIRProgram (f lab) (f units)
     gmapM f (LIRProgram lab units) = do lab' <- f lab
@@ -138,6 +135,9 @@ instance Data LIRInst where
      a'1 <- f a1
      a'2 <- f a2
      return (LIRTempLoadInst a'1 a'2)
+ gmapM f (LIRTempEnterInst) = 
+  do
+     return (LIRTempEnterInst)
  gmapM f (LIRJumpRegInst a1 a2) =
   do 
      a'1 <- f a1
@@ -317,6 +317,9 @@ instance Data LIROperand where
      return (LIRStringOperand a'1)
 
 
+{- END DECLARATIONS -}
+
+
 mkT :: (Typeable a, Typeable b) => 
        (b->b) -> a -> a
 mkT f = case cast f of
@@ -329,12 +332,23 @@ mkM f = case cast f of
           Just g -> g
           Nothing -> return
 
+extM :: (Typeable a, Typeable b, Typeable (m a), Typeable (m b), Monad m) =>
+        (a->m a) -> (b->m a) -> (a->m a)
+extM f g a = case cast g of
+                 Just g -> g a
+                 Nothing -> f a
+               
+
 everywhere :: Data a => (forall b. Data b => b -> b) -> a -> a
 everywhere f x = f (gmapT (everywhere f) x)
 
 everywhereM :: (Monad m, Data a) => (forall b. Data b => b -> m b) -> a -> m a
 everywhereM f x = do x' <- gmapM (everywhereM f) x
                      f x'
+
+data RealRegister = Register LIRReg
+                  | StackOffset Int
+
 
 data RegCounterState
     = RCState 
@@ -365,8 +379,10 @@ updateCounter reg@(SREG num)
          let c = rcCount st
              dict = rcDict st
          if Map.member num dict
-           then return reg
-           else setST st{rcCount = c+1, rcDict = (Map.insert num c dict)} >> return reg
+           then return ()
+           else setST st{rcCount = c+1, rcDict = (Map.insert num c dict)}
+
+         return $ SREG c
 
 updateCounter s = return s
 
@@ -374,12 +390,28 @@ updateCounter s = return s
 testCounter :: String -> RegAllocator String
 testCounter s = 
     do st <- getST
-       setST st{rcCount = 5} >> return s
+       let c = rcCount st
+       setST st{rcCount = c+1}
+       return s
 
+--fun1 = ((mkM testCounter) `extM` (mkM updateCounter))
+--fun2 = ((mkM updateCounter) `extM` (mkM testCounter))
 
-allocateRegisters :: SymbolTree -> LIRProgram -> [RegCounterState]
+allocateRegisters :: SymbolTree -> LIRProgram -> (LIRProgram, Int, [RegCounterState])
 allocateRegisters st prog = 
     let units = lirProgUnits prog 
-        allocUnit unit = snd $ runAllocator (everywhereM (mkM updateCounter) unit) mkRCState
+        allocUnit unit = runAllocator (everywhereM (mkM updateCounter) unit) mkRCState
+        unitcounts = map allocUnit units
+        countGlobals st = 
+            help 0 $ symbolRecords $ getContent st
+          where help c [] = c
+                help c (rec:rs) = 
+                    case rec of 
+                      VarRec {} -> help (c+1) rs
+                      ArrayRec r@(DecafArr{}) _ -> help (c+(readDecafInteger $ arrayLength r)) rs
+                      otherwise -> help c rs
+                    
+
     in
-      map allocUnit units
+      ((LIRProgram (lirProgLabel prog) (map fst unitcounts)), countGlobals st, (map snd unitcounts))
+        
