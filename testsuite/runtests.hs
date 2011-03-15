@@ -111,8 +111,11 @@ main = do
   cc <- readTestsWithOut (addPath "coge" l) cogenc_  
   l <- readTList "coge2/l"  
   cc2 <- readTestsWithOut (addPath "coge2" l) cogenc_  
+  l <- readTList "coge3/l"  
+  cc2 <- readTestsWithOut (addPath "coge3" l) cogenc_  
   runTestTT cl2
   runTestTT cil2
   runTestTT cc
   runTestTT cc2
+  runTestTT cc3
 
