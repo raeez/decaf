@@ -39,7 +39,7 @@ genExpr reg expr =
       _ -> "******************* " ++ intelasm reg ++ " <- " ++ intelasm expr
 
 instance ASM SymbolTable where
-    intelasm (SymbolTable records _) = "BITS 64\nsection .data:\n" ++ unlines (indentMap records) ++ "\n"
+    intelasm (SymbolTable records _) = "USE64\nsection .data:\n" ++ unlines (indentMap records) ++ "\n"
       where
         indentMap :: [SymbolRecord] -> [String]
         indentMap [] = []
@@ -88,10 +88,12 @@ instance ASM LIRInst where
         genExpr reg expr
 
     intelasm (LIRRegAssignInst reg (LIRUnExpr LNEG operand)) =
-        "neg " ++ intelasm operand
+        mov reg operand ++ sep
+     ++ "neg " ++ intelasm reg 
 
     intelasm (LIRRegAssignInst reg (LIRUnExpr LNOT operand)) =
-        "not " ++ intelasm operand
+        mov reg operand ++ sep
+     ++ "not " ++ intelasm operand
 
     intelasm (LIRRegAssignInst reg (LIROperExpr operand)) =
         mov reg operand
