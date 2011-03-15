@@ -135,6 +135,11 @@ instance Data LIRInst where
      a'1 <- f a1
      a'2 <- f a2
      return (LIRLoadInst a'1 a'2)
+ gmapM f (LIRTempLoadInst a1 a2) =
+  do 
+     a'1 <- f a1
+     a'2 <- f a2
+     return (LIRTempLoadInst a'1 a'2)
  gmapM f (LIRJumpRegInst a1 a2) =
   do 
      a'1 <- f a1
@@ -297,6 +302,13 @@ instance Data LIRReg where
  gmapM f (R15) =
   do 
      return (R15)
+
+ gmapM f (GP) = 
+  do
+     return (GP)
+ gmapM f (IP) = 
+  do
+     return (IP)
  gmapM f (SREG a1) =
   do 
      a'1 <- f a1
@@ -311,6 +323,10 @@ instance Data LIROperand where
   do 
      a'1 <- f a1
      return (LIRIntOperand a'1)
+ gmapM f (LIRStringOperand a1) =
+  do 
+     a'1 <- f a1
+     return (LIRStringOperand a'1)
 
 
 mkT :: (Typeable a, Typeable b) => 
@@ -356,11 +372,10 @@ setST :: RegCounterState -> RegAllocator ()
 setST st = RegAllocator (\s -> ((), st))
 
 updateCounter :: LIRReg -> RegAllocator LIRReg
-updateCounter reg@(SREG s)
+updateCounter reg@(SREG num)
     = do st <- getST
          let c = rcCount st
              dict = rcDict st
-             num = (read s) :: Int
          if Map.member num dict
            then return reg
            else setST st{rcCount = c+1, rcDict = (Map.insert num c dict)} >> return reg

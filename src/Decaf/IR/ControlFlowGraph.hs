@@ -103,7 +103,7 @@ convertLIRInsts insts = convHelp [] [] insts
 pullOutLIR (CFGLIRInst x) = x
 
 symToInt :: LIRReg -> Int
-symToInt (SREG s) = read s :: Int
+symToInt (SREG s) = s
 symToInt  reg = error "attempted to label if using non-symbolic register"
 --symToInt (LIRIntOperand x) = error "attempted to label if using int literal"
 

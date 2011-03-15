@@ -135,7 +135,9 @@ data LIRReg = RAX
             | R13
             | R14
             | R15
-            | SREG String
+            | GP
+            | IP
+            | SREG Int
             deriving (Show, Eq, Typeable)
 
 type LIRSize = LIRInt
@@ -292,15 +294,17 @@ instance IRNode LIRReg where
     pp (RSP) = "RSP"
     pp (RSI) = "RSI"
     pp (RDI) = "RDI"
-    pp (R8) = "R8"
-    pp (R9) = "R9"
+    pp (R8)  = "R8"
+    pp (R9)  = "R9"
     pp (R10) = "R10"
     pp (R11) = "R11"
     pp (R12) = "R12"
     pp (R13) = "R13"
     pp (R14) = "R14"
     pp (R15) = "R15"
-    pp (SREG i) = "s" ++ i
+    pp (GP)  = "GP"
+    pp (IP)  = "IP"
+    pp (SREG i) = "s" ++ (show i)
     treeify a = Node (pp a) []
     pos _     = error "LIR has no associated position"
 

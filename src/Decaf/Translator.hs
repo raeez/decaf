@@ -142,12 +142,12 @@ translateStm st (DecafAssignStm loc op expr _) =
                          DecafEq _ -> return ([], oper)
                          DecafPlusEq _ -> do t <- incTemp
                                              let bexpr = LIRBinExpr (LIRRegOperand reg) LADD oper
-                                                 s = SREG (show t)
+                                                 s = SREG t
                                              return ([CFGLIRInst $ LIRRegAssignInst s bexpr], LIRRegOperand $ s)
 
                          DecafMinusEq _ -> do t <- incTemp
                                               let bexpr = LIRBinExpr (LIRRegOperand reg) LSUB oper
-                                                  s = SREG (show t)
+                                                  s = SREG t
                                               return ([CFGLIRInst $ LIRRegAssignInst s bexpr], LIRRegOperand $ s)
 
 -- | Given a SymbolTree, Translate a single DecafMethodStm into [CFGInst]
@@ -174,10 +174,10 @@ translateStm st (DecafForStm ident expr expr' block _) =
         (instructions2, relexpr) <- translateRelExpr st expr' ns
         forblock <- withScope l $ translateBlock st block
         let ivarlabel = (case symLookup ident (table st) of
-                            Just (_, (VarRec _ label)) -> show label
+                            Just (_, (VarRec _ label)) -> (show label) -- stupid!
                             Nothing -> error "Translator.hs:translateStm Invalid SymbolTable; could not find a valid symbol for'" ++ show ident ++ "'")
         return (instructions
-            ++ [CFGLIRInst $ LIRRegAssignInst (SREG ivarlabel) (LIROperExpr operand)]
+            ++ [CFGLIRInst $ LIRRegAssignInst (SREG (read ivarlabel :: Int)) (LIROperExpr operand)]
             ++ [CFGLIRInst $ LIRLabelInst (loopLabel l)]
             ++ instructions2
             ++ [CFGLIRInst $ LIRIfInst relexpr (trueLabel l)]
@@ -262,7 +262,7 @@ translateExpr st (DecafBinExpr expr binop expr' _) =
     do (lopis, op1) <- translateExpr st expr
        (ropis, op2) <- translateExpr st expr'
        t <- incTemp
-       let s' = SREG (show t)
+       let s' = SREG t
            s = LIRRegOperand $ s'
            prelude = lopis ++ ropis
            lexp = case lopis of
@@ -304,21 +304,21 @@ translateExpr st (DecafNotExpr expr _) =
     do t <- incTemp
        (instructions, operand) <- translateExpr st expr
        let unexpr = LIRUnExpr LNOT operand
-           s = SREG (show t)
+           s = SREG t
        return (instructions ++ [CFGLIRInst $ LIRRegAssignInst s unexpr], LIRRegOperand s)
 
 translateExpr st (DecafMinExpr expr _) =
     do t <- incTemp
        (instructions, operand) <- translateExpr st expr
        let unexpr = LIRUnExpr LNEG operand
-           s = SREG (show t)
+           s = SREG t
        return (instructions ++ [CFGLIRInst $ LIRRegAssignInst s unexpr], LIRRegOperand s)
 
 translateExpr st (DecafParenExpr expr _) =
     do t <- incTemp
        (instructions, operand) <- translateExpr st expr
        let o = LIROperExpr operand 
-           s = SREG (show t)
+           s = SREG t
        return (instructions ++ [CFGLIRInst $ LIRRegAssignInst s o], LIRRegOperand s)
 
 --checked
@@ -388,9 +388,9 @@ translateMethodCall st mc =
                        mc@(DecafPureMethodCall _ _ _) -> translateMethodPostcall st mc
                        _ -> return []
        return (precall
-            ++ [CFGLIRInst $ LIRCallAssignInst (SREG $ show t) func (SREG "ip")]
+            ++ [CFGLIRInst $ LIRCallAssignInst (SREG t) func IP]
             ++ postcall
-            , LIRRegOperand $ SREG $ show t)
+            , LIRRegOperand $ SREG t)
   where
     func = case mc of
                (DecafPureMethodCall {}) -> LIRProcLabel (case globalSymLookup (methodCallID mc) st of
@@ -403,21 +403,21 @@ translateString st string =
     (case symLookup ('.':string) (table st) of
          Just (_, StringRec _ label) ->
              do t <- incTemp
-                return ([CFGLIRInst $ LIRRegAssignInst (SREG $ show t) (LIROperExpr $ LIRStringOperand $ stringLabel label)], LIRRegOperand $ SREG $ show t)
+                return ([CFGLIRInst $ LIRRegAssignInst (SREG t) (LIROperExpr $ LIRStringOperand $ stringLabel label)], LIRRegOperand $ SREG t)
          _ -> return ([CFGLIRInst $ LIRLabelInst $ LIRLabel $ "Translator.hs:translateString Invalid SymbolTable; could not find '" ++ '.':string ++ "' symbol"], LIRRegOperand RBP))
 
 translateLocation :: SymbolTree -> DecafLoc -> Translator ([CFGInst], LIROperand)
 translateLocation st loc =
     (case globalSymLookup (ident loc) st of
-        Just (VarRec _ sr) -> return ([], LIRRegOperand $ SREG (show sr))
+        Just (VarRec _ sr) -> return ([], LIRRegOperand $ SREG sr)
         Just (ArrayRec arr o) -> incTemp >>= \t -> (do (prep, index) <- translateExpr st (arrLocExpr loc)
                                                        checkCode <- arrayBoundsCheck st arr index
                                                        (instructions, mem) <- arrayMemaddr arr o index
                                                        return (prep
                                                             ++ checkCode
                                                             ++ (map CFGLIRInst instructions)
-                                                            ++ [CFGLIRInst $ LIRLoadInst (SREG $ show t) mem], LIRRegOperand (SREG $ show t)))
-        _ -> return ([CFGLIRInst $ LIRLabelInst (LIRLabel $ "Translator.hs:translateLocation Invalid SymbolTable; could not find '" ++ ident loc ++ "' symbol in\n" ++ show st)], LIRRegOperand $ SREG "--"))
+                                                            ++ [CFGLIRInst $ LIRLoadInst (SREG t) mem], LIRRegOperand (SREG t)))
+        _ -> return ([CFGLIRInst $ LIRLabelInst (LIRLabel $ "Translator.hs:translateLocation Invalid SymbolTable; could not find '" ++ ident loc ++ "' symbol in\n" ++ show st)], LIRRegOperand $ SREG (-1)))
 
 arrayBoundsCheck :: SymbolTree -> DecafArr -> LIROperand -> Translator [CFGInst]
 arrayBoundsCheck st (DecafArr _ _ len _) indexOperand =
@@ -430,7 +430,7 @@ arrayBoundsCheck st (DecafArr _ _ len _) indexOperand =
 
 symVar :: DecafVar -> SymbolTree -> LIRReg
 symVar var st =
-    SREG $ show (case symLookup (varID var) (table st) of
+    SREG (case symLookup (varID var) (table st) of
                     Just (_, VarRec _ label) -> label
                     _ -> error $ "Translator.hs:translateBlock.symVar Invalid SymbolTable; could not find a valid symbol for'" ++ (show $ varID var) ++ "'")
 
@@ -438,11 +438,11 @@ arrayMemaddr :: DecafArr -> Int -> (LIROperand) -> Translator ([LIRInst], LIRMem
 arrayMemaddr (DecafArr ty _ len _) offset operand =
     case operand of
         (LIRIntOperand (LIRInt index))->
-            return ([], LIRRegOffMemAddr (SREG "gp") (LIRInt (offset + size*index)) (LIRInt size)) -- ^ TODO offset must include previous arrays length * size
+            return ([], LIRRegOffMemAddr GP (LIRInt (offset + size*index)) (LIRInt size)) -- ^ TODO offset must include previous arrays length * size
         _ -> do t1 <- incTemp
                 t2 <- incTemp
-                let sr1 = SREG $ show t1
-                    sr2 = SREG $ show t2
+                let sr1 = SREG t1
+                    sr2 = SREG t2
                 return ([LIRRegAssignInst sr1 (LIRBinExpr operand LMUL (LIRIntOperand (LIRInt size)))]
                     ++ [LIRRegAssignInst sr2 (LIRBinExpr (LIRRegOperand sr1) LADD (LIRIntOperand (LIRInt offset)))]
                     , LIRRegMemAddr sr2 (LIRInt size))
@@ -466,7 +466,7 @@ missingRetHandler st =
        return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel 0]
            ++ instructions
            ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr operand)]
-           ++ [CFGLIRInst $ LIRCallInst (LIRProcLabel "printf") (SREG "ip")]
+           ++ [CFGLIRInst $ LIRCallInst (LIRProcLabel "printf") IP]
 
 outOfBoundsHandler :: SymbolTree -> Translator [CFGInst]
 outOfBoundsHandler st =
@@ -474,4 +474,4 @@ outOfBoundsHandler st =
        return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel 1]
             ++ instructions
             ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr operand)]
-            ++ [CFGLIRInst $ LIRCallInst (LIRProcLabel "printf") (SREG "ip")]
+            ++ [CFGLIRInst $ LIRCallInst (LIRProcLabel "printf") IP]
