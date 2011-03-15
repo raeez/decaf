@@ -75,6 +75,7 @@ data LIRMemAddr = LIRRegMemAddr LIRReg LIRSize
 
 data LIROperand = LIRRegOperand LIRReg
                 | LIRIntOperand LIRInt
+                | LIRStringOperand String
                 deriving (Show, Eq)
 
 data LIRReg = RAX
@@ -97,6 +98,18 @@ data LIRReg = RAX
             deriving (Show, Eq)
 
 type LIRSize = LIRInt
+
+byte :: LIRInt
+byte = LIRInt 1
+
+word :: LIRInt
+word = LIRInt 2
+
+dword :: LIRInt
+dword = LIRInt 4
+
+qword :: LIRInt
+qword = LIRInt 8
 
 type LIROffset = LIRInt
 
@@ -201,6 +214,7 @@ instance IRNode LIRUnOp where
     pos _     = error "LIR has no associated position"
 
 instance IRNode LIRRelOp where
+    pp (LEQ) = "=="
     pp (LNEQ) = "!="
     pp (LGT) = ">"
     pp (LGTE) = ">="
@@ -246,7 +260,7 @@ instance IRNode LIRReg where
     pos _     = error "LIR has no associated position"
 
 instance IRNode LIRInt where
-    pp (LIRInt i) = "0x" ++ showHex i ""
+    pp (LIRInt i) = "0x" ++ (if i < 0 then "-" else "") ++ showHex (abs i) ""
     treeify i = Node (pp i) []
     pos _     = error "LIR has no associated position"
 

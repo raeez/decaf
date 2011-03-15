@@ -41,6 +41,9 @@ symType (VarRec v _) = varType v
 symType (MethodRec m _) = methodType m
 symType (ArrayRec a _) = arrayType a
 
+table :: SymbolTree -> SymbolTable
+table = content . tree
+
 -- | Lookup a symbol in the current SymbolTable
 symLookup ::  String -> SymbolTable -> Maybe (Int, SymbolRecord)
 symLookup ident table = ilookup 0 ident (zip (map symID recs) recs)
