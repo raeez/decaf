@@ -9,9 +9,7 @@ import Decaf.Data.Tree
 import Decaf.Data.Zipper
 
 -- TODO
--- handle translateLiteral: figure out if we want to store booleans in 8-byte integers
 --        translateLocation: add runtime bounds check on array
---        translateLocation: offset must include previous arrays length * size
 --        translateMethodPrologue: calculate the absolute load offset from RBP
 --        ??: move the return value into RAX
 --        ??: runtime check: control falling off edge?
@@ -84,7 +82,6 @@ translateProgram st program =
     translateField (DecafArrField arr _) = translateArrDeclaration st arr
 
 -- | Given a SymbolTree, Translate a DecafMethod into an LIRUnit
--- TODO implement stack wind/unwind
 translateMethod :: SymbolTree -> [LIRInst] -> DecafMethod -> Translator LIRUnit
 translateMethod st declarations method =
     do ns <- getNS
@@ -118,7 +115,7 @@ translateMethodPrologue st (DecafMethod _ ident args _ _) =
        return (regvars ++ stackvars)
   where
     genRegVar (reg, arg) = LIRRegAssignInst (symVar arg st) (LIROperExpr $ LIRRegOperand reg)
-    genStackVar arg = do let mem = LIRRegOffMemAddr RBP (LIRInt 4096) qword -- ^ TODO calculate the offset from RBP
+    genStackVar arg = do let mem = LIRRegOffMemAddr RBP (LIRInt 10000) qword -- ^ TODO calculate the offset from RBP
                          return $ LIRLoadInst (symVar arg st) mem
 
 -- | Given a SymbolTree, Translate a single DecafStatement into [LIRInst]
@@ -371,12 +368,11 @@ translateMethodCall st mc =
 
 translateString :: SymbolTree -> DecafString -> Translator ([LIRInst], LIROperand)
 translateString st string =
-    (case symLookup string (table st) of
-         --Just (_, StringRec _ (label, count)) ->
-             --do t <- incTemp
-                --return $ [LIRAssignInst (SREG $ show t) (LIRStringLiteral $ stringLabel label count), SREG $ show t]
-         _ -> return ([LIRLabelInst $ LIRLabel $ "Translator.hs:translateString Invalid SymbolTable; could not find '" ++ string ++ "' symbol"], LIRRegOperand RBP))
-
+    (case symLookup ("." ++ string) (table st) of
+         Just (_, StringRec _ (label, count)) ->
+             do t <- incTemp
+                return $ [LIRAssignInst (SREG $ show t) (LIRStringLiteral $ stringLabel label count), SREG $ show t]
+         _ -> return ([LIRLabelInst $ LIRLabel $ "Translator.hs:translateString Invalid SymbolTable; could not find '" ++ ("."++show(string)) ++ "' symbol"], LIRRegOperand RBP))
 
 -- TODO add runtime bounds check on array
 translateLocation :: SymbolTree -> DecafLoc -> Translator ([LIRInst], LIROperand)
