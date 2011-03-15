@@ -73,12 +73,13 @@ instance Data LIRInt where
      return (LIRInt a'1)
 
 instance Data LIRRelExpr where
- gmapM f (LIRBinRelExpr a1 a2 a3) =
+ gmapM f (LIRBinRelExpr a1 a2 a3 a4) =
   do 
      a'1 <- f a1
      a'2 <- f a2
      a'3 <- f a3
-     return (LIRBinRelExpr a'1 a'2 a'3)
+     a'4 <- f a4
+     return (LIRBinRelExpr a'1 a'2 a'3 a'4)
  gmapM f (LIRNotRelExpr a1) =
   do 
      a'1 <- f a1
@@ -279,17 +280,14 @@ instance Data LIRReg where
  gmapM f (R15) =
   do 
      return (R15)
-
- gmapM f (GP) = 
-  do
-     return (GP)
- gmapM f (IP) = 
-  do
-     return (IP)
  gmapM f (SREG a1) =
   do 
      a'1 <- f a1
      return (SREG a'1)
+ gmapM f (MEM a1) =
+  do 
+     a'1 <- f a1
+     return (MEM a'1)
 
 instance Data LIROperand where
  gmapM f (LIRRegOperand a1) =

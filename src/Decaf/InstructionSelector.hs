@@ -10,7 +10,6 @@ import Decaf.IR.ASM
 -- along with a monadic container (dsl for superoptimization)
 -- this code then just becomes the pretty printer into gnuasm, or intelasm
 --
--- TODO implement div / mod
 -- TODO implement boolean expr assignments
 
 regOpen r = "mov r10, "++(intelasm r)++sep
@@ -29,6 +28,8 @@ add op1 op2 = twoop "add" op1 op2
 sub op1 op2 = twoop "sub" op1 op2
 cmp op1 op2 = operOpen op1 0 ++ operOpen op2 1 ++ "cmp " ++ intelasm R10 ++ ", " ++ intelasm R11
 imul op = (operOpen op 0) ++ "imul " ++ intelasm R10
+idiv op = (operOpen op 0) ++ "imul " ++ intelasm R10
+imod op = (operOpen op 0) ++ "idiv " ++ intelasm R10
 jmp label = "jmp " ++ intelasm label
 
 movaddr addr op2 = (operOpen op2 1) ++ "mov "++ intelasm addr ++ intelasm R11
@@ -132,7 +133,7 @@ instance ASM LIRInst where
     intelasm (LIRJumpLabelInst label) =
         jmp label
 
-    intelasm (LIRIfInst (LIRBinRelExpr op1 binop op2) label) =
+    intelasm (LIRIfInst (LIRBinRelExpr op1 binop op2 label') label) =
         cmp op1 op2 ++ sep
       ++ jtype
       where
@@ -173,7 +174,7 @@ instance ASM LIRExpr where
     intelasm (LIROperExpr operand) = intelasm operand
 
 instance ASM LIRRelExpr where
-    intelasm (LIRBinRelExpr operand relop operand') = intelasm operand ++ " " ++ intelasm relop ++ " " ++ intelasm operand'
+    intelasm (LIRBinRelExpr operand relop operand' label) = intelasm operand ++ " " ++ intelasm relop ++ " " ++ intelasm operand' ++ "[" ++ intelasm label ++ "]"
     intelasm (LIRNotRelExpr operand) = "!" ++ intelasm operand
     intelasm (LIROperRelExpr operand) = intelasm operand
 
@@ -230,9 +231,8 @@ instance ASM LIRReg where
     intelasm (R13) = "r13"
     intelasm (R14) = "r14"
     intelasm (R15) = "r15"
-    intelasm (GP)  = "gp"
-    intelasm (IP)  = "ip"
     intelasm (SREG i) = "[rbp+" ++ (show i)++"]"
+    intelasm (MEM i) = i
 
 instance ASM LIRInt where
     intelasm (LIRInt i) = "0x" ++ (if i < 0 then "-" else "") ++ showHex (abs i) ""

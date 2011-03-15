@@ -27,8 +27,11 @@ exceptionLabel c = LIRLabel $ "__exception" ++ show c
 boundsLabel :: Int -> LIRLabel
 boundsLabel c = LIRLabel $ "__boundscheck" ++ show c
 
+compareLabel :: Int -> LIRLabel
+compareLabel c = LIRLabel $  "__cmp" ++ show c
+
 stringLabel :: Int -> String
-stringLabel  c = "__string" ++ show c
+stringLabel c = "__string" ++ show c
 
 arrayLabel :: Int -> String
 arrayLabel c = "__array" ++ show c
@@ -80,7 +83,7 @@ data LIRExpr = LIRBinExpr LIROperand LIRBinOp LIROperand
              | LIROperExpr LIROperand
              deriving (Show, Eq, Typeable)
 
-data LIRRelExpr = LIRBinRelExpr LIROperand LIRRelOp LIROperand
+data LIRRelExpr = LIRBinRelExpr LIROperand LIRRelOp LIROperand LIRLabel
                 | LIRNotRelExpr LIROperand
                 | LIROperRelExpr LIROperand
                 deriving (Show, Eq, Typeable)
@@ -137,9 +140,8 @@ data LIRReg = RAX
             | R13
             | R14
             | R15
-            | GP
-            | IP
             | SREG Int
+            | MEM String
             deriving (Show, Eq, Typeable)
 
 type LIRSize = LIRInt
@@ -227,10 +229,10 @@ instance IRNode LIRExpr where
     pos _     = error "LIR has no associated position"
 
 instance IRNode LIRRelExpr where
-    pp (LIRBinRelExpr operand relop operand') = pp operand ++ " " ++ pp relop ++ " " ++ pp operand'
+    pp (LIRBinRelExpr operand relop operand' label) = pp operand ++ " " ++ pp relop ++ " " ++ pp operand'
     pp (LIRNotRelExpr operand) = "!" ++ pp operand
     pp (LIROperRelExpr operand) = pp operand
-    treeify (LIRBinRelExpr operand relop operand') = Node (pp relop) [treeify operand, treeify operand']
+    treeify (LIRBinRelExpr operand relop operand' label) = Node (pp relop) [treeify operand, treeify operand']
     treeify (LIRNotRelExpr operand) = Node "!" [treeify operand]
     treeify (LIROperRelExpr operand) = Node (pp operand) []
     pos _     = error "LIR has no associated position"
@@ -301,8 +303,7 @@ instance IRNode LIRReg where
     pp (R13) = "R13"
     pp (R14) = "R14"
     pp (R15) = "R15"
-    pp (GP)  = "GP"
-    pp (IP)  = "IP"
+    pp (MEM s)  = s
     pp (SREG i) = "s" ++ (show i)
     treeify a = Node (pp a) []
     pos _     = error "LIR has no associated position"
