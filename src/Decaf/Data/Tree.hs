@@ -11,4 +11,4 @@ instance (Show a) => Show (Tree a) where
         where
             display :: (Show a) => Integer -> Tree a -> String
             display indent node = spaces indent ++ Prelude.show (content node) ++ "\n" ++ concatMap (display $ indent+1) (children node)
-            spaces indent = map (\_ -> ' ') [1..3*indent]
+            spaces indent = map (\_ -> ' ') [1..4*indent]

@@ -16,13 +16,10 @@ data SymbolTable = SymbolTable
     } deriving (Show, Eq)
 
 -- | Individual program symbol entries are stored in the 'SymbolRecord' structure
--- TODO 
 data SymbolRecord = VarRec DecafVar SymbolicRegister
                   | MethodRec DecafMethod MethodLabel
                   | ArrayRec DecafArr GlobalOffset
                   deriving (Show, Eq)
-
-
 
 -- | Symbol representing the various styleof block in Decaf
 data BlockType = ForBlock
@@ -44,72 +41,96 @@ symType (VarRec v _) = varType v
 symType (MethodRec m _) = methodType m
 symType (ArrayRec a _) = arrayType a
 
+-- | Lookup a symbol in the current SymbolTable
+symLookup ::  String -> SymbolTable -> Maybe (Int, SymbolRecord)
+symLookup ident table = ilookup 0 ident (zip (map symID recs) recs)
+  where
+    recs = symbolRecords table
+    ilookup :: Int -> String -> [(String, SymbolRecord)] -> Maybe (Int, SymbolRecord)
+    ilookup _ _ [] = Nothing
+    ilookup i id ((key, val):xs) = if key == id
+                                    then Just (i, val)
+                                    else ilookup (i+1) id xs
+
+-- | Lookup a symbol in the current SymbolTable, and all parent SymbolTable's
+globalSymLookup :: String -> SymbolTree -> Maybe SymbolRecord
+globalSymLookup ident st = let table = (content . tree) st
+                           in case symLookup ident table of
+                               Nothing -> if isRoot st
+                                            then Nothing
+                                            else globalSymLookup ident (parent st)
+                               Just (_, a) -> Just a
 -- | Create a new SymbolTree
 mkSymbolTree :: SymbolTree
 mkSymbolTree = mkZipper (SymbolTable [] GlobalBlock)
 
-
-
-
--- | A Symbolic Address assigned to the program symbol by the semantic checker;
--- resolved at register allocater (in the code generator)
-type MethodLabel = (String, Int)
+-- | A Symbolic Address assigned to the program symbol;
+-- resolved in the global register allocator
 type SymbolicRegister = Int
+
+-- | A method label assigned to the program symbol;
+-- resolved in the translator
+type MethodLabel = (String, Int)
+
+-- | A global offset assigned to the program symbol;
+-- resolved in the final code generator
 type GlobalOffset = Int
+
+-- | A global string identifier,
+-- resolved in the final code generator
 type StringLabel = (String, Int)
 
-
-data LabelCounter = LC
+data LabelCounter = LabelCounter
     { regCount :: Int
     , globalCount :: Int
     , methodCount :: Int
     , stringCount :: Int
     }
 
-mkCounter = LC 0 0 0 0
+mkCounter :: LabelCounter
+mkCounter = LabelCounter 0 0 0 0
 
+data CounterState = CounterState
+    { csCounter :: LabelCounter }
 
-data CounterState 
-    = CS { csCounter :: LabelCounter
-         }
-
-data RegisterCounter a = RC {runRegisterCounter :: CounterState -> (a, CounterState)}
+data RegisterCounter a = RegisterCounter
+    { runRegisterCounter :: CounterState -> (a, CounterState) }
 
 instance Monad RegisterCounter where
-    return x = RC(\s -> (x,s))
-    m >>= f = RC(\s -> let (x,s') = runRegisterCounter m s
-                       in runRegisterCounter (f x) s')
+    return x = RegisterCounter(\s -> (x,s))
+    m >>= f = RegisterCounter(\s ->
+                  let (x, s') = runRegisterCounter m s
+                  in runRegisterCounter (f x) s')
 
-
-getRegCount = RC (\s@(CS{csCounter=c}) -> 
+getRegCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
                       let n = regCount c
                       in (n, s{csCounter=c{regCount = n+1}}))
-getGlobalCount = RC (\s@(CS{csCounter=c}) -> 
-                         let n = globalCount c
-                         in (n, s{csCounter=c{regCount = n+1}}))
-getMethodCount = RC (\s@(CS{csCounter=c}) -> 
-                         let n = methodCount c
-                         in (n, s{csCounter=c{regCount = n+1}}))
-getStringCount = RC (\s@(CS{csCounter=c}) -> 
-                         let n = stringCount c
-                         in (n, s{csCounter=c{regCount = n+1}}))
 
+getGlobalCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
+                         let n = globalCount c
+                         in (n, s{csCounter=c{globalCount = n+1}}))
+
+getMethodCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
+                         let n = methodCount c
+                         in (n, s{csCounter=c{methodCount = n+1}}))
+
+getStringCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
+                         let n = stringCount c
+                         in (n, s{csCounter=c{stringCount = n+1}}))
 
 numberTree :: Tree SymbolTable -> RegisterCounter (Tree SymbolTable)
 numberTree t = 
-    let tab = content t
-    in
-      do cont <- sequence (map numberRec (symbolRecords tab))
-         cs <- sequence (map numberTree (children t))
-         return $ Node tab{symbolRecords = cont} cs
-
-
+    let table = content t
+    in do cont <- sequence $ map numberRec (symbolRecords table)
+          cs <- sequence $ map numberTree (children t)
+          return $ Node table{symbolRecords = cont} cs
 
 numberRec :: SymbolRecord -> RegisterCounter SymbolRecord
-numberRec v@(VarRec a b) = do c <- getRegCount
-                              return $ VarRec a c
-numberRec v@(MethodRec a b) = do c <- getMethodCount
-                                 return $ MethodRec a ("meth", c)
-numberRec v@(ArrayRec a b) = do c <- getGlobalCount
-                                return $ ArrayRec a c
-                
+numberRec (VarRec a _) = do c <- getRegCount
+                            return $ VarRec a c
+
+numberRec (MethodRec a _) = do c <- getMethodCount
+                               return $ MethodRec a ("meth", c)
+
+numberRec (ArrayRec a _) = do c <- getGlobalCount
+                              return $ ArrayRec a c
