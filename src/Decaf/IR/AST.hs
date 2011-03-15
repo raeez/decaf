@@ -106,7 +106,7 @@ data DecafLoc = DecafVarLoc DecafIdentifier DecafPosition
 -- 'DecafExpr' is a temporory tree utilized for parsing in a left-associative, right recursive manner.
 --  This temporary tree is rewritten to utilize the pure abstract DecafExpr tree after parsing.
 --  For more information, see the 'rewriteExpr' function in 'Decaf.Parse'
-data DecafExpr = DecafExpr Term Expr' DecafPosition -- used for parsing, but removed at tree rewrite
+data DecafExpr = Expr Condr Expr' DecafPosition -- only transitory
                | DecafLocExpr DecafLoc DecafPosition
                | DecafMethodExpr DecafMethodCall DecafPosition
                | DecafLitExpr DecafLiteral DecafPosition
@@ -116,13 +116,27 @@ data DecafExpr = DecafExpr Term Expr' DecafPosition -- used for parsing, but rem
                | DecafParenExpr DecafExpr DecafPosition
                deriving (Show, Eq)
 
-data Expr' = Expr' DecafBinOp Term Expr' DecafPosition
+-- | used for parsing, but removed at tree rewrite
+data Expr' = Expr' DecafBinOp Condr Expr' DecafPosition
            | EmptyExpr'
            deriving (Show, Eq)
 
-data Term = Term Factor Term' DecafPosition
-          deriving (Show, Eq)
+data Condr = Condr Eqr Condr' DecafPosition deriving (Show, Eq)
+data Condr' = Condr' DecafBinOp Eqr Condr' DecafPosition
+           | EmptyCondr'
+           deriving (Show, Eq)
 
+data Eqr = Eqr Relr Eqr' DecafPosition deriving (Show, Eq)
+data Eqr' = Eqr' DecafBinOp Relr Eqr' DecafPosition
+           | EmptyEqr'
+           deriving (Show, Eq)
+
+data Relr = Relr Term Relr' DecafPosition deriving (Show, Eq)
+data Relr' = Relr' DecafBinOp Term Relr' DecafPosition
+           | EmptyRelr'
+           deriving (Show, Eq)
+
+data Term = Term Factor Term' DecafPosition deriving (Show, Eq)
 data Term' = Term' DecafBinOp Factor Term' DecafPosition
            | EmptyTerm'
            deriving (Show, Eq)
@@ -313,7 +327,7 @@ instance IRNode DecafCalloutArg where
   pp _ = "DecafCalloutArg"
 
 instance IRNode DecafExpr where
-  pos (DecafExpr _ _ p) = p
+  pos (Expr _ _ p) = p
   pos (DecafLocExpr _ p) = p
   pos (DecafMethodExpr _ p) = p
   pos (DecafLitExpr _ p) = p
@@ -328,13 +342,13 @@ instance IRNode DecafExpr where
   treeify (DecafNotExpr expr _) = Node "!" [treeify expr]
   treeify (DecafMinExpr expr _) = Node "-" [treeify expr]
   treeify (DecafParenExpr expr _) = Node "(   )" [treeify expr]
-  treeify (DecafExpr term expr' _) = Node "EXPR" [treeify term, treeify expr']
+  treeify (Expr term expr' _) = Node "CLOSEDEXPR" []
   pp _ = "Expr"
 
 instance IRNode Expr' where
   pos (Expr' _ _ _ p) = p
   pos (EmptyExpr') = error "EmptyExpr' has no associated position"
-  treeify (Expr' binop term expr' _) = Node (pp binop) [treeify term, treeify expr']
+  treeify (Expr' binop term expr' _) = Node (pp binop) []
   treeify (EmptyExpr') = Node "EmptyExpr'" []
   pp _ = "Expr'"
 

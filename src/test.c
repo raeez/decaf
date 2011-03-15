@@ -63,13 +63,18 @@ class Program {
     callout ("printf", "one");
     b = 2;
     a = 3 + a;
+    for i = 0, 100 {
+        if (i > 10 || i < 2) {
+            callout ("printf");
+    }}
+        
     a -= 100;
     a = 2 * 100;
-    integers[10] += 100;
-    if (a > 2 && a > 3 && a > 4) {
-    callout("printf_035", "035 printf");
+    callout("printf_035", "Man oh man");
+    if (2 < 2 || 3 > 5 || 3 < 5 && 4 > 6 && a > 2 && (3 < 4 && a > 3) || a > 3) {
+        callout ("printf", "astoeuhtanoseuh");
     } else {
-        callout ("print", "standard printf");
+        callout ("printf_035", "tsaoeutnaoseuh");
     }
     return a;
     }

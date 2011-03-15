@@ -291,7 +291,7 @@ checkExpr (DecafLocExpr (DecafArrLoc id ind _) pos) =
                  Just (ArrayRec arr _) -> return $ arrayType arr
                  Just (VarRec var _) -> pushError pos (id++ " is not an array") >> return DecafVoid
 
-checkExpr (DecafExpr _ _ _) = error "AST has not had expression tree rewrite; concrete tree still present"
+checkExpr (Expr _ _ _) = error "AST has not had expression tree rewrite; concrete tree still present"
 
 checkExpr (DecafMethodExpr (DecafMethodCallout _ args _) _) =
             do foldl (>>) (return False) (map checkCalloutArg args)
@@ -396,15 +396,6 @@ checkMethodArgs (DecafPureMethodCall dID args pos) =
                    bindCat (res++[t]) (tail args)
 checkMethodArgs _ = return DecafInteger
 
--- | The 'check' function scans, parses and semantically checks a given decaf program
--- 'check' returns a tuple of ([SemanticError], DecafProgram, SymbolTree)
-check :: String -> Report ([SemanticError], DecafProgram, SymbolTree)
-check str =
-    case ps program str of
-        RSuccess prog -> let (_,(e,t)) = runChecker (checkProgram prog) ([], mkSymbolTree)
-                         in RSuccess (e, prog, t)
-        RError str -> RError str
-
 -- | The 'checker' function returns 'True' on a semantically valid decaf program input, 'False' otherwise; utilized in testsuite
 checker :: String -> Bool
 checker input =
@@ -424,6 +415,20 @@ checkFile str file =
                              e = cstErrors s
                              t = cstTable s
                          in RSuccess (e, t, displayDebug (prog, t), displayErrors e)
+        RError str -> RError str
+  where
+    addHeader a = file ++ ": " ++ a
+    displayErrors e = unlines (map (addHeader . show) e)
+    displayDebug (prog, t) = show prog ++ "\n\n" ++ show t
+
+-- | The 'checkFile' function returns a tuple of (String, String) representing
+check :: String -> String -> Report ([SemanticError], DecafProgram, SymbolTree, String, String)
+check str file =
+    case ps program str of
+        RSuccess prog -> let (_,s) = runChecker (checkProgram prog) mkCheckerState
+                             e = cstErrors s
+                             t = cstTable s
+                         in RSuccess (e, prog, t, displayDebug (prog, t), displayErrors e)
         RError str -> RError str
   where
     addHeader a = file ++ ": " ++ a

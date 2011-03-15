@@ -372,15 +372,6 @@ methodcall = (do
 -- |'rewriteExpr' rewrites a parsed concrete expression tree into an abstract syntax expression tree
 -- This function utilizes the recursive rewriteExprTail, rewriteTerm, rewriteTermTail and rewriteFactor to rewrite the entire tree in-place.
 rewriteExpr :: DecafExpr -> DecafExpr
-rewriteExpr (DecafExpr term EmptyExpr' _)
-  = rewriteTerm term
-
-rewriteExpr (DecafExpr term (Expr' binop term' EmptyExpr' p) _)
-  = DecafBinExpr (rewriteTerm term) binop (rewriteTerm term') p
-
-rewriteExpr (DecafExpr term (Expr' binop term' expr'@(Expr' binop' _ _ p) p') _)
-  = DecafBinExpr (rewriteTerm term) binop  (DecafBinExpr (rewriteTerm term') binop' (rewriteExprTail expr') p') p
-
 rewriteExpr e@(DecafLocExpr _ _)     = e
 rewriteExpr e@(DecafMethodExpr _ _)  = e
 rewriteExpr e@(DecafLitExpr _ _)     = e
@@ -389,16 +380,94 @@ rewriteExpr e@(DecafNotExpr _ _)     = e
 rewriteExpr e@(DecafMinExpr _ _)     = e
 rewriteExpr e@(DecafParenExpr _ _)   = e
 
+rewriteExpr (Expr condr EmptyExpr' _)
+  = rewriteCondr condr
+
+rewriteExpr (Expr condr (Expr' binop condr' EmptyExpr' p) _)
+  = DecafBinExpr (rewriteCondr condr) binop (rewriteCondr condr') p
+
+rewriteExpr (Expr condr (Expr' binop condr' expr'@(Expr' binop' _ _ p) p') _)
+  = DecafBinExpr (rewriteCondr condr) binop  (DecafBinExpr (rewriteCondr condr') binop' (rewriteExprTail expr') p') p
+
 -- |'rewriteExprTail'
 rewriteExprTail :: Expr' -> DecafExpr
-rewriteExprTail (Expr' _ term expr@(Expr' binop _ _ p) _)
-  = DecafBinExpr (rewriteTerm term) binop (rewriteExprTail expr) p
+rewriteExprTail (Expr' _ condr expr@(Expr' binop _ _ p) _)
+  = DecafBinExpr (rewriteCondr condr) binop (rewriteExprTail expr) p
 
-rewriteExprTail (Expr' _ term EmptyExpr' _)
-  = rewriteTerm term
+rewriteExprTail (Expr' _ condr EmptyExpr' _)
+  = rewriteCondr condr
 
 rewriteExprTail EmptyExpr'
-  = error "Parser.hs:358 invalid concrete expr tree; rewriteExprTail encountered an EmptyTerm'"
+  = error "Parser.hs:rewriteExprTail invalid concrete expr tree; rewriteExprTail encountered an EmptyTerm'"
+
+
+
+rewriteCondr :: Condr -> DecafExpr
+rewriteCondr (Condr eqr EmptyCondr' _)
+  = rewriteEqr eqr
+
+rewriteCondr (Condr eqr (Condr' binop eqr' EmptyCondr' p) _)
+  = DecafBinExpr (rewriteEqr eqr) binop (rewriteEqr eqr') p
+
+rewriteCondr (Condr eqr (Condr' binop eqr' condr'@(Condr' binop' _ _ p) p') _)
+  = DecafBinExpr (rewriteEqr eqr) binop  (DecafBinExpr (rewriteEqr eqr') binop' (rewriteCondrTail condr') p') p
+
+-- |'rewriteExprTail'
+rewriteCondrTail :: Condr' -> DecafExpr
+rewriteCondrTail(Condr' _ eqr condr@(Condr' binop _ _ p) _)
+  = DecafBinExpr (rewriteEqr eqr) binop (rewriteCondrTail condr) p
+
+rewriteCondrTail (Condr' _ eqr EmptyCondr' _)
+  = rewriteEqr eqr
+
+rewriteCondrTail EmptyCondr'
+  = error "Parser.hs:rewriteCondrTail invalid concrete expr tree; rewriteCondrTail encountered an EmptyCondr'"
+
+
+
+rewriteEqr :: Eqr -> DecafExpr
+rewriteEqr (Eqr relr EmptyEqr' _)
+  = rewriteRelr relr
+
+rewriteEqr (Eqr relr (Eqr' binop relr' EmptyEqr' p) _)
+  = DecafBinExpr (rewriteRelr relr) binop (rewriteRelr relr') p
+
+rewriteEqr (Eqr relr (Eqr' binop relr' eqr'@(Eqr' binop' _ _ p) p') _)
+  = DecafBinExpr (rewriteRelr relr) binop (DecafBinExpr (rewriteRelr relr') binop' (rewriteEqrTail eqr') p') p
+
+-- |'rewriteExprTail'
+rewriteEqrTail :: Eqr' -> DecafExpr
+rewriteEqrTail (Eqr' _ relr eqr@(Eqr' binop _ _ p) _)
+  = DecafBinExpr (rewriteRelr relr) binop (rewriteEqrTail eqr) p
+
+rewriteEqrTail (Eqr' _ relr EmptyEqr' _)
+  = rewriteRelr relr
+
+rewriteEqrTail EmptyEqr'
+  = error "Parser.hs:rewriteEqrTail invalid concrete expr tree; rewriteEqrTail encountered an EmptyEqr'"
+
+
+rewriteRelr :: Relr -> DecafExpr
+rewriteRelr (Relr term EmptyRelr' _)
+  = rewriteTerm term
+
+rewriteRelr (Relr term (Relr' binop term' EmptyRelr' p) _)
+  = DecafBinExpr (rewriteTerm term) binop (rewriteTerm term') p
+
+rewriteRelr (Relr term (Relr' binop term' relr'@(Relr' binop' _ _ p) p') _)
+  = DecafBinExpr (rewriteTerm term) binop  (DecafBinExpr (rewriteTerm term') binop' (rewriteRelrTail relr') p') p
+
+-- |'rewriteExprTail'
+rewriteRelrTail :: Relr' -> DecafExpr
+rewriteRelrTail (Relr' _ term relr@(Relr' binop _ _ p) _)
+  = DecafBinExpr (rewriteTerm term) binop (rewriteRelrTail relr) p
+
+rewriteRelrTail (Relr' _ term EmptyRelr' _)
+  = rewriteTerm term
+
+rewriteRelrTail EmptyRelr'
+  = error "Parser.hs:rewriteRelrTail invalid concrete expr tree; rewriteRelrTail encountered an EmptyRelr'"
+
 
 rewriteTerm :: Term -> DecafExpr
 rewriteTerm (Term factor EmptyTerm' _)
@@ -443,17 +512,59 @@ mayb p = fmap Just p <|> return Nothing
 -- left associative, right recursive
 expr :: DecafParser DecafExpr
 expr = do
-        t <- term
+        t <- condr
         e <- expr'
-        fmap (rewriteExpr . DecafExpr t e . morphPos) getPosition
+        fmap (rewriteExpr . Expr t e . morphPos) getPosition
 
 expr' :: DecafParser Expr'
 expr' = do
-          b <- toplevelOp
-          t <- term
+          b <- firstlevelop
+          t <- condr
           e <- expr'
           fmap (Expr' b t e . morphPos) getPosition
      <|> return EmptyExpr'
+
+condr :: DecafParser Condr
+condr = do
+        t <- eqr
+        e <- condr'
+        fmap (Condr t e . morphPos) getPosition
+
+condr' :: DecafParser Condr'
+condr' = do
+          b <- secondlevelop
+          t <- eqr
+          e <- condr'
+          fmap (Condr' b t e . morphPos) getPosition
+     <|> return EmptyCondr'
+
+eqr :: DecafParser Eqr
+eqr = do
+        t <- relr
+        e <- eqr'
+        fmap (Eqr t e . morphPos) getPosition
+
+eqr' :: DecafParser Eqr'
+eqr' = do
+          b <- thirdlevelop
+          t <- relr
+          e <- eqr'
+          fmap (Eqr' b t e . morphPos) getPosition
+     <|> return EmptyEqr'
+
+relr :: DecafParser Relr
+relr = do
+        t <- term
+        e <- relr'
+        fmap (Relr t e . morphPos) getPosition
+
+relr' :: DecafParser Relr'
+relr' = do
+          b <- fourthlevelop
+          t <- term
+          e <- relr'
+          fmap (Relr' b t e . morphPos) getPosition
+     <|> return EmptyRelr'
 
 term :: DecafParser Term
 term = do
@@ -463,7 +574,7 @@ term = do
 
 term' :: DecafParser Term'
 term' = do
-          b <- botlevelOp
+          b <- fifthlevelop
           f <- factor
           t <- term'
           fmap (Term' b f t . morphPos) getPosition
@@ -489,11 +600,12 @@ factor = (try methodcall >>= \o -> fmap (DecafMethodExpr' o . morphPos) getPosit
             rparen
             fmap (DecafParenExpr' e . morphPos) getPosition
 
-toplevelOp :: DecafParser DecafBinOp
-toplevelOp = toparithop <|> relop <|> eqop <|> condop
-
-botlevelOp :: DecafParser DecafBinOp
-botlevelOp = botarithop
+firstlevelop, secondlevelop, thirdlevelop, fourthlevelop, fifthlevelop :: DecafParser DecafBinOp
+firstlevelop = condop
+secondlevelop = eqop
+thirdlevelop = relop
+fourthlevelop = toparithop
+fifthlevelop = botarithop
 
 toparithop :: DecafParser DecafBinOp
 toparithop = (addop <|> subop) >>= \o -> fmap (DecafBinArithOp o . morphPos) getPosition
@@ -525,7 +637,7 @@ oeq = opeq >> fmap (DecafEqOp . morphPos) getPosition
 oneq = opneq >> fmap (DecafNEqOp . morphPos) getPosition
 
 condop :: DecafParser DecafBinOp
-condop = (andop <|> orop) >>= \o -> fmap (DecafBinCondOp o . morphPos) getPosition
+condop = (orop <|> andop) >>= \o -> fmap (DecafBinCondOp o . morphPos) getPosition
 
 andop, orop :: DecafParser DecafCondOp
 andop = opand >> fmap (DecafAndOp . morphPos) getPosition
