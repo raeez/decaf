@@ -58,11 +58,11 @@ data LIRInst = LIRRegAssignInst LIRReg LIRExpr
              | LIRStoreInst LIRMemAddr LIROperand
              | LIRLoadInst LIRReg LIRMemAddr
              | LIRTempLoadInst LIRReg LIRMemAddr
+             | LIRTempEnterInst
              | LIRJumpRegInst LIRReg LIROffset
              | LIRJumpLabelInst LIRLabel
              | LIRIfInst LIRRelExpr LIRLabel
              | LIRCallInst LIRProc LIRReg
-             | LIRRetOperInst LIROperand
              | LIRRetInst
              | LIRLabelInst LIRLabel
              deriving (Show, Eq, Typeable)
@@ -187,11 +187,11 @@ instance IRNode LIRInst where
     pp (LIRStoreInst mem operand) = "STORE " ++ pp mem ++ ", " ++ pp operand
     pp (LIRLoadInst reg mem) = "LOAD " ++ pp reg ++ ", " ++ pp mem
     pp (LIRTempLoadInst reg mem) = "TEMPLOAD " ++ pp reg ++ ",  " ++ pp mem
+    pp (LIRTempEnterInst) = "ENTER"
     pp (LIRJumpRegInst reg offset) = "JMP " ++ pp reg ++ "[" ++ show offset ++ "]"
     pp (LIRJumpLabelInst label) = "JMP " ++ pp label
     pp (LIRIfInst expr label) = "IF " ++ pp expr ++ " JMP " ++ pp label
     pp (LIRCallInst proc reg) = "call " ++ pp proc ++ ", " ++ pp reg
-    pp (LIRRetOperInst operand) = "RET " ++ pp operand
     pp LIRRetInst = "RET"
     pp (LIRLabelInst label) = pp label
     treeify (LIRRegAssignInst reg expr) = Node "ASSIGN" [treeify reg, treeify expr]
@@ -203,7 +203,6 @@ instance IRNode LIRInst where
     treeify (LIRJumpLabelInst label) = Node "JMP" [treeify label]
     treeify (LIRIfInst expr label) = Node "IF" [treeify expr, treeify label]
     treeify (LIRCallInst proc reg) = Node "CALL" [treeify proc, treeify reg]
-    treeify (LIRRetOperInst operand) = Node "RET" [treeify operand]
     treeify LIRRetInst = Node "RET" []
     treeify (LIRLabelInst label) = Node (pp label) []
     pos _     = error "LIR has no associated position"

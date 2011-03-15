@@ -73,8 +73,7 @@ withBlock m = Translator (\(Namespace t l s b) ->
 translateProgram ::  SymbolTree -> DecafProgram -> Translator CFGProgram
 translateProgram st program =
     do ns <- getNS
-       declarations <- mapM translateField (fields program)
-       units <- mapM (translateMethod st (concat declarations)) (methods program)
+       units <- mapM (translateMethod st) (methods program)
        eUnits <- mapM ($st) exceptionHandlers
        return $ CFGProgram (LIRLabel $ "START") (units ++ [CFGUnit exceptionHeader (concat eUnits)])
   where
@@ -82,16 +81,15 @@ translateProgram st program =
     translateField (DecafArrField arr _) = translateArrDeclaration st arr
 
 -- | Given a SymbolTree, Translate a DecafMethod into an LIRUnit
-translateMethod :: SymbolTree -> [CFGInst] -> DecafMethod -> Translator CFGUnit
-translateMethod st declarations method =
+translateMethod :: SymbolTree -> DecafMethod -> Translator CFGUnit
+translateMethod st method =
     do ns <- getNS
        (case symLookup (methodID method) (table st) of
         Just (index, MethodRec _ (label, count)) ->
-            do let decs = if methodID method == "main" then declarations else []
-               body <- translateBlock (st) (methodBody method)
+            do body <- translateBlock (st) (methodBody method)
                prologue <- translateMethodPrologue (st' index) method
                postcall <- translateMethodPostcall st method
-               return $ CFGUnit (methodlabel count) (decs
+               return $ CFGUnit (methodlabel count) ([CFGLIRInst LIRTempEnterInst]
                                                   ++ prologue
                                                   ++ body
                                                   ++ postcall)
@@ -188,9 +186,9 @@ translateStm st (DecafForStm ident expr expr' block _) =
             ++ [CFGLIRInst $ LIRLabelInst (endLabel l)])
 
 translateStm st (DecafRetStm (Just expr) _) =
-    do (instructions, operand) <- translateExpr st expr
+    do (instructions, LIRRegOperand reg) <- translateExpr st expr
        return (instructions
-           ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr operand)]
+           ++ [CFGLIRInst $ LIRRegAssignInst reg (LIROperExpr $ LIRRegOperand RAX)]
            ++ [CFGLIRInst $ LIRRetInst])
 
 translateStm st (DecafRetStm Nothing _) =
@@ -379,7 +377,7 @@ translateMethodCall st mc =
        t <- incTemp
        return (precall
             ++ [CFGLIRInst $ LIRCallInst func IP]
-            ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr $ LIRRegOperand $ SREG t)]
+            ++ [CFGLIRInst $ LIRRegAssignInst (SREG t) (LIROperExpr $ LIRRegOperand $ RAX)]
             , LIRRegOperand $ SREG $ t)
   where
     func = case mc of

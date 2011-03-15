@@ -102,7 +102,6 @@ instance Data LIRInst where
  gmapT f (LIRJumpLabelInst a1) = LIRJumpLabelInst (f a1)
  gmapT f (LIRIfInst a1 a2) = LIRIfInst (f a1) (f a2)
  gmapT f (LIRCallInst a1 a2) = LIRCallInst (f a1) (f a2)
- gmapT f (LIRRetOperInst a1) = LIRRetOperInst (f a1)
  gmapT f (LIRRetInst) = LIRRetInst
  gmapT f (LIRLabelInst a1) = LIRLabelInst (f a1)
 
@@ -158,10 +157,6 @@ instance Data LIRInst where
      a'1 <- f a1
      a'2 <- f a2
      return (LIRCallInst a'1 a'2)
- gmapM f (LIRRetOperInst a1) =
-  do 
-     a'1 <- f a1
-     return (LIRRetOperInst a'1)
  gmapM f (LIRRetInst) =
   do 
      return (LIRRetInst)
