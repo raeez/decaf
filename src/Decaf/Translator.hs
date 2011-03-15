@@ -264,6 +264,7 @@ translateExpr st (DecafBinExpr expr binop expr' _) =
     do (lopis, op1) <- translateExpr st expr
        (ropis, op2) <- translateExpr st expr'
        t <- incTemp
+       label <- incLabel
        let s' = SREG t
            s = LIRRegOperand $ s'
            prelude = lopis ++ ropis
@@ -279,8 +280,7 @@ translateExpr st (DecafBinExpr expr binop expr' _) =
                        DecafBinCondOp (DecafAndOp{}) _ -> [CFGExprInst (CFGLogExpr lexp LAND rexp s')]
                        DecafBinCondOp (DecafOrOp{}) _  -> [CFGExprInst (CFGLogExpr lexp LOR rexp s')]
                        otherwise -> [mergeFlatExprs2 (mergeFlatExprs lexp rexp s)
-                                      [CFGLIRInst $ LIRRegAssignInst s' (LIRBinExpr op1 binop' op2)] s]
-                                     --s
+                                      [CFGLIRInst $ LIRRegAssignInst s' (LIRBinExpr op1 (binop' (compareLabel label)) op2)] s]
 
        return (binexpr, s)
   where
@@ -289,18 +289,18 @@ translateExpr st (DecafBinExpr expr binop expr' _) =
     mergeFlatExprs2 (CFGExprInst (CFGFlatExpr insts1 _)) insts2@(x:xs) s = 
         CFGExprInst (CFGFlatExpr (insts1 ++ insts2) s)
 
-    binop' = case binop of
+    binop' l = case binop of
                  DecafBinArithOp (DecafPlusOp _) _ -> LADD
                  DecafBinArithOp (DecafMinOp _) _ -> LSUB
                  DecafBinArithOp (DecafMulOp _) _ -> LMUL
                  DecafBinArithOp (DecafDivOp _) _ -> LDIV
                  DecafBinArithOp (DecafModOp _) _ -> LMOD
-                 DecafBinRelOp (DecafLTOp _) _ -> LIRBinRelOp LLT
-                 DecafBinRelOp (DecafGTOp _) _ -> LIRBinRelOp LGT
-                 DecafBinRelOp (DecafLTEOp _) _ -> LIRBinRelOp LLTE
-                 DecafBinRelOp (DecafGTEOp _) _ -> LIRBinRelOp LGTE
-                 DecafBinEqOp (DecafEqOp _) _ -> LIRBinRelOp LEQ
-                 DecafBinEqOp (DecafNEqOp _) _ -> LIRBinRelOp LNEQ
+                 DecafBinRelOp (DecafLTOp _) _ -> LIRBinRelOp LLT l
+                 DecafBinRelOp (DecafGTOp _) _ -> LIRBinRelOp LGT l
+                 DecafBinRelOp (DecafLTEOp _) _ -> LIRBinRelOp LLTE l
+                 DecafBinRelOp (DecafGTEOp _) _ -> LIRBinRelOp LGTE l
+                 DecafBinEqOp (DecafEqOp _) _ -> LIRBinRelOp LEQ l
+                 DecafBinEqOp (DecafNEqOp _) _ -> LIRBinRelOp LNEQ l
 
 translateExpr st (DecafNotExpr expr _) =
     do t <- incTemp
@@ -415,9 +415,9 @@ translateLocation st loc =
 arrayBoundsCheck :: SymbolTree -> DecafArr -> LIROperand -> Translator [CFGInst]
 arrayBoundsCheck st (DecafArr _ _ len _) indexOperand =
     do l <- incLabel
-       return ([CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LLT (LIRIntOperand $ LIRInt $ readDecafInteger len) (compareLabel l)) (boundsLabel l)]
+       return ([CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LLT (LIRIntOperand $ LIRInt $ readDecafInteger len)) (boundsLabel l)]
            ++ throwException outOfBounds
-           ++ [CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LGT (LIRIntOperand $ LIRInt $ 0) (compareLabel l)) (boundsLabel l)]
+           ++ [CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LGT (LIRIntOperand $ LIRInt $ 0)) (boundsLabel l)]
            ++ throwException outOfBounds
            ++ [CFGLIRInst $ LIRLabelInst $ boundsLabel l])
 

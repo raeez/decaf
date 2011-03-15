@@ -56,7 +56,7 @@ genExpr reg expr =
                                 ++ idiv op2'
                                 ++ mov reg RDX
 
-      _ -> "******************* " ++ intelasm reg ++ " <- " ++ intelasm expr
+      LIRBinExpr op1' (LIRBinRelOp op label) op2' -> "******************* " ++ intelasm reg ++ " <- " ++ intelasm expr
 
 instance ASM SymbolTable where
     intelasm (SymbolTable records _) = "USE64\nsection .data:\n" ++ unlines (indentMap records) ++ "\n"
@@ -133,7 +133,7 @@ instance ASM LIRInst where
     intelasm (LIRJumpLabelInst label) =
         jmp label
 
-    intelasm (LIRIfInst (LIRBinRelExpr op1 binop op2 label') label) =
+    intelasm (LIRIfInst (LIRBinRelExpr op1 binop op2) label) =
         cmp op1 op2 ++ sep
       ++ jtype
       where
@@ -174,7 +174,7 @@ instance ASM LIRExpr where
     intelasm (LIROperExpr operand) = intelasm operand
 
 instance ASM LIRRelExpr where
-    intelasm (LIRBinRelExpr operand relop operand' label) = intelasm operand ++ " " ++ intelasm relop ++ " " ++ intelasm operand' ++ "[" ++ intelasm label ++ "]"
+    intelasm (LIRBinRelExpr operand relop operand') = intelasm operand ++ " " ++ intelasm relop ++ " " ++ intelasm operand'
     intelasm (LIRNotRelExpr operand) = "!" ++ intelasm operand
     intelasm (LIROperRelExpr operand) = intelasm operand
 
@@ -190,7 +190,7 @@ instance ASM LIRBinOp where
     intelasm (LSHL) = "SHL"
     intelasm (LSHR) = "SHR"
     intelasm (LSHRA) = "SHRA"
-    intelasm (LIRBinRelOp relop) = intelasm relop
+    intelasm (LIRBinRelOp relop label) = intelasm relop
 
 instance ASM LIRUnOp where
     intelasm (LNEG) = "-"

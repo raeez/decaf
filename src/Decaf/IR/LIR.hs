@@ -83,7 +83,7 @@ data LIRExpr = LIRBinExpr LIROperand LIRBinOp LIROperand
              | LIROperExpr LIROperand
              deriving (Show, Eq, Typeable)
 
-data LIRRelExpr = LIRBinRelExpr LIROperand LIRRelOp LIROperand LIRLabel
+data LIRRelExpr = LIRBinRelExpr LIROperand LIRRelOp LIROperand
                 | LIRNotRelExpr LIROperand
                 | LIROperRelExpr LIROperand
                 deriving (Show, Eq, Typeable)
@@ -99,7 +99,7 @@ data LIRBinOp = LADD
               | LSHL
               | LSHR
               | LSHRA
-              | LIRBinRelOp LIRRelOp
+              | LIRBinRelOp LIRRelOp LIRLabel
               deriving (Show, Eq, Typeable)
 
 data LIRUnOp = LNEG
@@ -229,10 +229,10 @@ instance IRNode LIRExpr where
     pos _     = error "LIR has no associated position"
 
 instance IRNode LIRRelExpr where
-    pp (LIRBinRelExpr operand relop operand' label) = pp operand ++ " " ++ pp relop ++ " " ++ pp operand'
+    pp (LIRBinRelExpr operand relop operand') = pp operand ++ " " ++ pp relop ++ " " ++ pp operand'
     pp (LIRNotRelExpr operand) = "!" ++ pp operand
     pp (LIROperRelExpr operand) = pp operand
-    treeify (LIRBinRelExpr operand relop operand' label) = Node (pp relop) [treeify operand, treeify operand']
+    treeify (LIRBinRelExpr operand relop operand') = Node (pp relop) [treeify operand, treeify operand']
     treeify (LIRNotRelExpr operand) = Node "!" [treeify operand]
     treeify (LIROperRelExpr operand) = Node (pp operand) []
     pos _     = error "LIR has no associated position"
@@ -249,8 +249,8 @@ instance IRNode LIRBinOp where
     pp (LSHL) = "SHL"
     pp (LSHR) = "SHR"
     pp (LSHRA) = "SHRA"
-    pp (LIRBinRelOp relop) = pp relop
-    treeify (LIRBinRelOp relop) = treeify relop
+    pp (LIRBinRelOp relop label) = pp relop
+    treeify (LIRBinRelOp relop label) = treeify relop
     treeify a = Node (pp a) []
     pos _     = error "LIR has no associated position"
 
