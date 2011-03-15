@@ -1,0 +1,29 @@
+class Program {
+      void main()
+      {
+	 int i,j, id;
+	 int n;
+	 n = 4;
+
+	 for i=1,n {
+	     for j=1,n-i {
+	     	     callout ("printf", " ");
+	     }	     
+	     for j=1,i*2-1 {
+	     	     callout ("printf", "*");
+	     }
+	     callout ("printf", "\n");
+	 }       
+
+	 for id=1,n-1 {
+	     i = n-id;
+	     for j=1,n-i {
+	     	     callout ("printf", " ");
+	     }	     
+	     for j=1,i*2-1 {
+	     	     callout ("printf", "*");
+	     }
+	     callout ("printf", "\n");
+	 }       
+      }
+}

@@ -1,0 +1,18 @@
+class Program {
+      int fac(int n)
+      {	  
+      	  int rrr = 1;
+	  for i=1,n {
+	      rrr = rrr * i;
+	  }
+	  return rrr;
+      }
+
+
+      void main()
+      {
+	  for i=1,10 {
+	      callout ("printf", "%d!=%d", i, fac(i));
+	  }
+      }
+}

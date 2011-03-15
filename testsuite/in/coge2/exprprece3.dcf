@@ -1,0 +1,15 @@
+class Program {
+	  void main() 
+		   {
+		        boolean a;
+				a = true && true || false && false;
+				if (a) {
+				   callout("printf", "true");
+				}
+				else
+				{
+				   callout("printf", "false");
+				}
+		   }
+	  }
+}

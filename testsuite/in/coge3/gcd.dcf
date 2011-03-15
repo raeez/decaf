@@ -1,0 +1,28 @@
+class Program {
+      void main()
+      {
+	 int a,b;
+	 int temp;
+
+	 a = 480;
+	 b= 68680;
+	 
+	 if (a<b) {
+	    temp =a;
+	    a = b;
+	    b = temp;
+	 }
+
+	 callout ("printf", "gcd(%d,%d)=", a, b);
+
+	 for i=1,a {
+
+	     if (b==0) { break; }
+	     temp = a%b;
+	     a = b;
+	     b = temp;
+	 }       
+
+	 callout ("printf", "%d\n", b);
+      }
+}

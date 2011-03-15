@@ -1,0 +1,6 @@
+class Program {
+	  int t() { return 0; }
+	  void main() {
+	  	   t();
+	  }
+}	  
