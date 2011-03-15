@@ -57,12 +57,11 @@ data LIRInst = LIRRegAssignInst LIRReg LIRExpr
              | LIRCondAssignInst LIRReg LIRReg LIROperand    -- ^ Conditional Assign
              | LIRStoreInst LIRMemAddr LIROperand
              | LIRLoadInst LIRReg LIRMemAddr
-             | LIRTempLoadInst LIRReg LIRMemAddr
              | LIRTempEnterInst
              | LIRJumpRegInst LIRReg LIROffset
              | LIRJumpLabelInst LIRLabel
              | LIRIfInst LIRRelExpr LIRLabel
-             | LIRCallInst LIRProc LIRReg
+             | LIRCallInst LIRProc
              | LIRRetInst
              | LIRLabelInst LIRLabel
              deriving (Show, Eq, Typeable)
@@ -186,12 +185,11 @@ instance IRNode LIRInst where
     pp (LIRCondAssignInst reg reg' operand) = pp reg ++ " <- (" ++ pp reg' ++ ") " ++ pp operand
     pp (LIRStoreInst mem operand) = "STORE " ++ pp mem ++ ", " ++ pp operand
     pp (LIRLoadInst reg mem) = "LOAD " ++ pp reg ++ ", " ++ pp mem
-    pp (LIRTempLoadInst reg mem) = "TEMPLOAD " ++ pp reg ++ ",  " ++ pp mem
     pp (LIRTempEnterInst) = "ENTER"
     pp (LIRJumpRegInst reg offset) = "JMP " ++ pp reg ++ "[" ++ show offset ++ "]"
     pp (LIRJumpLabelInst label) = "JMP " ++ pp label
     pp (LIRIfInst expr label) = "IF " ++ pp expr ++ " JMP " ++ pp label
-    pp (LIRCallInst proc reg) = "call " ++ pp proc ++ ", " ++ pp reg
+    pp (LIRCallInst proc) = "call " ++ pp proc
     pp LIRRetInst = "RET"
     pp (LIRLabelInst label) = pp label
     treeify (LIRRegAssignInst reg expr) = Node "ASSIGN" [treeify reg, treeify expr]
@@ -202,7 +200,7 @@ instance IRNode LIRInst where
     treeify (LIRJumpRegInst reg offset) = Node "JMP" [treeify reg, treeify offset]
     treeify (LIRJumpLabelInst label) = Node "JMP" [treeify label]
     treeify (LIRIfInst expr label) = Node "IF" [treeify expr, treeify label]
-    treeify (LIRCallInst proc reg) = Node "CALL" [treeify proc, treeify reg]
+    treeify (LIRCallInst proc) = Node "CALL" [treeify proc]
     treeify LIRRetInst = Node "RET" []
     treeify (LIRLabelInst label) = Node (pp label) []
     pos _     = error "LIR has no associated position"
