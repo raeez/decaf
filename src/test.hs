@@ -15,4 +15,5 @@ main = do source <- readFile "test.c"
           let prog = (translateCFG . convertProgram) lir
               results = allocateRegisters t prog 
           --mapM (putStrLn.(++"\n").show) results
+          (putStrLn . intelasm . content . tree) t
           (putStrLn . intelasm) prog
