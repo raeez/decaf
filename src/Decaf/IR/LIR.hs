@@ -3,34 +3,17 @@ import Numeric
 import Decaf.IR.Class
 import Decaf.Data.Tree
 
+methodLabel :: String -> Int -> String
+methodLabel methodname c = "__func__" ++ show c ++ "__" ++ methodname
 
-data CGInst = CGLIRInst LIRInst
-            | CGIf LIROperand JumpLabel [CGInst] [CGInst]
-            | CGExprInst
-              { cgExpr :: CGExpr
-              }
-              deriving (Show, Eq)
+loopLabel :: Int -> LIRLabel
+loopLabel l = LIRLabel $ "LLOOP" ++ show l
 
-data CGExpr = CGLogExpr CGInst LIRBinOp CGInst LIRReg
-            | CGFlatExpr [CGInst] LIROperand
-              deriving (Show, Eq)
+endLabel :: Int -> LIRLabel
+endLabel l = LIRLabel $ "LEND" ++ show l
 
-type JumpLabel = Int
-
-cgOper (CGExprInst (CGLogExpr _ _ _ r)) = LIRRegOperand r
-cgOper (CGExprInst (CGFlatExpr _ o)) = o
-cgOper _ = error "Tried to mkBranch for improper CGExprInst"
-
-
-data CGProgram = CGProgram
-    { cgProgLabel :: LIRLabel
-    , cgProgUnits :: [CGUnit]
-    } deriving (Show, Eq)
-
-data CGUnit = CGUnit
-    { cgUnitLabel ::LIRLabel
-    , cgUnitInstructions :: [CGInst]
-    } deriving (Show, Eq)
+trueLabel :: Int -> LIRLabel
+trueLabel l = LIRLabel $ "LTRUE" ++ show l
 
 data LIRProgram = LIRProgram
     { lirProgLabel :: LIRLabel
@@ -135,12 +118,12 @@ data LIRInt = LIRInt Int
 
 data LIRLabel = LIRLabel String
               deriving (Show, Eq)
-{-
-instance IRNode CGProgram where
-    pp (CGProgram label units) = pp label ++ ":\n" ++ unlines (map pp units)
-    treeify (CGProgram label units) = Node (pp label) (map treeify units)
+
+instance IRNode LIRProgram where
+    pp (LIRProgram label units) = pp label ++ ":\n" ++ unlines (map pp units)
+    treeify (LIRProgram label units) = Node (pp label) (map treeify units)
     pos _     = error "LIR has no associated position"
--}
+
 instance IRNode LIRUnit where
     pp (LIRUnit label insts) =
         "\n" ++ pp label ++ ":\n" ++ unlines (indentMap insts)

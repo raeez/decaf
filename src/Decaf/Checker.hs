@@ -1,10 +1,10 @@
 module Decaf.Checker where
-import Decaf.IR.Class
-import Decaf.IR.AST
-import Decaf.Parser
-import Decaf.Data.SymbolTable
 import Decaf.Data.Zipper
 import Decaf.Util.Report
+import Decaf.IR.Class
+import Decaf.IR.AST
+import Decaf.IR.SymbolTable
+import Decaf.Parser
 
 -- | A single instance of a semantic error
 data SemanticError = SemanticError

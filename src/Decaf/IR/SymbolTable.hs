@@ -1,4 +1,4 @@
-module Decaf.Data.SymbolTable where
+module Decaf.IR.SymbolTable where
 import Decaf.IR.AST
 import Decaf.Data.Zipper
 import Decaf.Data.Tree

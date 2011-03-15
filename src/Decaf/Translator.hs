@@ -1,9 +1,10 @@
 module Decaf.Translator where
 import Data.Char
-import Decaf.Data.SymbolTable
 import Decaf.IR.Class
 import Decaf.IR.AST
 import Decaf.IR.LIR
+import Decaf.IR.SymbolTable
+import Decaf.IR.ControlFlowGraph
 import Decaf.Data.Tree
 import Decaf.Data.Zipper
 
@@ -76,23 +77,23 @@ withBlock m = Translator (\(Namespace t l s b) ->
 
 --checked
 -- | Given a SymbolTree, Translate a DecafProgram into an LIRProgram
-translateProgram ::  SymbolTree -> DecafProgram -> Translator CGProgram
+translateProgram ::  SymbolTree -> DecafProgram -> Translator CFGProgram
 translateProgram st program =
     do ns <- getNS
-       return $ CGProgram (LIRLabel $ "START") (units ns)
+       return $ CFGProgram (LIRLabel $ "START") (units ns)
   where
     units ns = translate (mapM (translateMethod st) (methods program)) ns
 
 --checked
 -- | Given a SymbolTree, Translate a DecafMethod into an LIRUnit
 -- TODO implement stack wind/unwind
-translateMethod :: SymbolTree -> DecafMethod -> Translator CGUnit
+translateMethod :: SymbolTree -> DecafMethod -> Translator CFGUnit
 translateMethod st method =
     do ns <- getNS
        return (case symLookup (methodID method) (content $ tree st) of
         Just (index, MethodRec _ (label, count)) ->
-            CGUnit (methodlabel count) (translateBody (select (index - firstMethodIndex) st) ns) -- ^ label this method and select the corresponding nested SymbolTree
-        _ -> CGUnit (LIRLabel ("Translator.hs:90 Invalid SymbolTable; could not find '" ++ methodID method ++ "' symbol")) []) -- ^ should not happen
+            CFGUnit (methodlabel count) (translateBody (select (index - firstMethodIndex) st) ns) -- ^ label this method and select the corresponding nested SymbolTree
+        _ -> CFGUnit (LIRLabel ("Translator.hs:90 Invalid SymbolTable; could not find '" ++ methodID method ++ "' symbol")) []) -- ^ should not happen
   where
     methodlabel c = if methodname == "main"
                       then LIRLabel (methodname)
@@ -107,7 +108,7 @@ translateMethod st method =
 
 --checked
 -- | Given a SymbolTree, Translate a single DecafStatement into [LIRInst]
-translateStm :: SymbolTree -> DecafStm -> Translator [CGInst]
+translateStm :: SymbolTree -> DecafStm -> Translator [CFGInst]
 translateStm st (DecafAssignStm loc op expr _) =
     do (instructions1, LIRRegOperand reg) <- translateLocation st loc
        (instructions2, operand) <- translateExpr st expr
@@ -115,19 +116,19 @@ translateStm st (DecafAssignStm loc op expr _) =
        return (instructions1
            ++ instructions2
            ++ instructions3
-           ++ [CGLIRInst $ LIRRegAssignInst reg (LIROperExpr operand2)])
+           ++ [CFGLIRInst $ LIRRegAssignInst reg (LIROperExpr operand2)])
   where
     expr' reg oper = case op of
                          DecafEq _ -> return ([], oper)
                          DecafPlusEq _ -> do t <- incTemp
                                              let bexpr = LIRBinExpr (LIRRegOperand reg) LADD oper
                                                  s = SREG (show t)
-                                             return ([CGLIRInst $ LIRRegAssignInst s bexpr], LIRRegOperand $ s)
+                                             return ([CFGLIRInst $ LIRRegAssignInst s bexpr], LIRRegOperand $ s)
 
                          DecafMinusEq _ -> do t <- incTemp
                                               let bexpr = LIRBinExpr (LIRRegOperand reg) LSUB oper
                                                   s = SREG (show t)
-                                              return ([CGLIRInst $ LIRRegAssignInst s bexpr], LIRRegOperand $ s)
+                                              return ([CFGLIRInst $ LIRRegAssignInst s bexpr], LIRRegOperand $ s)
 
 --checked below
 -- | Given a SymbolTree, Translate a single DecafMethodStm into [LIRInst]
@@ -145,12 +146,12 @@ translateStm st (DecafIfStm expr block melse _) =
                        Just b -> translateBlock st b
                        Nothing -> return []
         return (instructions
-            ++ [CGIf relexpr l -- numbering based on registers so that short-circuit evaluation doesn't clash (SCE takes new if label from expr number)
+            ++ [CFGIf relexpr l -- numbering based on registers so that short-circuit evaluation doesn't clash (SCE takes new if label from expr number)
                 trueblock elseblock])
 
-{-                         (trueblock++[CGLIRInst $ LIRLabelInst (endLabel l)]) 
-                         (elseblock++[CGLIRInst (LIRJumpLabelInst (endLabel l)),
-                                                CGLIRInst (LIRLabelInst (trueLabel l))])]) -}
+{-                         (trueblock++[CFGLIRInst $ LIRLabelInst (endLabel l)]) 
+                         (elseblock++[CFGLIRInst (LIRJumpLabelInst (endLabel l)),
+                                                CFGLIRInst (LIRLabelInst (trueLabel l))])]) -}
 
 {-translateStm st (DecafIfStm expr block Nothing _) =
     do ns <- getNS
@@ -176,37 +177,37 @@ translateStm st (DecafForStm ident expr expr' block _) =
                             Just (_, (VarRec _ label)) -> show label
                             Nothing -> error "Translator.hs:151 Invalid SymbolTable; could not find a valid symbol for'" ++ show ident ++ "'")
         return (instructions
-            ++ [CGLIRInst $ LIRRegAssignInst (SREG ivarlabel) (LIROperExpr operand)]
-            ++ [CGLIRInst $ LIRLabelInst (loopLabel l)]
+            ++ [CFGLIRInst $ LIRRegAssignInst (SREG ivarlabel) (LIROperExpr operand)]
+            ++ [CFGLIRInst $ LIRLabelInst (loopLabel l)]
             ++ instructions2
-            ++ [CGLIRInst $ LIRIfInst relexpr (trueLabel l)]
-            ++ [CGLIRInst $ LIRJumpLabelInst (endLabel l)]
-            ++ [CGLIRInst $ LIRLabelInst (trueLabel l)]
+            ++ [CFGLIRInst $ LIRIfInst relexpr (trueLabel l)]
+            ++ [CFGLIRInst $ LIRJumpLabelInst (endLabel l)]
+            ++ [CFGLIRInst $ LIRLabelInst (trueLabel l)]
             ++ forblock
-            ++ [CGLIRInst $ LIRJumpLabelInst (loopLabel l)]
-            ++ [CGLIRInst $ LIRLabelInst (endLabel l)])
+            ++ [CFGLIRInst $ LIRJumpLabelInst (loopLabel l)]
+            ++ [CFGLIRInst $ LIRLabelInst (endLabel l)])
 
 --checked
 translateStm st (DecafRetStm (Just expr) _) =
     do (instructions, operand) <- translateExpr st expr
        return (instructions
-           ++ [CGLIRInst $ LIRRetOperInst operand])
+           ++ [CFGLIRInst $ LIRRetOperInst operand])
 
 translateStm st (DecafRetStm Nothing _) =
-    return [CGLIRInst $ LIRRetInst]
+    return [CFGLIRInst $ LIRRetInst]
 
 translateStm st (DecafBreakStm _) =
     do l <- getScope
-       return [CGLIRInst $ LIRJumpLabelInst (endLabel l)]
+       return [CFGLIRInst $ LIRJumpLabelInst (endLabel l)]
 
 translateStm st (DecafContStm _) =
     do l <- getScope
-       return [CGLIRInst $ LIRJumpLabelInst (loopLabel l)]
+       return [CFGLIRInst $ LIRJumpLabelInst (loopLabel l)]
 
 translateStm st (DecafBlockStm block _) =
     translateBlock st block
 
-translateBlock :: SymbolTree -> DecafBlock -> Translator [CGInst]
+translateBlock :: SymbolTree -> DecafBlock -> Translator [CFGInst]
 translateBlock st (DecafBlock _ [] _) = return []
 translateBlock st block =
     withBlock (do b <- getBlock
@@ -216,28 +217,28 @@ translateBlock st block =
     translateBlockBody st' ns = concat $ translate (mapM (translateStm st') (blockStms block)) ns
 
 --checked
-translateRelExpr :: SymbolTree -> DecafExpr -> Namespace -> Translator ([CGInst], LIRRelExpr)
+translateRelExpr :: SymbolTree -> DecafExpr -> Namespace -> Translator ([CFGInst], LIRRelExpr)
 translateRelExpr st expr ns = 
     case translate (translateExpr st expr) ns of
       ([], oper@(LIRRegOperand {})) -> return ([], LIROperRelExpr oper)
       ([], oper@(LIRIntOperand {})) -> return ([], LIROperRelExpr oper)
       (instructions, oper) -> case last instructions of
-                                CGLIRInst (LIRRegAssignInst s (LIRBinExpr operand (LIRBinRelOp o) operand')) ->
+                                CFGLIRInst (LIRRegAssignInst s (LIRBinExpr operand (LIRBinRelOp o) operand')) ->
                                     return (instructions, LIROperRelExpr oper)
                                                             
-                                CGLIRInst (LIRRegAssignInst s (LIRUnExpr LNOT operand)) ->
+                                CFGLIRInst (LIRRegAssignInst s (LIRUnExpr LNOT operand)) ->
                                     return (instructions, LIROperRelExpr oper)
 
-                                CGLIRInst (LIRRegAssignInst s (LIROperExpr operand)) ->
+                                CFGLIRInst (LIRRegAssignInst s (LIROperExpr operand)) ->
                                     return (instructions, LIROperRelExpr oper)
-                                CGExprInst {} -> 
+                                CFGExprInst {} -> 
                                     return (instructions, LIROperRelExpr oper)
                                 
 
-                                _ -> return ([CGLIRInst $ LIRLabelInst $ LIRLabel $ "Translator.hs:208 Invalid Expression tree; not of type relExpr"], LIROperRelExpr $ LIRRegOperand RAX)
+                                _ -> return ([CFGLIRInst $ LIRLabelInst $ LIRLabel $ "Translator.hs:208 Invalid Expression tree; not of type relExpr"], LIROperRelExpr $ LIRRegOperand RAX)
 
 --checked
-translateExpr :: SymbolTree -> DecafExpr -> Translator ([CGInst], LIROperand)
+translateExpr :: SymbolTree -> DecafExpr -> Translator ([CFGInst], LIROperand)
 translateExpr st (DecafLocExpr loc _) =
     translateLocation st loc
 
@@ -257,30 +258,30 @@ translateExpr st (DecafBinExpr expr binop expr' _) =
            s = LIRRegOperand $ s'
            prelude = lopis ++ ropis
            lexp = case lopis of
-                    [l@(CGExprInst {})] -> l
-                    l@(x:xs) -> CGExprInst (CGFlatExpr l op1)
-                    [] -> CGExprInst (CGFlatExpr [] op1)
+                    [l@(CFGExprInst {})] -> l
+                    l@(x:xs) -> CFGExprInst (CFGFlatExpr l op1)
+                    [] -> CFGExprInst (CFGFlatExpr [] op1)
            rexp = case ropis of
-                    [l@(CGExprInst {})] -> l
-                    l@(x:xs) -> CGExprInst (CGFlatExpr l op2)
-                    [] -> CGExprInst (CGFlatExpr [] op2)
+                    [l@(CFGExprInst {})] -> l
+                    l@(x:xs) -> CFGExprInst (CFGFlatExpr l op2)
+                    [] -> CFGExprInst (CFGFlatExpr [] op2)
            binexpr = case binop of
-                       DecafBinCondOp (DecafAndOp{}) _ -> [CGExprInst (CGLogExpr lexp LAND rexp s')]
-                       DecafBinCondOp (DecafOrOp{}) _  -> [CGExprInst (CGLogExpr lexp LOR rexp s')]
+                       DecafBinCondOp (DecafAndOp{}) _ -> [CFGExprInst (CFGLogExpr lexp LAND rexp s')]
+                       DecafBinCondOp (DecafOrOp{}) _  -> [CFGExprInst (CFGLogExpr lexp LOR rexp s')]
                        otherwise -> [mergeFlatExprs2 (mergeFlatExprs lexp rexp s)
-                                      [CGLIRInst $ LIRRegAssignInst s' (LIRBinExpr op1 binop' op2)] s]
+                                      [CFGLIRInst $ LIRRegAssignInst s' (LIRBinExpr op1 binop' op2)] s]
                                      --s
 
        return (binexpr, s)
   where
-    mergeFlatExprs (CGExprInst (CGFlatExpr insts1 _)) (CGExprInst (CGFlatExpr insts2 _ )) s = 
-        CGExprInst (CGFlatExpr (insts1 ++ insts2) s)
-    mergeFlatExprs2 (CGExprInst (CGFlatExpr insts1 _)) insts2@(x:xs) s = 
-        CGExprInst (CGFlatExpr (insts1 ++ insts2) s)
-{-    mergeFlatExprs insts1@(x:xs) [CGExprInst (CGFlatExpr insts2)] s = 
-        CGExprInst $ CGFlatExpr (insts1 ++ insts2) s
+    mergeFlatExprs (CFGExprInst (CFGFlatExpr insts1 _)) (CFGExprInst (CFGFlatExpr insts2 _ )) s = 
+        CFGExprInst (CFGFlatExpr (insts1 ++ insts2) s)
+    mergeFlatExprs2 (CFGExprInst (CFGFlatExpr insts1 _)) insts2@(x:xs) s = 
+        CFGExprInst (CFGFlatExpr (insts1 ++ insts2) s)
+{-    mergeFlatExprs insts1@(x:xs) [CFGExprInst (CFGFlatExpr insts2)] s = 
+        CFGExprInst $ CFGFlatExpr (insts1 ++ insts2) s
     mergeFlatExprs insts1@(x:xs) insts2@(y:ys) s = 
-        CGExprInst $ CGFlatExpr (insts1 ++ insts2) s
+        CFGExprInst $ CFGFlatExpr (insts1 ++ insts2) s
 -}    
         
     binop' = case binop of
@@ -303,25 +304,25 @@ translateExpr st (DecafNotExpr expr _) =
        (instructions, operand) <- translateExpr st expr
        let unexpr = LIRUnExpr LNOT operand
            s = SREG (show t)
-       return (instructions ++ [CGLIRInst $ LIRRegAssignInst s unexpr], LIRRegOperand s)
+       return (instructions ++ [CFGLIRInst $ LIRRegAssignInst s unexpr], LIRRegOperand s)
 
 translateExpr st (DecafMinExpr expr _) =
     do t <- incTemp
        (instructions, operand) <- translateExpr st expr
        let unexpr = LIRUnExpr LNEG operand
            s = SREG (show t)
-       return (instructions ++ [CGLIRInst $ LIRRegAssignInst s unexpr], LIRRegOperand s)
+       return (instructions ++ [CFGLIRInst $ LIRRegAssignInst s unexpr], LIRRegOperand s)
 
 translateExpr st (DecafParenExpr expr _) =
     do t <- incTemp
        (instructions, operand) <- translateExpr st expr
        let o = LIROperExpr operand 
            s = SREG (show t)
-       return (instructions ++ [CGLIRInst $ LIRRegAssignInst s o], LIRRegOperand s)
+       return (instructions ++ [CFGLIRInst $ LIRRegAssignInst s o], LIRRegOperand s)
 
 --checked
 translateExpr _ _ =
-    return ([CGLIRInst $ LIRLabelInst (LIRLabel $ "Translator.hs:212 Invalid expression tree")], LIRIntOperand $ LIRInt 0)
+    return ([CFGLIRInst $ LIRLabelInst (LIRLabel $ "Translator.hs:212 Invalid expression tree")], LIRIntOperand $ LIRInt 0)
 
 --checked
 translateLiteral :: SymbolTree -> DecafLiteral -> Translator LIROperand
@@ -330,10 +331,10 @@ translateLiteral _ (DecafBoolLit b _) = return $ LIRIntOperand $ LIRInt (if b th
 translateLiteral _ (DecafCharLit c _) = return $ LIRIntOperand $ LIRInt (ord c)
 
 --checked
-translateMethodCall :: SymbolTree -> DecafMethodCall -> Translator ([CGInst], LIROperand)
+translateMethodCall :: SymbolTree -> DecafMethodCall -> Translator ([CFGInst], LIROperand)
 translateMethodCall st meth =
     do t <- incTemp
-       return ([CGLIRInst $ LIRCallAssignInst (SREG $ show t) func (SREG "ip")], LIRRegOperand $ SREG $ show t)
+       return ([CFGLIRInst $ LIRCallAssignInst (SREG $ show t) func (SREG "ip")], LIRRegOperand $ SREG $ show t)
   where
     func = case meth of
                (DecafPureMethodCall {}) -> LIRProcLabel (case globalSymLookup (methodCallID meth) st of
@@ -342,13 +343,13 @@ translateMethodCall st meth =
                (DecafMethodCallout {})-> LIRProcLabel (methodCalloutID meth)
 
 -- TODO add runtime bounds check on array
-translateLocation :: SymbolTree -> DecafLoc -> Translator ([CGInst], LIROperand)
+translateLocation :: SymbolTree -> DecafLoc -> Translator ([CFGInst], LIROperand)
 translateLocation st loc =
     (case globalSymLookup (ident loc) st of
         Just (VarRec _ sr) -> return ([], LIRRegOperand $ SREG (show sr))
         Just (ArrayRec arr o) -> incTemp >>= \t -> (do (prep, index) <- translateExpr st (arrLocExpr loc)
-                                                       return (prep ++ [CGLIRInst $ LIRLoadInst (SREG $ show t) (memaddr arr o index)], LIRRegOperand (SREG $ show t))) -- ^ replace 0 with the array's real index
-        _ -> return ([CGLIRInst $ LIRLabelInst (LIRLabel $ "Translator.hs:235 Invalid SymbolTable; could not find '" ++ ident loc ++ "' symbol in\n" ++ show st)], LIRRegOperand $ SREG "--"))
+                                                       return (prep ++ [CFGLIRInst $ LIRLoadInst (SREG $ show t) (memaddr arr o index)], LIRRegOperand (SREG $ show t))) -- ^ replace 0 with the array's real index
+        _ -> return ([CFGLIRInst $ LIRLabelInst (LIRLabel $ "Translator.hs:235 Invalid SymbolTable; could not find '" ++ ident loc ++ "' symbol in\n" ++ show st)], LIRRegOperand $ SREG "--"))
   where
     memaddr (DecafArr ty _ len _) offset (LIRIntOperand (LIRInt index)) =
         let arrlen = readDecafInteger len
@@ -357,15 +358,3 @@ translateLocation st loc =
                         DecafBoolean -> 8
                         _ -> error "Translate.hs:217 Array cannot have type void")
         in LIRRegOffMemAddr (SREG "gp") (LIRInt (offset + size*index)) (LIRInt size) -- ^ TODO offset must include previous arrays length * size
-
-methodLabel :: String -> Int -> String
-methodLabel methodname c = "__func__" ++ show c ++ "__" ++ methodname
-
-loopLabel :: Int -> LIRLabel
-loopLabel l = LIRLabel $ "LLOOP" ++ show l
-
-endLabel :: Int -> LIRLabel
-endLabel l = LIRLabel $ "LEND" ++ show l
-
-trueLabel :: Int -> LIRLabel
-trueLabel l = LIRLabel $ "LTRUE" ++ show l

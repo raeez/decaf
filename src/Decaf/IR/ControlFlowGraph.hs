@@ -1,9 +1,8 @@
-module Decaf.IR.ControlGraph where
-import Decaf.Data.SymbolTable
+module Decaf.IR.ControlFlowGraph where
 import Decaf.IR.Class
 import Decaf.IR.AST
 import Decaf.IR.LIR
-import Decaf.Translator
+import Decaf.IR.SymbolTable
 {- fix 
 
 correct counting in symbol table
@@ -11,6 +10,31 @@ return highest count
 runtime checks
 
 -}
+
+data CFGProgram = CFGProgram
+    { cgProgLabel :: LIRLabel
+    , cgProgUnits :: [CFGUnit]
+    } deriving (Show, Eq)
+
+data CFGUnit = CFGUnit
+    { cgUnitLabel ::LIRLabel
+    , cgUnitInstructions :: [CFGInst]
+    } deriving (Show, Eq)
+
+data CFGInst = CFGLIRInst LIRInst
+            | CFGIf LIROperand JumpLabel [CFGInst] [CFGInst]
+            | CFGExprInst { cgExpr :: CFGExpr }
+              deriving (Show, Eq)
+
+data CFGExpr = CFGLogExpr CFGInst LIRBinOp CFGInst LIRReg
+            | CFGFlatExpr [CFGInst] LIROperand
+              deriving (Show, Eq)
+
+type JumpLabel = Int
+
+cgOper (CFGExprInst (CFGLogExpr _ _ _ r)) = LIRRegOperand r
+cgOper (CFGExprInst (CFGFlatExpr _ o)) = o
+cgOper _ = error "Tried to mkBranch for improper CFGExprInst"
 
 
 data ControlNode = BasicBlock [LIRInst]
@@ -56,20 +80,20 @@ convertLIRInsts insts next = (uncurry (ControlNode "")) $ convHelp [] insts
 -}
 
 -- CHANGE FROM LIRInst to new itermediate ' type
-convertLIRInsts :: [CGInst] -> ControlPath
+convertLIRInsts :: [CFGInst] -> ControlPath
 convertLIRInsts insts = convHelp [] [] insts
   where
-    convHelp :: ControlPath -> [LIRInst] -> [CGInst] -> ControlPath
+    convHelp :: ControlPath -> [LIRInst] -> [CFGInst] -> ControlPath
     convHelp nodes body [] = nodes ++ [mkBasicBlock body]
     convHelp nodes body (inst:is) =
         case inst of
-          CGLIRInst inst@(LIRCallInst{}) -> convHelp (nodes ++ (pushBlock' inst)) [] is -- fix this?
-          CGLIRInst inst@(LIRCallAssignInst{}) -> convHelp (nodes ++ (pushBlock' inst)) [] is -- fix this?
-          CGLIRInst inst@LIRRetInst -> convHelp (nodes ++ (pushBlock' inst)) [] is
-          CGIf reg label block eblock ->
+          CFGLIRInst inst@(LIRCallInst{}) -> convHelp (nodes ++ (pushBlock' inst)) [] is -- fix this?
+          CFGLIRInst inst@(LIRCallAssignInst{}) -> convHelp (nodes ++ (pushBlock' inst)) [] is -- fix this?
+          CFGLIRInst inst@LIRRetInst -> convHelp (nodes ++ (pushBlock' inst)) [] is
+          CFGIf reg label block eblock ->
               convHelp (nodes ++ pushBlock ++ [mkBranch reg label (convHelp [] [] block) (convHelp [] [] eblock)]) [] is
-          CGExprInst (CGLogExpr expr1 op expr2 reg) -> -- reg is used for labeling new branches
-            let contEvaling   = (convHelp [] [] ([expr2] ++ [CGLIRInst $ LIRRegAssignInst reg (LIROperExpr $ (cgOper expr2))]))
+          CFGExprInst (CFGLogExpr expr1 op expr2 reg) -> -- reg is used for labeling new branches
+            let contEvaling   = (convHelp [] [] ([expr2] ++ [CFGLIRInst $ LIRRegAssignInst reg (LIROperExpr $ (cgOper expr2))]))
                 retValBlock b = [mkBasicBlock [LIRRegAssignInst reg (LIROperExpr (LIRIntOperand (LIRInt b)))]]
             in
               case op of
@@ -85,10 +109,10 @@ convertLIRInsts insts = convHelp [] [] insts
                                               (retValBlock 1)
                                               contEvaling]) [] is
 
-          CGExprInst (CGFlatExpr insts _) ->
+          CFGExprInst (CFGFlatExpr insts _) ->
               convHelp nodes body (insts ++is)
 
-          CGLIRInst x -> convHelp nodes (body++[x]) is
+          CFGLIRInst x -> convHelp nodes (body++[x]) is
 
 
          where 
@@ -96,21 +120,21 @@ convertLIRInsts insts = convHelp [] [] insts
            pushBlock       =  [mkBasicBlock body]
 
 
-pullOutLIR (CGLIRInst x) = x
+pullOutLIR (CFGLIRInst x) = x
 
 symToInt :: LIRReg -> Int
 symToInt (SREG s) = read s :: Int
 symToInt  reg = error "attempted to label if using non-symbolic register"
 --symToInt (LIRIntOperand x) = error "attempted to label if using int literal"
 
-convertProgram :: CGProgram -> ControlGraph
+convertProgram :: CFGProgram -> ControlGraph
 convertProgram prog =
     ControlGraph (map (convertLIRInsts.g) (cgProgUnits prog))
-  where g (CGUnit lab insts) = (CGLIRInst $ LIRLabelInst lab) : insts
+  where g (CFGUnit lab insts) = (CFGLIRInst $ LIRLabelInst lab) : insts
 
 
-translateCG :: ControlGraph -> LIRProgram
-translateCG g = LIRProgram (LIRLabel "prog") $ map ((LIRUnit (LIRLabel "")).concatMap h) (cgNodes g)
+translateCFG :: ControlGraph -> LIRProgram
+translateCFG g = LIRProgram (LIRLabel "prog") $ map ((LIRUnit (LIRLabel "")).concatMap h) (cgNodes g)
   where 
     h :: ControlNode -> [LIRInst]
     h (BasicBlock insts) = insts
