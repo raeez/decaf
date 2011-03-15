@@ -1,7 +1,11 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+
 module Decaf.IR.LIR where
 import Numeric
 import Decaf.IR.Class
 import Decaf.Data.Tree
+import Data.Typeable
+
 
 missingRetMessage :: String
 missingRetMessage = "EXCEPTION: ARRAY OUT OF BOUNDS"
@@ -41,12 +45,12 @@ trueLabel l = LIRLabel $ "LTRUE" ++ show l
 data LIRProgram = LIRProgram
     { lirProgLabel :: LIRLabel
     , lirProgUnits :: [LIRUnit]
-    } deriving (Show, Eq)
+    } deriving (Show, Eq, Typeable)
 
 data LIRUnit = LIRUnit
     { lirUnitLabel ::LIRLabel
     , lirUnitInstructions :: [LIRInst]
-    } deriving (Show, Eq)
+    } deriving (Show, Eq, Typeable)
 
 data LIRInst = LIRRegAssignInst LIRReg LIRExpr
              | LIRRegOffAssignInst LIRReg LIROffset LIRSize LIROperand  -- ^ Element-wise Assign
@@ -62,22 +66,22 @@ data LIRInst = LIRRegAssignInst LIRReg LIRExpr
              | LIRRetOperInst LIROperand
              | LIRRetInst
              | LIRLabelInst LIRLabel
-             deriving (Show, Eq)
+             deriving (Show, Eq, Typeable)
 
 
 data LIRProc = LIRProcLabel String
              | LIRProcReg LIRReg
-             deriving (Show, Eq)
+             deriving (Show, Eq, Typeable)
 
 data LIRExpr = LIRBinExpr LIROperand LIRBinOp LIROperand
              | LIRUnExpr LIRUnOp LIROperand
              | LIROperExpr LIROperand
-             deriving (Show, Eq)
+             deriving (Show, Eq, Typeable)
 
 data LIRRelExpr = LIRBinRelExpr LIROperand LIRRelOp LIROperand
                 | LIRNotRelExpr LIROperand
                 | LIROperRelExpr LIROperand
-                deriving (Show, Eq)
+                deriving (Show, Eq, Typeable)
 
 data LIRBinOp = LADD
               | LSUB
@@ -91,11 +95,11 @@ data LIRBinOp = LADD
               | LSHR
               | LSHRA
               | LIRBinRelOp LIRRelOp
-              deriving (Show, Eq)
+              deriving (Show, Eq, Typeable)
 
 data LIRUnOp = LNEG
              | LNOT
-             deriving (Show, Eq)
+             deriving (Show, Eq, Typeable)
 
 data LIRRelOp = LEQ
               | LNEQ
@@ -103,17 +107,17 @@ data LIRRelOp = LEQ
               | LGTE
               | LLT
               | LLTE
-              deriving (Show, Eq)
+              deriving (Show, Eq, Typeable)
 
 data LIRMemAddr = LIRRegMemAddr LIRReg LIRSize
                 | LIRRegPlusMemAddr LIRReg LIRReg LIRSize
                 | LIRRegOffMemAddr LIRReg LIROffset LIRSize
-                deriving (Show, Eq)
+                deriving (Show, Eq, Typeable)
 
 data LIROperand = LIRRegOperand LIRReg
                 | LIRIntOperand LIRInt
                 | LIRStringOperand String
-                deriving (Show, Eq)
+                deriving (Show, Eq, Typeable)
 
 data LIRReg = RAX
             | RBX
@@ -132,7 +136,7 @@ data LIRReg = RAX
             | R14
             | R15
             | SREG String
-            deriving (Show, Eq)
+            deriving (Show, Eq, Typeable)
 
 type LIRSize = LIRInt
 
@@ -151,10 +155,10 @@ qword = LIRInt 8
 type LIROffset = LIRInt
 
 data LIRInt = LIRInt Int
-            deriving (Show, Eq)
+            deriving (Show, Eq, Typeable)
 
 data LIRLabel = LIRLabel String
-              deriving (Show, Eq)
+              deriving (Show, Eq, Typeable)
 
 instance IRNode LIRProgram where
     pp (LIRProgram label units) = pp label ++ ":\n" ++ unlines (map pp units)
