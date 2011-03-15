@@ -5,12 +5,21 @@ import Decaf.Data.Tree
 
 
 data CGInst = CGLIRInst LIRInst
-            | CGIf LIRReg [CGInst] (Maybe [CGInst]) JumpLabel
-            | CGExprInst CGExpr LIRReg
+            | CGIf LIROperand JumpLabel [CGInst] [CGInst]
+            | CGExprInst
+              { cgExpr :: CGExpr
+              }
+              deriving (Show, Eq)
 
-data CGExpr = CGLogExpr CGExprInst LIRBinOp CGExprInst
-            | CGFlatExpr [LIRInst]
+data CGExpr = CGLogExpr CGInst LIRBinOp CGInst LIRReg
+            | CGFlatExpr [CGInst] LIROperand
+              deriving (Show, Eq)
+
 type JumpLabel = Int
+
+cgOper (CGExprInst (CGLogExpr _ _ _ r)) = LIRRegOperand r
+cgOper (CGExprInst (CGFlatExpr _ o)) = o
+cgOper _ = error "Tried to mkBranch for improper CGExprInst"
 
 
 data CGProgram = CGProgram
@@ -21,6 +30,11 @@ data CGProgram = CGProgram
 data CGUnit = CGUnit
     { unitLabel ::LIRLabel
     , unitInstructions :: [CGInst]
+    } deriving (Show, Eq)
+
+data LIRUnit = LIRUnit
+    { lirunitLabel ::LIRLabel
+    , lirunitInstructions :: [LIRInst]
     } deriving (Show, Eq)
 
 data LIRInst = LIRRegAssignInst LIRReg LIRExpr
@@ -116,12 +130,12 @@ data LIRInt = LIRInt Int
 
 data LIRLabel = LIRLabel String
               deriving (Show, Eq)
-
-instance IRNode LIRProgram where
-    pp (LIRProgram label units) = pp label ++ ":\n" ++ unlines (map pp units)
-    treeify (LIRProgram label units) = Node (pp label) (map treeify units)
+{-
+instance IRNode CGProgram where
+    pp (CGProgram label units) = pp label ++ ":\n" ++ unlines (map pp units)
+    treeify (CGProgram label units) = Node (pp label) (map treeify units)
     pos _     = error "LIR has no associated position"
-
+-}
 instance IRNode LIRUnit where
     pp (LIRUnit label insts) =
         "\n" ++ pp label ++ ":\n" ++ unlines (indentMap insts)
@@ -133,6 +147,8 @@ instance IRNode LIRUnit where
                         in (repr:indentMap xs)
     treeify (LIRUnit label insts) = Node ("LIRUnit: " ++ pp label) (map treeify insts)
     pos _     = error "LIR has no associated position"
+
+
 
 instance IRNode LIRInst where
     pp (LIRRegAssignInst reg expr) = pp reg ++ " <- " ++ pp expr
@@ -217,6 +233,7 @@ instance IRNode LIRRelOp where
     pp (LGTE) = ">="
     pp (LLT) = "<"
     pp (LLTE) = "<="
+    pp x = show x
     treeify a = Node (pp a) []
     pos _     = error "LIR has no associated position"
 

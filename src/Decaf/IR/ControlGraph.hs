@@ -15,10 +15,10 @@ runtime checks
 
 data ControlNode = BasicBlock [LIRInst]
                  | Branch
-                   { condReg :: LIRReg
+                   { condReg :: LIROperand
+                   , branchNumber :: Int
                    , trueBlock  :: ControlPath
                    , falseBlock :: ControlPath
-                   , branchNum :: Int
                    }
 
 type ControlPath = [ControlNode]
@@ -26,8 +26,11 @@ type ControlPath = [ControlNode]
 mkBasicBlock :: [LIRInst] -> ControlNode
 mkBasicBlock = BasicBlock
 
-mkBranch :: ControlPath -> ControlPath -> ControlNode
-mkBranch = Branch
+mkBranch :: LIROperand -> Int -> ControlPath -> ControlPath -> ControlNode
+mkBranch op num b1 b2 = 
+    Branch op num ((BasicBlock [LIRLabelInst (trueLabel num)]):b1++[BasicBlock [LIRLabelInst $ endLabel num]])
+               (b2 ++ [BasicBlock [LIRJumpLabelInst $ endLabel num]]) 
+
 
 data ControlGraph = ControlGraph {cgNodes :: [ControlPath]} -- a list of nodes for each method
 
@@ -56,54 +59,63 @@ convertLIRInsts insts next = (uncurry (ControlNode "")) $ convHelp [] insts
 convertLIRInsts :: [CGInst] -> ControlPath
 convertLIRInsts insts = convHelp [] [] insts
   where
-    convHelp :: ControlPath -> [LIRInst] -> [LIRInst] -> ControlPath
+    convHelp :: ControlPath -> [LIRInst] -> [CGInst] -> ControlPath
     convHelp nodes body [] = nodes ++ [mkBasicBlock body]
     convHelp nodes body (inst:is) =
         case inst of
-          CGLIRInst (LIRCallInst {}) -> convHelp (nodes ++ [mkBasicBlock (body++inst)]) [] is -- fix this
-          CGLIRInst LIRRetInst -> convHelp (nodes++ [mkBasicBlock (body++inst)]) [] is
-          CGIf reg block melse num ->
-              convHelp (nodes ++ [mkBranch reg (convHelp [] [] block) eb num]) [] is
-                where eb = case melse of 
-                             Just block -> convHelp [] [] block
-                             Nothing -> []
-          CGExprInst (CGLogExpr expr1 op expr2) reg ->
+          CGLIRInst inst@(LIRCallInst{}) -> convHelp (nodes ++ (pushBlock' inst)) [] is -- fix this?
+          CGLIRInst inst@(LIRCallAssignInst{}) -> convHelp (nodes ++ (pushBlock' inst)) [] is -- fix this?
+          CGLIRInst inst@LIRRetInst -> convHelp (nodes ++ (pushBlock' inst)) [] is
+          CGIf reg label block eblock ->
+              convHelp (nodes ++ pushBlock ++ [mkBranch reg label (convHelp [] [] block) (convHelp [] [] eblock)]) [] is
+          CGExprInst (CGLogExpr expr1 op expr2 reg) -> -- reg is used for labeling new branches
+            let contEvaling   = (convHelp [] [] ([expr2] ++ [CGLIRInst $ LIRRegAssignInst reg (LIROperExpr $ (cgOper expr2))]))
+                retValBlock b = [mkBasicBlock [LIRRegAssignInst reg (LIROperExpr (LIRIntOperand (LIRInt b)))]]
+            in
               case op of
 -- add code to fill in final value in reg
-                LAND -> convHelp (nodes++(convHelp [] [] [expr1])
-                                  ++[mkBranch (exprReg expr1) 
+                LAND -> convHelp (nodes ++ pushBlock ++ (convHelp [] [] [expr1])
+                                  ++[mkBranch (cgOper expr1) 
+                                              (symToInt reg)
                                               contEvaling
-                                              retValBlock 0
-                                              reg]) [] is
-                LOR -> convHelp (nodes++(convHelp [] [] [expr1])
-                                  ++[mkBranch (exprReg expr1) 
-                                              retValBlock 1
-                                              contEvaling 
-                                              reg]) [] is
+                                              (retValBlock 0)]) [] is
+                LOR -> convHelp (nodes ++ pushBlock ++ (convHelp [] [] [expr1])
+                                  ++[mkBranch (cgOper expr1) 
+                                              (symToInt reg)
+                                              (retValBlock 1)
+                                              contEvaling]) [] is
 
-            where contEvaling   = (convHelp [] [] [expr2]) ++ 
-                    (LIRRegAssignInst reg (LIROperExpr.LIRRegOperand $ (exprReg expr2)))
-                  retValBlock b = [mkBasicBlock [LIRRegAssignInst reg (LIROperExpr (LIRIntOperand (LIRInt b)))]]
+          CGExprInst (CGFlatExpr insts _) ->
+              convHelp nodes body (insts ++is)
 
-          CGExprInst (CGFlatExpr insts) _ ->
-              convHelp nodes (body ++ insts)
-
-          otherwise -> convHelp nodes (body++[inst]) is
+          CGLIRInst x -> convHelp nodes (body++[x]) is
 
 
+         where 
+           pushBlock' inst = [mkBasicBlock (body++[inst])]
+           pushBlock       =  [mkBasicBlock body]
 
-convertProgram :: LIRProgram -> ControlGraph
+
+pullOutLIR (CGLIRInst x) = x
+
+symToInt :: LIRReg -> Int
+symToInt (SREG s) = read s :: Int
+symToInt  reg = error "attempted to label if using non-symbolic register"
+--symToInt (LIRIntOperand x) = error "attempted to label if using int literal"
+
+convertProgram :: CGProgram -> ControlGraph
 convertProgram prog =
     ControlGraph (map (convertLIRInsts.g) (progUnits prog))
-  where g (LIRUnit lab insts) = (LIRLabelInst lab) : insts
+  where g (CGUnit lab insts) = (CGLIRInst $ LIRLabelInst lab) : insts
 
 
 translateCG :: ControlGraph -> [LIRInst]
-translateCG g = concatMap (map h) (cgNodes g)
+translateCG g = concatMap (concatMap h) (cgNodes g)
   where 
+    h :: ControlNode -> [LIRInst]
     h (BasicBlock insts) = insts
-    h (Branch {condReg = reg, trueBlock = tb, falseBlock = fb, branchNum = num}) = 
-        (LIRIfInst reg (trueLabel num)) ++ (h fb) ++ (h tb)
+    h (Branch {condReg = reg, trueBlock = tb, falseBlock = fb, branchNumber = num}) = 
+        [(LIRIfInst (LIROperRelExpr reg) (trueLabel num))] ++ (concatMap h fb) ++ (concatMap h tb)
 
 
 

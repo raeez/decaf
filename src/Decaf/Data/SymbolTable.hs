@@ -35,6 +35,7 @@ symID :: SymbolRecord -> DecafIdentifier
 symID (VarRec v _) = varID v
 symID (MethodRec m _) = methodID m
 symID (ArrayRec a _) = arrayID a
+symID (StringRec a _) = "."++a
 
 -- | Retrieve a symbol's type; utilized in type checking
 symType :: SymbolRecord -> DecafType
@@ -79,7 +80,7 @@ type GlobalOffset = Int
 
 -- | A global string identifier,
 -- resolved in the final code generator
-type StringLabel = (String, Int)
+type StringLabel = Int
 
 data LabelCounter = LabelCounter
     { regCount :: Int
@@ -107,9 +108,9 @@ getRegCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
                       let n = regCount c
                       in (n, s{csCounter=c{regCount = n+1}}))
 
-getGlobalCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
+getGlobalCount i = RegisterCounter (\s@(CounterState{csCounter=c}) ->
                          let n = globalCount c
-                         in (n, s{csCounter=c{globalCount = n+1}}))
+                         in (n, s{csCounter=c{globalCount = n+i}}))
 
 getMethodCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
                          let n = methodCount c
@@ -133,7 +134,7 @@ numberRec (VarRec a _) = do c <- getRegCount
 numberRec (MethodRec a _) = do c <- getMethodCount
                                return $ MethodRec a ("meth", c)
 
-numberRec (ArrayRec a _) = do c <- getGlobalCount
+numberRec (ArrayRec a _) = do c <- getGlobalCount (arrayLength a)
                               return $ ArrayRec a c
 numberRec (StringRec a _) = do c <- getStringCount
-                               return $ String a c
+                               return $ StringRec a c

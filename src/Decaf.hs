@@ -12,6 +12,7 @@ module Decaf
     , module Decaf.IR.AST
     , module Decaf.IR.LIR
     , module Decaf.Util.Report
+    , module Decaf.IR.ControlGraph
     ) where
 
 import Decaf.Util.Report
@@ -27,3 +28,4 @@ import Decaf.Scanner
 import Decaf.Parser
 import Decaf.Checker
 import Decaf.Translator
+import Decaf.IR.ControlGraph
