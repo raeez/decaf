@@ -9,10 +9,6 @@ import Decaf.IR.ControlFlowGraph
 import Decaf.Data.Tree
 import Decaf.Data.Zipper
 
--- TODO
---        codegen: LIRTempLoadInst -> calculate the absolute load offset from RBP, given the frame size
-magic_number = 0xbadbeef -- not really necessary, but will double check this as a guard
-
 data Namespace = Namespace
     { temp :: Int
     , label :: Int
@@ -73,24 +69,28 @@ withBlock m = Translator (\(Namespace t l s b) ->
 translateProgram ::  SymbolTree -> DecafProgram -> Translator CFGProgram
 translateProgram st program =
     do ns <- getNS
-       units <- mapM (translateMethod st) (methods program)
+       declarations <- mapM translateField (fields program)
+       units <- mapM (translateMethod st (concat declarations)) (methods program)
        eUnits <- mapM ($st) exceptionHandlers
-       return $ CFGProgram (LIRLabel $ "START") (units ++ [CFGUnit exceptionHeader (concat eUnits)])
+       return $ CFGProgram (LIRLabel $ "START") ( units
+                                                ++ [CFGUnit exceptionHeader (concat eUnits)])
   where
     translateField (DecafVarField var _) = translateVarDeclaration st var
-    translateField (DecafArrField arr _) = translateArrDeclaration st arr
+    translateField (DecafArrField arr _) = return [] -- translateArrDeclaration st arr
 
 -- | Given a SymbolTree, Translate a DecafMethod into an LIRUnit
-translateMethod :: SymbolTree -> DecafMethod -> Translator CFGUnit
-translateMethod st method =
+translateMethod :: SymbolTree -> [CFGInst] -> DecafMethod -> Translator CFGUnit
+translateMethod st declarations method =
     do ns <- getNS
        (case symLookup (methodID method) (table st) of
         Just (index, MethodRec _ (label, count)) ->
             do body <- translateBlock (st) (methodBody method)
                prologue <- translateMethodPrologue (st' index) method
                postcall <- translateMethodPostcall st method
+               let decs = if (methodID method) == "main" then declarations else []
                return $ CFGUnit (methodlabel count) ([CFGLIRInst LIRTempEnterInst]
                                                   ++ prologue
+                                                  ++ decs
                                                   ++ body
                                                   ++ postcall)
         _ -> return $ CFGUnit (LIRLabel ("Translator.hs:translateMethod Invalid SymbolTable; could not find '" ++ methodID method ++ "' symbol")) [])
@@ -350,7 +350,7 @@ translateMethodPrecall st (DecafPureMethodCall ident exprs _) =
     handleStackArg expr = do (instructions, operand) <- translateExpr st expr
                              return $ instructions
                                    ++ [CFGLIRInst $ LIRRegAssignInst RSP $ LIRBinExpr (LIRRegOperand RSP) LSUB (LIRIntOperand qword)] -- ^ the next two instructions form a push
-                                   ++ [CFGLIRInst $ LIRStoreInst (LIRRegMemAddr RSP qword) operand]
+                                   ++ [CFGLIRInst $ LIRRegAssignInst RSP (LIROperExpr operand)]
 
 translateMethodPrecall st (DecafMethodCallout ident exprs _) =
     do let numRegArgs = min 6 (length exprs)
@@ -368,7 +368,7 @@ translateMethodPrecall st (DecafMethodCallout ident exprs _) =
     handleStackArg expr = do (instructions, operand) <- translateCalloutArg expr
                              return $ instructions
                                    ++ [CFGLIRInst $ LIRRegAssignInst RSP (LIRBinExpr (LIRRegOperand RSP) LSUB (LIRIntOperand qword))] -- ^ the next two instructions form a push
-                                   ++ [CFGLIRInst $ LIRStoreInst (LIRRegMemAddr RSP qword) operand]
+                                   ++ [CFGLIRInst $ LIRRegAssignInst RSP (LIROperExpr operand)]
 
 
 translateMethodCall :: SymbolTree -> DecafMethodCall -> Translator ([CFGInst], LIROperand)

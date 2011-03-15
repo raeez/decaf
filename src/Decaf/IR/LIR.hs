@@ -30,6 +30,9 @@ boundsLabel c = LIRLabel $ "__boundscheck" ++ show c
 stringLabel :: Int -> String
 stringLabel  c = "__string" ++ show c
 
+arrayLabel :: Int -> String
+arrayLabel c = "__array" ++ show c
+
 methodLabel :: String -> Int -> String
 methodLabel m c = "__proc" ++ show c ++ "__" ++ m
 

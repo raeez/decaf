@@ -2,12 +2,16 @@ module Decaf.InstructionSelector where
 import Numeric
 import Decaf.IR.SymbolTable
 import Decaf.IR.LIR
+import Decaf.IR.AST
 import Decaf.IR.ASM
 
 -- TODO instance ASMProgram as opposed to IRProgram
 -- i.e. create a new internal representation for asm
 -- along with a monadic container (dsl for superoptimization)
 -- this code then just becomes the pretty printer into gnuasm, or intelasm
+--
+-- TODO implement div / mod
+-- TODO implement boolean expr assignments
 
 sep = "\n        "
 twoop t o1 o2 = t ++ " " ++ intelasm o1 ++ ", " ++ intelasm o2
@@ -35,10 +39,27 @@ genExpr reg expr =
       _ -> "******************* " ++ intelasm reg ++ " <- " ++ intelasm expr
 
 instance ASM SymbolTable where
-    intelasm (SymbolTable records _) = "section .data:\n"
+    intelasm (SymbolTable records _) = "BITS 64\nsection .data:\n" ++ unlines (indentMap records) ++ "\n"
+      where
+        indentMap :: [SymbolRecord] -> [String]
+        indentMap [] = []
+        indentMap (x:xs) = case intelasm x of
+                               [] -> indentMap xs
+                               _ -> ["    " ++ intelasm x] ++ indentMap xs
+
+instance ASM SymbolRecord where
+    -- intelasm (VarRec (DecafVar ty ident _) sr) =
+    -- "g" ++ show sr ++ " db 0, 0"
+    intelasm (ArrayRec (DecafArr ty ident len _) go) =
+        arrayLabel go ++ ": dq " ++ foldl (\s1 -> \s2 -> s1++", "++s2) "0" (map (\_ -> "0") [1..readDecafInteger len])
+
+    intelasm (StringRec str sl) =
+        stringLabel sl ++ ": db " ++ show str ++ ", " ++ show 0
+
+    intelasm _ = ""
 
 instance ASM LIRProgram where
-    intelasm (LIRProgram label units) = "section .text:\n" ++ unlines (map intelasm units)
+    intelasm (LIRProgram label units) = "section .text:\n    global main\n" ++ unlines (map intelasm units)
 
 instance ASM LIRUnit where
     intelasm (LIRUnit label insts) =
@@ -113,10 +134,10 @@ instance ASM LIRInst where
         "call " ++ intelasm proc
 
     intelasm LIRTempEnterInst =
-        "sub rsp, 0x8\n        mov [rsp], rbp\n        mov rbp, rsp\n        sub [rsp], ENTER_VAL"
+        "push rbp\n        mov rbp, rsp\n        sub rsp, 100"
 
     intelasm LIRRetInst =
-        "mov rsp, rbp\n        mov rbp, [rsp]\n        add rsp, 0x8\n        ret"
+        "mov rsp, rbp\n        pop rbp\n        ret"
 
     intelasm (LIRLabelInst label) = intelasm label
 
@@ -168,7 +189,7 @@ instance ASM LIRMemAddr where
 instance ASM LIROperand where
     intelasm (LIRRegOperand reg) = intelasm reg
     intelasm (LIRIntOperand i) = intelasm i
-    intelasm (LIRStringOperand s) = '.':s
+    intelasm (LIRStringOperand s) = s
 
 instance ASM LIRReg where
     intelasm (RAX) = "rax"

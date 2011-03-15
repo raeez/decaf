@@ -22,6 +22,22 @@ data SymbolRecord = VarRec DecafVar SymbolicRegister
                   | StringRec DecafString StringLabel
                   deriving (Show, Eq)
 
+-- | A Symbolic Address assigned to the program symbol;
+-- resolved in the global register allocator
+type SymbolicRegister = Int
+
+-- | A method label assigned to the program symbol;
+-- resolved in the translator
+type MethodLabel = (String, Int)
+
+-- | A global offset assigned to the program symbol;
+-- resolved in the final code generator
+type GlobalOffset = Int
+
+-- | A global string identifier,
+-- resolved in the final code generator
+type StringLabel = Int
+
 -- | Symbol representing the various styleof block in Decaf
 data BlockType = ForBlock
                | IfBlock
@@ -68,22 +84,6 @@ globalSymLookup ident st = let table = (content . tree) st
 -- | Create a new SymbolTree
 mkSymbolTree :: SymbolTree
 mkSymbolTree = mkZipper (SymbolTable [] GlobalBlock)
-
--- | A Symbolic Address assigned to the program symbol;
--- resolved in the global register allocator
-type SymbolicRegister = Int
-
--- | A method label assigned to the program symbol;
--- resolved in the translator
-type MethodLabel = (String, Int)
-
--- | A global offset assigned to the program symbol;
--- resolved in the final code generator
-type GlobalOffset = Int
-
--- | A global string identifier,
--- resolved in the final code generator
-type StringLabel = Int
 
 data LabelCounter = LabelCounter
     { regCount :: Int
