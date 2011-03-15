@@ -186,10 +186,14 @@ translateStm st (DecafForStm ident expr expr' block _) =
             ++ [CFGLIRInst $ LIRLabelInst (endLabel l)])
 
 translateStm st (DecafRetStm (Just expr) _) =
-    do (instructions, LIRRegOperand reg) <- translateExpr st expr
-       return (instructions
-           ++ [CFGLIRInst $ LIRRegAssignInst reg (LIROperExpr $ LIRRegOperand RAX)]
-           ++ [CFGLIRInst $ LIRRetInst])
+    do (instructions, operand) <- translateExpr st expr
+       (case operand of
+          LIRIntOperand int -> return (instructions
+                                   ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr $ LIRIntOperand int) ]
+                                   ++ [CFGLIRInst $ LIRRetInst])
+          LIRRegOperand reg -> return (instructions
+                                   ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr $ LIRRegOperand reg)]
+                                   ++ [CFGLIRInst $ LIRRetInst]))
 
 translateStm st (DecafRetStm Nothing _) =
     return [CFGLIRInst $ LIRRetInst]
