@@ -6,8 +6,8 @@ import Decaf.Data.Tree
 boundsLabel :: Int -> String
 boundsLabel c = "__boundscheck" ++ show c
 
-stringLabel :: String -> Int -> String
-stringLabel s c = "__str" ++ show c ++ "__" ++ s
+stringLabel :: Int -> String
+stringLabel  c = "__string" ++ show c
 
 methodLabel :: String -> Int -> String
 methodLabel m c = "__proc" ++ show c ++ "__" ++ m
@@ -255,6 +255,7 @@ instance IRNode LIRMemAddr where
 instance IRNode LIROperand where
     pp (LIRRegOperand reg) = pp reg
     pp (LIRIntOperand i) = pp i
+    pp (LIRStringOperand s) = show s
     treeify a = Node (pp a) []
     pos _     = error "LIR has no associated position"
 

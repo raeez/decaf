@@ -413,10 +413,10 @@ translateMethodCall st mc =
 translateString :: SymbolTree -> DecafString -> Translator ([CFGInst], LIROperand)
 translateString st string =
     (case symLookup ('.':string) (table st) of
-         --Just (_, StringRec _ (label, count)) ->
-             --do t <- incTemp
-                --return $ [LIRAssignInst (SREG $ show t) (LIRStringLiteral $ stringLabel label count), SREG $ show t]
-         _ -> return ([CFGLIRInst $ LIRLabelInst $ LIRLabel $ "Translator.hs:translateString Invalid SymbolTable; could not find '" ++ ('.':string) ++ "' symbol"], LIRRegOperand RBP))
+         Just (_, StringRec _ label) ->
+             do t <- incTemp
+                return ([CFGLIRInst $ LIRRegAssignInst (SREG $ show t) (LIROperExpr $ LIRStringOperand $ stringLabel label)], LIRRegOperand $ SREG $ show t)
+         _ -> return ([CFGLIRInst $ LIRLabelInst $ LIRLabel $ "Translator.hs:translateString Invalid SymbolTable; could not find '" ++ '.':string ++ "' symbol"], LIRRegOperand RBP))
 
 translateLocation :: SymbolTree -> DecafLoc -> Translator ([CFGInst], LIROperand)
 translateLocation st loc =
