@@ -138,3 +138,13 @@ numberRec (ArrayRec a _) = do c <- getGlobalCount (readDecafInteger (arrayLength
                               return $ ArrayRec a c
 numberRec (StringRec a _) = do c <- getStringCount
                                return $ StringRec a c
+
+
+findStrings :: SymbolTree -> [SymbolRecord]
+findStrings st = help (tree st)
+  where 
+    help tree = 
+        filter isString (symbolRecords.content $ tree) ++ (concatMap help (children tree))
+               
+    isString (StringRec {}) = True
+    isString _ = False
