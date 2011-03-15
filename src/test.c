@@ -65,7 +65,12 @@ class Program {
     a = 3 + a;
     a -= 100;
     a = 2 * 100;
-    callout("printf_035", "Man oh man");
+    integers[10] += 100;
+    if (a > 2 && a > 3 && a > 4) {
+    callout("printf_035", "035 printf");
+    } else {
+        callout ("print", "standard printf");
+    }
     return a;
     }
 }
