@@ -11,7 +11,6 @@ import Decaf.Data.Zipper
 
 -- TODO
 --        codegen: LIRTempLoadInst -> calculate the absolute load offset from RBP, given the frame size
---        ??: move the return value into RAX
 magic_number = 0xbadbeef -- not really necessary, but will double check this as a guard
 
 data Namespace = Namespace
@@ -70,7 +69,6 @@ withBlock m = Translator (\(Namespace t l s b) ->
         (a, Namespace t' l' s' _) = runTranslator m (Namespace t l s (b ++ [0]))
     in (a, Namespace t' l' s' b'))
 
---checked
 -- | Given a SymbolTree, Translate a DecafProgram into an LIRProgram
 translateProgram ::  SymbolTree -> DecafProgram -> Translator CFGProgram
 translateProgram st program =
@@ -92,9 +90,11 @@ translateMethod st declarations method =
             do let decs = if methodID method == "main" then declarations else []
                body <- translateBlock (st) (methodBody method)
                prologue <- translateMethodPrologue (st' index) method
+               postcall <- translateMethodPostcall st method
                return $ CFGUnit (methodlabel count) (decs
                                                   ++ prologue
-                                                  ++ body) -- ^ label this method and select the corresponding nested SymbolTree
+                                                  ++ body
+                                                  ++ postcall)
         _ -> return $ CFGUnit (LIRLabel ("Translator.hs:translateMethod Invalid SymbolTable; could not find '" ++ methodID method ++ "' symbol")) [])
   where
     st' index = select (index - firstMethodIndex) st
@@ -187,11 +187,11 @@ translateStm st (DecafForStm ident expr expr' block _) =
             ++ [CFGLIRInst $ LIRJumpLabelInst (loopLabel l)]
             ++ [CFGLIRInst $ LIRLabelInst (endLabel l)])
 
---checked
 translateStm st (DecafRetStm (Just expr) _) =
     do (instructions, operand) <- translateExpr st expr
        return (instructions
-           ++ [CFGLIRInst $ LIRRetOperInst operand])
+           ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr operand)]
+           ++ [CFGLIRInst $ LIRRetInst])
 
 translateStm st (DecafRetStm Nothing _) =
     return [CFGLIRInst $ LIRRetInst]
@@ -320,29 +320,23 @@ translateExpr st (DecafParenExpr expr _) =
            s = SREG (show t)
        return (instructions ++ [CFGLIRInst $ LIRRegAssignInst s o], LIRRegOperand s)
 
---checked
 translateExpr _ _ =
     return ([CFGLIRInst $ LIRLabelInst (LIRLabel $ "Translator.hs:translateExpr Invalid expression tree")], LIRIntOperand $ LIRInt 0)
 
---checked
 translateLiteral :: SymbolTree -> DecafLiteral -> Translator LIROperand
 translateLiteral _ (DecafIntLit i _) = return $ LIRIntOperand $ LIRInt (readDecafInteger i)
 translateLiteral _ (DecafBoolLit b _) = return $ LIRIntOperand $ LIRInt (if b then 1 else 0)
 translateLiteral _ (DecafCharLit c _) = return $ LIRIntOperand $ LIRInt (ord c)
 
-translateMethodPostcall :: SymbolTree -> DecafMethodCall -> Translator [CFGInst]
-translateMethodPostcall st (DecafPureMethodCall ident exprs _) =
+translateMethodPostcall :: SymbolTree -> DecafMethod -> Translator [CFGInst]
+translateMethodPostcall st (DecafMethod ty ident _ _ _) =
     if mustRet
       then return $ throwException missingRet
       else return [CFGLIRInst $ LIRRetInst]
   where
-    mustRet = let (DecafMethod ty _ _ _ _) = mLookup
-              in case ty of
-                     DecafVoid -> False
-                     _ -> True
-    mLookup = case globalSymLookup ident st of
-                  Just (MethodRec meth label) -> meth
-                  _ -> error $ "Translator.hs:translateMethodPostcall.mLookup Invalid SymbolTable; could not find a symbol for '" ++ ident ++ "'"
+    mustRet = case ty of
+                  DecafVoid -> False
+                  _ -> True
 
 translateMethodPrecall :: SymbolTree -> DecafMethodCall -> Translator [CFGInst]
 translateMethodPrecall st (DecafPureMethodCall ident exprs _) =
@@ -383,12 +377,9 @@ translateMethodCall :: SymbolTree -> DecafMethodCall -> Translator ([CFGInst], L
 translateMethodCall st mc =
     do precall <- translateMethodPrecall st mc
        t <- incTemp
-       postcall <- case mc of
-                       mc@(DecafPureMethodCall _ _ _) -> translateMethodPostcall st mc
-                       _ -> return []
        return (precall
-            ++ [CFGLIRInst $ LIRCallAssignInst (SREG $ show t) func (SREG "ip")]
-            ++ postcall
+            ++ [CFGLIRInst $ LIRCallInst func (SREG "ip")]
+            ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr $ LIRRegOperand $ SREG $ show t)]
             , LIRRegOperand $ SREG $ show t)
   where
     func = case mc of

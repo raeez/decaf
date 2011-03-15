@@ -61,7 +61,6 @@ data LIRInst = LIRRegAssignInst LIRReg LIRExpr
              | LIRJumpRegInst LIRReg LIROffset
              | LIRJumpLabelInst LIRLabel
              | LIRIfInst LIRRelExpr LIRLabel
-             | LIRCallAssignInst LIRReg LIRProc LIRReg
              | LIRCallInst LIRProc LIRReg
              | LIRRetOperInst LIROperand
              | LIRRetInst
@@ -189,7 +188,6 @@ instance IRNode LIRInst where
     pp (LIRJumpRegInst reg offset) = "JMP " ++ pp reg ++ "[" ++ show offset ++ "]"
     pp (LIRJumpLabelInst label) = "JMP " ++ pp label
     pp (LIRIfInst expr label) = "IF " ++ pp expr ++ " JMP " ++ pp label
-    pp (LIRCallAssignInst reg proc reg') = pp reg ++ " <- call " ++ pp proc ++ ", " ++ pp reg'
     pp (LIRCallInst proc reg) = "call " ++ pp proc ++ ", " ++ pp reg
     pp (LIRRetOperInst operand) = "RET " ++ pp operand
     pp LIRRetInst = "RET"
@@ -202,7 +200,6 @@ instance IRNode LIRInst where
     treeify (LIRJumpRegInst reg offset) = Node "JMP" [treeify reg, treeify offset]
     treeify (LIRJumpLabelInst label) = Node "JMP" [treeify label]
     treeify (LIRIfInst expr label) = Node "IF" [treeify expr, treeify label]
-    treeify (LIRCallAssignInst reg proc reg') = Node "CALLASSIGN" [treeify reg, treeify proc, treeify reg']
     treeify (LIRCallInst proc reg) = Node "CALL" [treeify proc, treeify reg]
     treeify (LIRRetOperInst operand) = Node "RET" [treeify operand]
     treeify LIRRetInst = Node "RET" []

@@ -27,7 +27,6 @@ instance ASM LIRInst where
     intelasm (LIRJumpRegInst reg offset) = "JMP " ++ intelasm reg ++ "[" ++ show offset ++ "]"
     intelasm (LIRJumpLabelInst label) = "JMP " ++ intelasm label
     intelasm (LIRIfInst expr label) = "IF " ++ intelasm expr ++ " JMP " ++ intelasm label
-    intelasm (LIRCallAssignInst reg proc reg') = intelasm reg ++ " <- call " ++ intelasm proc ++ ", " ++ intelasm reg'
     intelasm (LIRCallInst proc reg) = "call " ++ intelasm proc ++ ", " ++ intelasm reg
     intelasm (LIRRetOperInst operand) = "RET " ++ intelasm operand
     intelasm LIRRetInst = "RET"

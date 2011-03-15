@@ -68,7 +68,6 @@ convertLIRInsts insts = convHelp [] [] insts
     convHelp nodes body (inst:is) =
         case inst of
           CFGLIRInst inst@(LIRCallInst{}) -> convHelp (nodes ++ (pushBlock' inst)) [] is -- fix this?
-          CFGLIRInst inst@(LIRCallAssignInst{}) -> convHelp (nodes ++ (pushBlock' inst)) [] is -- fix this?
           CFGLIRInst inst@LIRRetInst -> convHelp (nodes ++ (pushBlock' inst)) [] is
           CFGIf reg label block eblock ->
               convHelp (nodes ++ pushBlock ++ [mkBranch reg label (convHelp [] [] block) (convHelp [] [] eblock)]) [] is
