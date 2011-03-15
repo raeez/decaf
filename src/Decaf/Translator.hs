@@ -11,6 +11,7 @@ import Decaf.Data.Zipper
 -- TODO
 --        translateLocation: add runtime bounds check on array
 --        translateMethodPrologue: calculate the absolute load offset from RBP
+--        throw exception TODO (figure this out)
 --        ??: move the return value into RAX
 --        ??: runtime check: control falling off edge?
 
@@ -389,7 +390,7 @@ translateLocation st loc =
 arrayBoundsCheck :: SymbolTree -> DecafArr -> LIROperand -> Translator [LIRInst]
 arrayBoundsCheck st (DecafArr _ _ len _) indexOperand =
     do l <- incLabel
-       return ([LIRIfInst (LIRBinRelExpr indexOperand LLT (LIRIntOperand $ LIRInt $ readDecafInteger len)) (LIRLabel $ boundsLabel l)] -- ++ throw exception
+       return ([LIRIfInst (LIRBinRelExpr indexOperand LLT (LIRIntOperand $ LIRInt $ readDecafInteger len)) (LIRLabel $ boundsLabel l)] -- ++ throw exception TODO (figure this out)
            ++ [LIRLabelInst $ LIRLabel $ boundsLabel l])
 
 symVar :: DecafVar -> SymbolTree -> LIRReg
