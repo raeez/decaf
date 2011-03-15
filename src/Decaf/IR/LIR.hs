@@ -16,7 +16,7 @@ outOfBounds :: Int
 outOfBounds = 1
 
 exceptionHeader :: LIRLabel
-exceptionHeader = LIRLabel "__exceptions"
+exceptionHeader = LIRLabel "__exceptionhandlers"
 
 exceptionLabel :: Int -> LIRLabel
 exceptionLabel c = LIRLabel $ "__exception" ++ show c
@@ -181,6 +181,7 @@ instance IRNode LIRInst where
     pp (LIRCondAssignInst reg reg' operand) = pp reg ++ " <- (" ++ pp reg' ++ ") " ++ pp operand
     pp (LIRStoreInst mem operand) = "STORE " ++ pp mem ++ ", " ++ pp operand
     pp (LIRLoadInst reg mem) = "LOAD " ++ pp reg ++ ", " ++ pp mem
+    pp (LIRTempLoadInst reg mem) = "TEMPLOAD " ++ pp reg ++ ",  " ++ pp mem
     pp (LIRJumpRegInst reg offset) = "JMP " ++ pp reg ++ "[" ++ show offset ++ "]"
     pp (LIRJumpLabelInst label) = "JMP " ++ pp label
     pp (LIRIfInst expr label) = "IF " ++ pp expr ++ " JMP " ++ pp label

@@ -11,9 +11,7 @@ import Decaf.Data.Zipper
 
 -- TODO
 --        codegen: LIRTempLoadInst -> calculate the absolute load offset from RBP, given the frame size
---        throw exception TODO (figure this out)
 --        ??: move the return value into RAX
---        ??: runtime check: control falling off edge?
 magic_number = 0xbadbeef -- not really necessary, but will double check this as a guard
 
 data Namespace = Namespace
@@ -343,8 +341,8 @@ translateMethodPostcall st (DecafPureMethodCall ident exprs _) =
               in case ty of
                      DecafVoid -> False
                      _ -> True
-    mLookup = case symLookup ident (table st) of
-                  Just (index, MethodRec meth label) -> meth
+    mLookup = case globalSymLookup ident st of
+                  Just (MethodRec meth label) -> meth
                   _ -> error $ "Translator.hs:translateMethodPostcall.mLookup Invalid SymbolTable; could not find a symbol for '" ++ ident ++ "'"
 
 translateMethodPrecall :: SymbolTree -> DecafMethodCall -> Translator [CFGInst]
