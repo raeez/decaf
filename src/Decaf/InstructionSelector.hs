@@ -101,13 +101,20 @@ instance ASM LIRInst where
                     LLT -> "jl " ++ intelasm label
                     LLTE -> "jle " ++ intelasm label
 
-    intelasm (LIRIfInst expr label) = "IF " ++ intelasm expr ++ " " ++ jmp label
+    intelasm (LIRIfInst (LIRNotRelExpr operand) label) =
+        cmp operand (LIRIntOperand $ LIRInt 0) ++ sep
+     ++ "je " ++ intelasm label
+
+    intelasm (LIRIfInst (LIROperRelExpr operand) label) =
+        cmp operand (LIRIntOperand $ LIRInt 1) ++ sep
+     ++ "jge " ++ intelasm label
 
     intelasm (LIRCallInst proc) =
         "call " ++ intelasm proc
 
     intelasm LIRTempEnterInst =
         "sub rsp, 0x8\n        mov [rsp], rbp\n        mov rbp, rsp\n        sub [rsp], ENTER_VAL"
+
     intelasm LIRRetInst =
         "mov rsp, rbp\n        mov rbp, [rsp]\n        add rsp, 0x8\n        ret"
 
