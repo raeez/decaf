@@ -8,6 +8,6 @@ main = do source <- readFile "test.c"
           --graph $ generify t
           if length e > 0 then putStrLn formattedErrors else putStrLn ""
           let
-              (a, b) = runRegisterCounter (numberTree $ tree t) (CounterState mkCounter)
-              (lir, _) = runTranslator (translateProgram (top a) p) mkNamespace
+              (numberedTable, CounterState (LabelCounter rc _ _ _)) = runRegisterCounter (numberTree $ tree t) (CounterState mkCounter)
+              (lir, _) = runTranslator (translateProgram (top numberedTable) p) (mkNamespace rc)
           putStrLn $ pp $ translateCFG . convertProgram $ lir
