@@ -93,7 +93,7 @@ instance ASM LIRInst where
 
     intelasm (LIRRegAssignInst reg (LIRUnExpr LNOT operand)) =
         mov reg operand ++ sep
-     ++ "not " ++ intelasm operand
+     ++ "not " ++ intelasm reg
 
     intelasm (LIRRegAssignInst reg (LIROperExpr operand)) =
         mov reg operand
