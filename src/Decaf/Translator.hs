@@ -368,36 +368,29 @@ translateMethodCall st mc =
 
 translateString :: SymbolTree -> DecafString -> Translator ([LIRInst], LIROperand)
 translateString st string =
-    (case symLookup ("." ++ string) (table st) of
-         Just (_, StringRec _ (label, count)) ->
-             do t <- incTemp
-                return $ [LIRAssignInst (SREG $ show t) (LIRStringLiteral $ stringLabel label count), SREG $ show t]
-         _ -> return ([LIRLabelInst $ LIRLabel $ "Translator.hs:translateString Invalid SymbolTable; could not find '" ++ ("."++show(string)) ++ "' symbol"], LIRRegOperand RBP))
+    (case symLookup ('.':string) (table st) of
+         --Just (_, StringRec _ (label, count)) ->
+             --do t <- incTemp
+                --return $ [LIRAssignInst (SREG $ show t) (LIRStringLiteral $ stringLabel label count), SREG $ show t]
+         _ -> return ([LIRLabelInst $ LIRLabel $ "Translator.hs:translateString Invalid SymbolTable; could not find '" ++ ('.':string) ++ "' symbol"], LIRRegOperand RBP))
 
--- TODO add runtime bounds check on array
 translateLocation :: SymbolTree -> DecafLoc -> Translator ([LIRInst], LIROperand)
 translateLocation st loc =
     (case globalSymLookup (ident loc) st of
         Just (VarRec _ sr) -> return ([], LIRRegOperand $ SREG (show sr))
         Just (ArrayRec arr o) -> incTemp >>= \t -> (do (prep, index) <- translateExpr st (arrLocExpr loc)
                                                        let (LIRIntOperand (LIRInt index')) = index
-                                                       return (prep ++ [LIRLoadInst (SREG $ show t) (arrayMemaddr arr o index')], LIRRegOperand (SREG $ show t)))
+                                                       checkCode <- arrayBoundsCheck st arr index
+                                                       return (prep
+                                                            ++ checkCode
+                                                            ++ [LIRLoadInst (SREG $ show t) (arrayMemaddr arr o index')], LIRRegOperand (SREG $ show t)))
         _ -> return ([LIRLabelInst (LIRLabel $ "Translator.hs:translateLocation Invalid SymbolTable; could not find '" ++ ident loc ++ "' symbol in\n" ++ show st)], LIRRegOperand $ SREG "--"))
 
-stringLabel :: String -> Int -> String
-stringLabel s c = "__str" ++ show c ++ "__" ++ s
-
-methodLabel :: String -> Int -> String
-methodLabel m c = "__proc" ++ show c ++ "__" ++ m
-
-loopLabel :: Int -> LIRLabel
-loopLabel l = LIRLabel $ "LLOOP" ++ show l
-
-endLabel :: Int -> LIRLabel
-endLabel l = LIRLabel $ "LEND" ++ show l
-
-trueLabel :: Int -> LIRLabel
-trueLabel l = LIRLabel $ "LTRUE" ++ show l
+arrayBoundsCheck :: SymbolTree -> DecafArr -> LIROperand -> Translator [LIRInst]
+arrayBoundsCheck st (DecafArr _ _ len _) indexOperand =
+    do l <- incLabel
+       return ([LIRIfInst (LIRBinRelExpr indexOperand LLT (LIRIntOperand $ LIRInt $ readDecafInteger len)) (LIRLabel $ boundsLabel l)] -- ++ throw exception
+           ++ [LIRLabelInst $ LIRLabel $ boundsLabel l])
 
 symVar :: DecafVar -> SymbolTree -> LIRReg
 symVar var st =
@@ -413,3 +406,21 @@ arrayMemaddr (DecafArr ty _ len _) offset index =
                     DecafBoolean -> 8
                     _ -> error "Translate.hs: Array cannot have type void")
     in LIRRegOffMemAddr (SREG "gp") (LIRInt (offset + size*index)) (LIRInt size) -- ^ TODO offset must include previous arrays length * size
+
+boundsLabel :: Int -> String
+boundsLabel c = "__boundscheck" ++ show c
+
+stringLabel :: String -> Int -> String
+stringLabel s c = "__str" ++ show c ++ "__" ++ s
+
+methodLabel :: String -> Int -> String
+methodLabel m c = "__proc" ++ show c ++ "__" ++ m
+
+loopLabel :: Int -> LIRLabel
+loopLabel l = LIRLabel $ "LLOOP" ++ show l
+
+endLabel :: Int -> LIRLabel
+endLabel l = LIRLabel $ "LEND" ++ show l
+
+trueLabel :: Int -> LIRLabel
+trueLabel l = LIRLabel $ "LTRUE" ++ show l
