@@ -10,12 +10,12 @@ import Decaf.Data.Tree
 import Decaf.Data.Zipper
 
 -- TODO
+--        codegen: LIRTempLoadInst -> calculate the absolute load offset from RBP, given the frame size
 --        seed new with end off of old labels
---        translateMethodPrologue: calculate the absolute load offset from RBP
 --        throw exception TODO (figure this out)
 --        ??: move the return value into RAX
 --        ??: runtime check: control falling off edge?
-magic_number = 0xbadbeef
+magic_number = 0xbadbeef -- not really necessary, but will double check this as a guard
 
 data Namespace = Namespace
     { temp :: Int
@@ -24,8 +24,8 @@ data Namespace = Namespace
     , blockindex :: [Int]
     }
 
-mkNamespace :: Namespace
-mkNamespace = Namespace 4096 0 [] [0] -- ^ need to replace 4096 with ending point of SymbolTable.numberTree
+mkNamespace :: Int -> Namespace
+mkNamespace lastTemp= Namespace lastTemp 0 [] [0]
 
 newtype Translator a = Translator
     { runTranslator :: Namespace -> (a, Namespace) }
@@ -78,10 +78,10 @@ withBlock m = Translator (\(Namespace t l s b) ->
 translateProgram ::  SymbolTree -> DecafProgram -> Translator CFGProgram
 translateProgram st program =
     do ns <- getNS
-       return $ CFGProgram (LIRLabel $ "START") (units ns)
+       declarations <- mapM translateField (fields program)
+       return $ CFGProgram (LIRLabel $ "START") (units (concat declarations) ns)
   where
-    units ns = translate (mapM (translateMethod st declarations) (methods program)) ns
-    declarations = concatMap translateField (fields program)
+    units decl ns = translate (mapM (translateMethod st decl) (methods program)) ns
     translateField (DecafVarField var _) = translateVarDeclaration st var
     translateField (DecafArrField arr _) = translateArrDeclaration st arr
 
@@ -217,18 +217,18 @@ translateBlock st block =
     withBlock (do b <- getBlock
                   ns <- getNS
                   let st' = select b st
-                      declarations = concatMap (translateVarDeclaration st') (blockVars block)
+                  declarations <- mapM (translateVarDeclaration st') (blockVars block)
                   statements <- mapM (translateStm st') (blockStms block)
-                  return (declarations ++ concat statements))
+                  return (concat declarations ++ concat statements))
 
-translateVarDeclaration :: SymbolTree -> DecafVar -> [CFGInst]
+translateVarDeclaration :: SymbolTree -> DecafVar -> Translator [CFGInst]
 translateVarDeclaration st var =
-    [CFGLIRInst $ LIRRegAssignInst (symVar var st) (LIROperExpr $ LIRIntOperand $ LIRInt 0)]
+    return [CFGLIRInst $ LIRRegAssignInst (symVar var st) (LIROperExpr $ LIRIntOperand $ LIRInt 0)]
 
-translateArrDeclaration :: SymbolTree -> DecafArr -> [CFGInst]
+translateArrDeclaration :: SymbolTree -> DecafArr -> Translator [CFGInst]
 translateArrDeclaration st (DecafArr ty ident len _) =
     case symLookup ident (table st) of
-        Just (index, ArrayRec arr o) -> map (\i -> CFGLIRInst $ LIRStoreInst (arrayMemaddr arr o i) (LIRIntOperand $ LIRInt 0)) [1..readDecafInteger len]
+        Just (index, ArrayRec arr o) -> mapM (\i -> (arrayMemaddr arr o (LIRIntOperand (LIRInt i))) >>= \(instructions, mem) -> return $ CFGLIRInst $ LIRStoreInst mem (LIRIntOperand $ LIRInt 0)) [1..readDecafInteger len]
         _ -> error $ "Translator.hs:translateArrDeclaration Invalid SymbolTable; could not find a valid symbol for'" ++ ident ++ "'"
 
 --checked
@@ -396,11 +396,12 @@ translateLocation st loc =
     (case globalSymLookup (ident loc) st of
         Just (VarRec _ sr) -> return ([], LIRRegOperand $ SREG (show sr))
         Just (ArrayRec arr o) -> incTemp >>= \t -> (do (prep, index) <- translateExpr st (arrLocExpr loc)
-                                                       let (LIRIntOperand (LIRInt index')) = index
                                                        checkCode <- arrayBoundsCheck st arr index
+                                                       (instructions, mem) <- arrayMemaddr arr o index
                                                        return (prep
                                                             ++ checkCode
-                                                            ++ [CFGLIRInst $ LIRLoadInst (SREG $ show t) (arrayMemaddr arr o index')], LIRRegOperand (SREG $ show t)))
+                                                            ++ (map CFGLIRInst instructions)
+                                                            ++ [CFGLIRInst $ LIRLoadInst (SREG $ show t) mem], LIRRegOperand (SREG $ show t)))
         _ -> return ([CFGLIRInst $ LIRLabelInst (LIRLabel $ "Translator.hs:translateLocation Invalid SymbolTable; could not find '" ++ ident loc ++ "' symbol in\n" ++ show st)], LIRRegOperand $ SREG "--"))
 
 arrayBoundsCheck :: SymbolTree -> DecafArr -> LIROperand -> Translator [CFGInst]
@@ -415,11 +416,22 @@ symVar var st =
                     Just (_, VarRec _ label) -> label
                     _ -> error $ "Translator.hs:translateBlock.symVar Invalid SymbolTable; could not find a valid symbol for'" ++ (show $ varID var) ++ "'")
 
-arrayMemaddr :: DecafArr -> Int -> Int -> LIRMemAddr
-arrayMemaddr (DecafArr ty _ len _) offset index =
-    let arrlen = readDecafInteger len
-        size = (case ty of
-                    DecafInteger -> 8 -- ^ size in bytes
-                    DecafBoolean -> 8
-                    _ -> error "Translate.hs:arrayMemaddr Array cannot have type void")
-    in LIRRegOffMemAddr (SREG "gp") (LIRInt (offset + size*index)) (LIRInt size) -- ^ TODO offset must include previous arrays length * size
+arrayMemaddr :: DecafArr -> Int -> (LIROperand) -> Translator ([LIRInst], LIRMemAddr)
+arrayMemaddr (DecafArr ty _ len _) offset operand =
+    case operand of
+        (LIRIntOperand (LIRInt index))->
+            return ([], LIRRegOffMemAddr (SREG "gp") (LIRInt (offset + size*index)) (LIRInt size)) -- ^ TODO offset must include previous arrays length * size
+        _ -> do t1 <- incTemp
+                t2 <- incTemp
+                let sr1 = SREG $ show t1
+                    sr2 = SREG $ show t2
+                return ([LIRRegAssignInst sr1 (LIRBinExpr operand LMUL (LIRIntOperand (LIRInt size)))]
+                    ++ [LIRRegAssignInst sr2 (LIRBinExpr (LIRRegOperand sr1) LADD (LIRIntOperand (LIRInt offset)))]
+                    , LIRRegMemAddr sr2 (LIRInt size))
+  where
+    arrlen = readDecafInteger len
+    size = (case ty of
+                DecafInteger -> 8 -- ^ size in bytes
+                DecafBoolean -> 8
+                _ -> error "Translate.hs:arrayMemaddr Array cannot have type void")
+    
