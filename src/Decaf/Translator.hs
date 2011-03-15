@@ -227,7 +227,6 @@ translateArrDeclaration st (DecafArr ty ident len _) =
         Just (index, ArrayRec arr o) -> mapM (\i -> (arrayMemaddr arr o (LIRIntOperand (LIRInt i))) >>= \(instructions, mem) -> return $ CFGLIRInst $ LIRStoreInst mem (LIRIntOperand $ LIRInt 0)) [1..readDecafInteger len]
         _ -> error $ "Translator.hs:translateArrDeclaration Invalid SymbolTable; could not find a valid symbol for'" ++ ident ++ "'"
 
---checked
 translateRelExpr :: SymbolTree -> DecafExpr -> Namespace -> Translator ([CFGInst], LIRRelExpr)
 translateRelExpr st expr ns = 
     case translate (translateExpr st expr) ns of
