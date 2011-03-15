@@ -75,7 +75,7 @@ translateProgram st program =
        return $ CFGProgram (LIRLabel $ "START") ( units
                                                 ++ [CFGUnit exceptionHeader (concat eUnits)])
   where
-    translateField (DecafVarField var _) = translateVarDeclaration st var
+    translateField (DecafVarField var _) = return [] -- translateVarDeclaration st var
     translateField (DecafArrField arr _) = return [] -- translateArrDeclaration st arr
 
 -- | Given a SymbolTree, Translate a DecafMethod into an LIRUnit
@@ -186,10 +186,14 @@ translateStm st (DecafForStm ident expr expr' block _) =
             ++ [CFGLIRInst $ LIRLabelInst (endLabel l)])
 
 translateStm st (DecafRetStm (Just expr) _) =
-    do (instructions, LIRRegOperand reg) <- translateExpr st expr
-       return (instructions
-           ++ [CFGLIRInst $ LIRRegAssignInst reg (LIROperExpr $ LIRRegOperand RAX)]
-           ++ [CFGLIRInst $ LIRRetInst])
+    do (instructions, operand) <- translateExpr st expr
+       (case operand of
+          LIRIntOperand int -> return (instructions
+                                   ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr $ LIRIntOperand int) ]
+                                   ++ [CFGLIRInst $ LIRRetInst])
+          LIRRegOperand reg -> return (instructions
+                                   ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr $ LIRRegOperand reg)]
+                                   ++ [CFGLIRInst $ LIRRetInst]))
 
 translateStm st (DecafRetStm Nothing _) =
     return [CFGLIRInst $ LIRRetInst]
@@ -231,14 +235,15 @@ translateRelExpr st expr ns =
       ([], oper@(LIRRegOperand {})) -> return ([], LIROperRelExpr oper)
       ([], oper@(LIRIntOperand {})) -> return ([], LIROperRelExpr oper)
       (instructions, oper) -> case last instructions of
-                                CFGLIRInst (LIRRegAssignInst s (LIRBinExpr operand (LIRBinRelOp o) operand')) ->
+                                CFGLIRInst (LIRRegAssignInst s e@(LIRBinExpr {})) ->
                                     return (instructions, LIROperRelExpr oper)
-                                                            
+
                                 CFGLIRInst (LIRRegAssignInst s (LIRUnExpr LNOT operand)) ->
                                     return (instructions, LIROperRelExpr oper)
 
                                 CFGLIRInst (LIRRegAssignInst s (LIROperExpr operand)) ->
                                     return (instructions, LIROperRelExpr oper)
+
                                 CFGExprInst {} -> 
                                     return (instructions, LIROperRelExpr oper)
 

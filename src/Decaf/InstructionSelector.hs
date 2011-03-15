@@ -52,7 +52,7 @@ genExpr reg expr =
       _ -> "******************* " ++ intelasm reg ++ " <- " ++ intelasm expr
 
 instance ASM SymbolTable where
-    intelasm (SymbolTable records _) = "BITS 64\nsection .data:\n" ++ unlines (indentMap records) ++ "\n"
+    intelasm (SymbolTable records _) = "USE64\nsection .data:\n" ++ unlines (indentMap records) ++ "\n"
       where
         indentMap :: [SymbolRecord] -> [String]
         indentMap [] = []
@@ -61,8 +61,9 @@ instance ASM SymbolTable where
                                _ -> ["    " ++ intelasm x] ++ indentMap xs
 
 instance ASM SymbolRecord where
-    -- intelasm (VarRec (DecafVar ty ident _) sr) =
-    -- "g" ++ show sr ++ " db 0, 0"
+    intelasm (VarRec (DecafVar ty ident _) sr) =
+        "g" ++ show sr ++ " dq 0"
+
     intelasm (ArrayRec (DecafArr ty ident len _) go) =
         arrayLabel go ++ ": dq " ++ foldl (\s1 -> \s2 -> s1++", "++s2) "0" (map (\_ -> "0") [1..readDecafInteger len])
 
@@ -101,10 +102,12 @@ instance ASM LIRInst where
         genExpr reg expr
 
     intelasm (LIRRegAssignInst reg (LIRUnExpr LNEG operand)) =
-        "neg " ++ intelasm operand
+        mov reg operand ++ sep
+     ++ "neg " ++ intelasm reg 
 
     intelasm (LIRRegAssignInst reg (LIRUnExpr LNOT operand)) =
-        "not " ++ intelasm operand
+        mov reg operand ++ sep
+     ++ "not " ++ intelasm reg
 
     intelasm (LIRRegAssignInst reg (LIROperExpr operand)) =
         mov reg operand
