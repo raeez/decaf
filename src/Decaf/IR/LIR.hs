@@ -6,7 +6,6 @@ import Decaf.IR.Class
 import Decaf.Data.Tree
 import Data.Typeable
 
-
 missingRetMessage :: String
 missingRetMessage = "EXCEPTION: ARRAY OUT OF BOUNDS"
 
@@ -42,6 +41,7 @@ endLabel l = LIRLabel $ "LEND" ++ show l
 
 trueLabel :: Int -> LIRLabel
 trueLabel l = LIRLabel $ "LTRUE" ++ show l
+
 data LIRProgram = LIRProgram
     { lirProgLabel :: LIRLabel
     , lirProgUnits :: [LIRUnit]
