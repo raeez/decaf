@@ -56,6 +56,7 @@ data LIRUnit = LIRUnit
     } deriving (Show, Eq, Typeable)
 
 data LIRInst = LIRRegAssignInst LIRReg LIRExpr
+             | LIRRegCmpAssignInst LIRReg LIRExpr LIRLabel
              | LIRRegOffAssignInst LIRReg LIROffset LIRSize LIROperand  -- ^ Element-wise Assign
              | LIRCondAssignInst LIRReg LIRReg LIROperand    -- ^ Conditional Assign
              | LIRStoreInst LIRMemAddr LIROperand
@@ -184,6 +185,7 @@ instance IRNode LIRUnit where
 
 instance IRNode LIRInst where
     pp (LIRRegAssignInst reg expr) = pp reg ++ " <- " ++ pp expr
+    pp (LIRRegCmpAssignInst reg expr label) = pp reg ++ " <- " ++ pp expr ++ " [" ++ pp label ++ "]"
     pp (LIRRegOffAssignInst reg offset size operand) = pp reg ++ "(" ++ pp offset ++ ", " ++ pp size ++ ") <- " ++ pp operand
     pp (LIRCondAssignInst reg reg' operand) = pp reg ++ " <- (" ++ pp reg' ++ ") " ++ pp operand
     pp (LIRStoreInst mem operand) = "STORE " ++ pp mem ++ ", " ++ pp operand

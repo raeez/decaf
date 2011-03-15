@@ -75,7 +75,7 @@ translateProgram st program =
        return $ CFGProgram (LIRLabel $ "START") ( units
                                                 ++ [CFGUnit exceptionHeader (concat eUnits)])
   where
-    translateField (DecafVarField var _) = translateVarDeclaration st var
+    translateField (DecafVarField var _) = return [] -- translateVarDeclaration st var
     translateField (DecafArrField arr _) = return [] -- translateArrDeclaration st arr
 
 -- | Given a SymbolTree, Translate a DecafMethod into an LIRUnit
@@ -235,14 +235,15 @@ translateRelExpr st expr ns =
       ([], oper@(LIRRegOperand {})) -> return ([], LIROperRelExpr oper)
       ([], oper@(LIRIntOperand {})) -> return ([], LIROperRelExpr oper)
       (instructions, oper) -> case last instructions of
-                                CFGLIRInst (LIRRegAssignInst s (LIRBinExpr operand (LIRBinRelOp o) operand')) ->
+                                CFGLIRInst (LIRRegAssignInst s e@(LIRBinExpr {})) ->
                                     return (instructions, LIROperRelExpr oper)
-                                                            
+
                                 CFGLIRInst (LIRRegAssignInst s (LIRUnExpr LNOT operand)) ->
                                     return (instructions, LIROperRelExpr oper)
 
                                 CFGLIRInst (LIRRegAssignInst s (LIROperExpr operand)) ->
                                     return (instructions, LIROperRelExpr oper)
+
                                 CFGExprInst {} -> 
                                     return (instructions, LIROperRelExpr oper)
 

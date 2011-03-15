@@ -48,8 +48,9 @@ instance ASM SymbolTable where
                                _ -> ["    " ++ intelasm x] ++ indentMap xs
 
 instance ASM SymbolRecord where
-    -- intelasm (VarRec (DecafVar ty ident _) sr) =
-    -- "g" ++ show sr ++ " db 0, 0"
+    intelasm (VarRec (DecafVar ty ident _) sr) =
+        "g" ++ show sr ++ " dq 0"
+
     intelasm (ArrayRec (DecafArr ty ident len _) go) =
         arrayLabel go ++ ": dq " ++ foldl (\s1 -> \s2 -> s1++", "++s2) "0" (map (\_ -> "0") [1..readDecafInteger len])
 
