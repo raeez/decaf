@@ -13,26 +13,39 @@ import Decaf.IR.ASM
 -- TODO implement div / mod
 -- TODO implement boolean expr assignments
 
+regOpen r = "mov r10, "++(intelasm r)++sep
+
+regSave r = case r of
+              SREG s -> "mov "++(intelasm r)++", r10"++sep
+              otherwise -> ""
+operOpen op num = 
+    "mov r1"++(show num)++", "++(intelasm op)++sep -- selects either r10 or r11
+
+
 sep = "\n        "
-twoop t o1 o2 = t ++ " " ++ intelasm o1 ++ ", " ++ intelasm o2
+twoop t o1 o2 = (operOpen o2 1) ++ t ++ " " ++ intelasm R10 ++ ", " ++ intelasm R11 ++ sep++regSave o1
 mov op1 op2 = twoop "mov" op1 op2
 add op1 op2 = twoop "add" op1 op2
 sub op1 op2 = twoop "sub" op1 op2
-cmp op1 op2 = twoop "cmp" op1 op2
-imul op = "imul " ++ intelasm op
+cmp op1 op2 = operOpen op1 0 ++ operOpen op2 1 ++ "cmp " ++ intelasm R10 ++ ", " ++ intelasm R11
+imul op = (operOpen op 0) ++ "imul " ++ intelasm R10
 jmp label = "jmp " ++ intelasm label
+
+movaddr addr op2 = (operOpen op2 1) ++ "mov "++ intelasm addr ++ intelasm R11
 
 genExpr reg expr =
   case expr of
-      LIRBinExpr op1' LSUB op2' -> mov reg op1' ++ sep
-                                ++ sub reg op2'
+      LIRBinExpr op1' LSUB op2' -> mov R10 op1' ++ sep
+                                ++ sub R10 op2' ++ sep
+                                ++ regSave reg
 
-      LIRBinExpr op1' LADD op2' -> mov reg op1' ++ sep
-                                ++ add reg op2'
+      LIRBinExpr op1' LADD op2' -> mov R10 op1' ++ sep
+                                ++ add R10 op2' ++ sep
+                                ++ regSave reg
 
       LIRBinExpr op1' LMUL op2' -> mov RAX op1' ++ sep
                                 ++ imul op2'    ++ sep
-                                ++ mov reg RAX
+                                ++ "mov "++(intelasm reg)++ ", "++intelasm RAX
 
       LIRBinExpr op1' LDIV  op2' -> mov RAX op1' ++ sep
                                 ++ idiv op2'     ++ sep
@@ -108,7 +121,7 @@ instance ASM LIRInst where
     intelasm (LIRRegOffAssignInst reg offset size operand) = "******************* " ++ intelasm reg ++ "(" ++ intelasm offset ++ ", " ++ intelasm size ++ ") <- " ++ intelasm operand
     intelasm (LIRCondAssignInst reg reg' operand) = "******************* " ++ intelasm reg ++ " <- (" ++ intelasm reg' ++ ") " ++ intelasm operand
     intelasm (LIRStoreInst mem operand) =
-        mov mem operand
+        movaddr mem operand 
 
     intelasm (LIRLoadInst reg mem) =
         mov reg mem
@@ -219,7 +232,7 @@ instance ASM LIRReg where
     intelasm (R15) = "r15"
     intelasm (GP)  = "gp"
     intelasm (IP)  = "ip"
-    intelasm (SREG i) = "s" ++ (show i)
+    intelasm (SREG i) = "[rbp+" ++ (show i)++"]"
 
 instance ASM LIRInt where
     intelasm (LIRInt i) = "0x" ++ (if i < 0 then "-" else "") ++ showHex (abs i) ""

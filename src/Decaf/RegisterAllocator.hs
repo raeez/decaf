@@ -367,11 +367,11 @@ updateCounter reg@(SREG num)
     = do st <- getST
          let c = rcCount st
              dict = rcDict st
-         if Map.member num dict
-           then return ()
-           else setST st{rcCount = c+1, rcDict = (Map.insert num c dict)}
+         case Map.lookup num dict of
+              Just lab -> return $ SREG lab
+              Nothing -> do setST st{rcCount = c+1, rcDict = (Map.insert num c dict)} 
+                            return $ SREG c
 
-         return $ SREG c
 
 updateCounter s = return s
 
