@@ -426,6 +426,8 @@ arrayBoundsCheck st (DecafArr _ _ len _) indexOperand =
     do l <- incLabel
        return ([CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LLT (LIRIntOperand $ LIRInt $ readDecafInteger len)) (boundsLabel l)]
            ++ throwException outOfBounds
+           ++ [CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LGT (LIRIntOperand $ LIRInt $ 0)) (boundsLabel l)]
+           ++ throwException outOfBounds
            ++ [CFGLIRInst $ LIRLabelInst $ boundsLabel l])
 
 symVar :: DecafVar -> SymbolTree -> LIRReg
