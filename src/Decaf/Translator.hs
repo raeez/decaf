@@ -88,8 +88,8 @@ translateMethod st declarations method =
                prologue <- translateMethodPrologue (st' index) method
                postcall <- translateMethodPostcall st method
                let decs = if (methodID method) == "main" then declarations else []
-               return $ CFGUnit (methodlabel count) ([CFGLIRInst $ LIRTempEnterInst 0]
-                                                  ++ prologue
+               return $ CFGUnit (methodlabel count) ({-[CFGLIRInst $ LIRTempEnterInst 0]
+                                                  ++ -}prologue
                                                   ++ decs
                                                   ++ body
                                                   ++ postcall)
