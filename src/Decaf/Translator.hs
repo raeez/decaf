@@ -126,10 +126,14 @@ translateStm st (DecafAssignStm loc op expr _) =
            ++ [CFGLIRInst $ LIRRegAssignInst reg (LIROperExpr operand2)]
            ++ arrayStore)
   where
-    genArrayStore [] = []
-    genArrayStore instructions = (case last instructions of
-                                     CFGLIRInst (LIRLoadInst s memaddr) -> [CFGLIRInst $ LIRStoreInst memaddr (LIRRegOperand s)]
-                                     _ -> [])
+    genArrayStore [] _ = []
+    genArrayStore instructions (DecafArrLoc{arrLocIdent=id})
+        = case last instructions of
+            CFGLIRInst (LIRLoadInst s (LIRRegPlusMemAddr reg off (LIRInt l))) -> 
+                [CFGLIRInst $ LIRRegOffAssignInst reg (MEM $ show off) (LIRInt 0) (LIRRegOperand s)]
+            CFGLIRInst (LIRLoadInst s (LIRRegOffMemAddr reg off _)) -> 
+                [CFGLIRInst $ LIRRegOffAssignInst reg (MEM $ show off) (LIRInt 0) (LIRRegOperand s)]
+            _ -> []
 
     expr' reg oper = case op of
                          DecafEq _ -> return ([], oper)
@@ -439,7 +443,12 @@ arrayMemaddr (DecafArr ty _ len _) (ArrayRec _ l) offset operand =
                     sr2 = SREG t2
                 return ([LIRRegAssignInst sr1 (LIRBinExpr operand LMUL (LIRIntOperand (LIRInt size)))]
                     ++ [LIRRegAssignInst sr2 (LIRBinExpr (LIRRegOperand sr1) LADD (LIRIntOperand (LIRInt offset)))]
+<<<<<<< HEAD
                     , LIRRegMemAddr sr2 (LIRInt size))
+=======
+                    , LIRRegPlusMemAddr (MEM $ arrayLabel l) sr2 (LIRInt size))
+--LIRRegMemAddr sr2 (LIRInt l))
+>>>>>>> 65a4fad240ff1b897ae579cf75b89b83cbb4dd97
   where
     arrlen = readDecafInteger len
     size = (case ty of

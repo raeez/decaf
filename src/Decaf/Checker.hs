@@ -44,11 +44,12 @@ addSymbol sr@(StringRec s l) =
     Checker (\s@(CST{cstTable = t}) -> 
                  let cont = context t
                  in 
-                   (True,  s{cstTable = setContext cont (modifyContent (addtotable sr) (root t))}))
+                   (True,  s{cstTable = setContext cont (modifyContent (addtobegtable sr) (root t))}))
 
-addSymbol sr = Checker (\s@(CST{cstTable = t}) -> (True, s{cstTable = modifyContent (addtotable sr)t}))
+addSymbol sr = Checker (\s@(CST{cstTable = t}) -> (True, s{cstTable = modifyContent (addtoendtable sr)t}))
 
-addtotable sr (SymbolTable rs bt) = SymbolTable (rs ++ [sr]) bt -- this order of adding symbols is important!
+addtoendtable sr (SymbolTable rs bt) = SymbolTable (rs ++ [sr]) bt -- this order of adding symbols is important!
+addtobegtable sr (SymbolTable rs bt) = SymbolTable (sr : rs) bt -- this order of adding symbols is important!
 
 local :: BlockType -> Checker a -> Checker a
 local tp m = Checker (\s@(CST{cstTable = t}) ->

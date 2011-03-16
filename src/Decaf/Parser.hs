@@ -516,7 +516,7 @@ rewriteFactor (DecafNotExpr' expr p)
   = DecafNotExpr (rewriteExpr expr) p
 
 rewriteFactor (DecafMinExpr' expr p)
-  = DecafMinExpr (rewriteExpr expr) p
+  = rewriteExpr expr
 
 rewriteFactor (DecafLocExpr' loc p)
   = DecafLocExpr loc p
