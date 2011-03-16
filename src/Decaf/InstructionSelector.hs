@@ -10,19 +10,20 @@ import Decaf.IR.ASM
 -- along with a monadic container (dsl for superoptimization)
 -- this code then just becomes the pretty printer into gnuasm, or intelasm
 --
--- TODO implement boolean expr assignments
 
-regOpen r = "mov r10, "++(intelasm r)++sep
+regOpen r = "mov r10, "++ intelasm r ++ sep
 
 regSave r = case r of
-              SREG s -> "mov "++(intelasm r)++", r10"++sep
+              SREG s -> "mov " ++ intelasm r ++", r10" ++ sep
               otherwise -> ""
-operOpen op num = 
-    "mov r1"++(show num)++", "++(intelasm op)++sep -- selects either r10 or r11
 
+operOpen op num = 
+    "mov r1"++ show num ++", "++ intelasm op ++ sep -- selects either r10 or r11
+
+movaddr addr op2 = (operOpen op2 1) ++ "mov "++ intelasm addr ++ ", " ++ intelasm R11
 
 sep = "\n        "
-twoop t o1 o2 = (operOpen o2 1) ++ t ++ " " ++ intelasm R10 ++ ", " ++ intelasm R11 ++ sep++regSave o1
+twoop t o1 o2 = (operOpen o2 1) ++ t ++ " " ++ intelasm R10 ++ ", " ++ intelasm R11 ++ sep ++ regSave o1
 mov op1 op2 = twoop "mov" op1 op2
 add op1 op2 = twoop "add" op1 op2
 sub op1 op2 = twoop "sub" op1 op2
@@ -31,9 +32,6 @@ imul op = (operOpen op 0) ++ "imul " ++ intelasm R10
 idiv op = (operOpen op 0) ++ "imul " ++ intelasm R10
 imod op = (operOpen op 0) ++ "idiv " ++ intelasm R10
 jmp label = "jmp " ++ intelasm label
-
-movaddr addr op2 = (operOpen op2 1) ++ "mov "++ intelasm addr ++ intelasm R11
-
 genExpr reg expr =
   case expr of
       LIRBinExpr op1' LSUB op2' -> mov R10 op1' ++ sep
@@ -56,10 +54,29 @@ genExpr reg expr =
                                 ++ idiv op2'
                                 ++ mov reg RDX
 
-      LIRBinExpr op1' (LIRBinRelOp op label) op2' -> "******************* " ++ intelasm reg ++ " <- " ++ intelasm expr
+      LIRBinExpr op1' (LIRBinRelOp binop label) op2' ->
+            cmp op1' op2' ++ sep
+         ++ jtype ++ sep
+         ++ mov reg (LIRIntOperand $ LIRInt 0) ++ "\n"
+         ++ "    " ++ intelasm label ++ ":" ++ sep
+         ++ mov reg (LIRIntOperand $ LIRInt 1)
+        where
+          jtype = case binop of
+                    LEQ -> "je " ++ intelasm label
+                    LNEQ -> "jne " ++ intelasm label
+                    LGT -> "jg " ++ intelasm label
+                    LGTE -> "jge " ++ intelasm label
+                    LLT -> "jl " ++ intelasm label
+                    LLTE -> "jle " ++ intelasm label
+          
+      LIRBinExpr op1' (LIRBinRelOp LNEQ label) op2' -> "******************* " ++ intelasm reg ++ " <- " ++ intelasm expr
+      LIRBinExpr op1' (LIRBinRelOp LGT label) op2' -> "******************* " ++ intelasm reg ++ " <- " ++ intelasm expr
+      LIRBinExpr op1' (LIRBinRelOp LGTE label) op2' -> "******************* " ++ intelasm reg ++ " <- " ++ intelasm expr
+      LIRBinExpr op1' (LIRBinRelOp LLT label) op2' -> "******************* " ++ intelasm reg ++ " <- " ++ intelasm expr
+      LIRBinExpr op1' (LIRBinRelOp LLTE label) op2' -> "******************* " ++ intelasm reg ++ " <- " ++ intelasm expr
 
 instance ASM SymbolTable where
-    intelasm (SymbolTable records _) = "USE64\nsection .data:\n" ++ unlines (indentMap records) ++ "\n"
+    intelasm (SymbolTable records _) = "USE64\nextern printf\nsection .data:\n" ++ unlines (indentMap records) ++ "\n"
       where
         indentMap :: [SymbolRecord] -> [String]
         indentMap [] = []
@@ -121,6 +138,7 @@ instance ASM LIRInst where
 
     intelasm (LIRRegOffAssignInst reg offset size operand) = "******************* " ++ intelasm reg ++ "(" ++ intelasm offset ++ ", " ++ intelasm size ++ ") <- " ++ intelasm operand
     intelasm (LIRCondAssignInst reg reg' operand) = "******************* " ++ intelasm reg ++ " <- (" ++ intelasm reg' ++ ") " ++ intelasm operand
+
     intelasm (LIRStoreInst mem operand) =
         movaddr mem operand 
 
