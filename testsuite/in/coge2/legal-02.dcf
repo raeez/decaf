@@ -1,4 +1,5 @@
 class Program {
+          int a[10];
 	  void main() {  }
-	  void test() { int a[10]; a[11] = 1;} 
+	  void test() { a[11] = 1;} 
 }
