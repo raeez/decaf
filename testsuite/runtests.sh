@@ -1,11 +1,27 @@
 #!/bin/bash
 
-export GHC="runghc -i../src -i../Decaf"
+mkdir temp
 
-for T in \
-  Test/testScanner.hs \
-  Test/testParser.hs \
-  Test/testSemanticsChecker.hs \
-  ;
-do echo "-- $T --" && $GHC -package parsec $T ../Decaf/Tokens.hs;
-done
+while read dir
+do
+    ls $dir/*.dcf > temp/l
+    while read line 
+    do
+	../src/test $line > temp/a.s
+	ref=`echo $line | sed s/dcf/out/`
+	echo $line $ref
+        gccout=`gcc -o temp/a temp/a.s`
+	temp/a > temp/o
+	cmp=`fc $ref temp/o`
+	echo $cmp
+	err=`echo $cmp | wc -l`
+	if [ $err -ne 0 ]; then
+	    echo -----$line------
+	    echo expected: 
+	    cat $ref
+	    echo got:
+	    cat temp/o
+	fi
+    done < temp/l
+done < list
+
