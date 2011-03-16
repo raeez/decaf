@@ -423,11 +423,12 @@ translateLocation st loc =
 arrayBoundsCheck :: SymbolTree -> DecafArr -> LIROperand -> Translator [CFGInst]
 arrayBoundsCheck st (DecafArr _ _ len _) indexOperand =
     do l <- incTemp
-       return ([CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LLT (LIRIntOperand $ LIRInt $ readDecafInteger len)) (boundsLabel l)]
+       return ([CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LLT (LIRIntOperand $ LIRInt $ readDecafInteger len)) ((boundsLabel False l))]
            ++ throwException outOfBounds
-           ++ [CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LGT (LIRIntOperand $ LIRInt $ 0)) (boundsLabel l)]
+           ++ [CFGLIRInst $ LIRLabelInst $ (boundsLabel False l)]
+           ++ [CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LGT (LIRIntOperand $ LIRInt $ 0)) (boundsLabel True l)]
            ++ throwException outOfBounds
-           ++ [CFGLIRInst $ LIRLabelInst $ boundsLabel l])
+           ++ [CFGLIRInst $ LIRLabelInst $ boundsLabel True l])
 
 symVar :: DecafVar -> SymbolTree -> LIRReg
 symVar var st =
@@ -469,6 +470,7 @@ missingRetHandler st =
             ++ [CFGLIRInst $ LIRRegAssignInst RDI (LIROperExpr (LIRRegOperand $ MEM "__string1"))]
             ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr (LIRIntOperand $ LIRInt 0))]
             ++ [CFGLIRInst $ LIRCallInst (LIRProcLabel "printf")]
+            ++ [CFGLIRInst LIRRetInst]
 
 outOfBoundsHandler :: SymbolTree -> Translator [CFGInst]
 outOfBoundsHandler st =
@@ -478,3 +480,4 @@ outOfBoundsHandler st =
             ++ [CFGLIRInst $ LIRRegAssignInst RDI (LIROperExpr (LIRRegOperand $ MEM "__string0"))]
             ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr (LIRIntOperand $ LIRInt 0))]
             ++ [CFGLIRInst $ LIRCallInst (LIRProcLabel "printf")]
+            ++ [CFGLIRInst LIRRetInst]

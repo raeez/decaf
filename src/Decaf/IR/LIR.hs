@@ -24,8 +24,8 @@ exceptionHeader = LIRLabel "__exceptionhandlers"
 exceptionLabel :: Int -> LIRLabel
 exceptionLabel c = LIRLabel $ "__exception" ++ show c
 
-boundsLabel :: Int -> LIRLabel
-boundsLabel c = LIRLabel $ "__boundscheck" ++ show c
+boundsLabel :: Bool -> Int -> LIRLabel
+boundsLabel t c = if t then (LIRLabel $ "__boundscheck" ++ show c) else (LIRLabel $ "__boundscheck" ++ show c ++ "__positive")
 
 compareLabel :: Int -> LIRLabel
 compareLabel c = LIRLabel $  "__cmp" ++ show c
