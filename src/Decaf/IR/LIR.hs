@@ -312,7 +312,7 @@ instance IRNode LIRReg where
     pos _     = error "LIR has no associated position"
 
 instance IRNode LIRInt where
-    pp (LIRInt i) = "0x" ++ (if i < 0 then "-" else "") ++ showHex (abs i) ""
+    pp (LIRInt i) = (if i < 0 then "-" else "") ++ "0x" ++ showHex (abs i) ""
     treeify i = Node (pp i) []
     pos _     = error "LIR has no associated position"
 

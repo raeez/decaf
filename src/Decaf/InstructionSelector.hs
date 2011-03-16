@@ -89,11 +89,11 @@ instance ASM SymbolTable where
                                _ -> ["    " ++ intelasm x] ++ indentMap xs
 
 instance ASM SymbolRecord where
-    intelasm (VarRec (DecafVar ty ident _) sr) =
-        "g" ++ show sr ++ " dq 0"
+    intelasm (VarRec (DecafVar ty ident _) num) =
+        "common g" ++ show (-num - 1) ++ " 8:1"
 
     intelasm (ArrayRec (DecafArr ty ident len _) go) =
-        arrayLabel go ++ ": dq " ++ foldl (\s1 -> \s2 -> s1++", "++s2) "0" (map (\_ -> "0") [1..readDecafInteger len])
+        "common " ++ arrayLabel go ++ " " ++( show  $ 8 * (readDecafInteger len))++ ":" ++ show 8
 
     intelasm (StringRec str sl) =
         stringLabel sl ++ ": db " ++ show str ++ ", " ++ show 0
@@ -227,7 +227,7 @@ instance ASM LIRRelOp where
     intelasm (LLTE) = "<="
 
 instance ASM LIRMemAddr where
-    intelasm (LIRRegMemAddr reg (LIRInt size)) = intelPrefix size ++ " [" ++ intelasm reg ++ "]"
+    intelasm (LIRRegMemAddr reg (LIRInt size)) = intelasm reg
     intelasm (LIRRegPlusMemAddr reg reg' (LIRInt size)) = intelPrefix size ++ " [" ++ intelasm reg ++ " + " ++ intelasm reg' ++ "]"
     intelasm (LIRRegOffMemAddr reg offset (LIRInt size)) = intelPrefix size ++ " [" ++ intelasm reg ++ " + " ++ intelasm offset++ "]"
 
@@ -253,12 +253,12 @@ instance ASM LIRReg where
     intelasm (R13) = "r13"
     intelasm (R14) = "r14"
     intelasm (R15) = "r15"
-    intelasm (GI i) = "g"++(show i)
-    intelasm (SREG i) = "[rbp-" ++ show(8*(i+1))++"]"
+    intelasm (GI i) = "qword [g"++(show i)++"]"
+    intelasm (SREG i) = "qword [rbp-" ++ show(8*(i+1))++"]"
     intelasm (MEM i) = i
 
 instance ASM LIRInt where
-    intelasm (LIRInt i) = "0x" ++ (if i < 0 then "-" else "") ++ showHex (abs i) ""
+    intelasm (LIRInt i) = (if i < 0 then "-" else "") ++ "0x" ++ showHex (abs i) ""
 
 instance ASM LIRLabel where
     intelasm (LIRLabel s) = s

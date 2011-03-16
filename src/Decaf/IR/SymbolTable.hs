@@ -151,7 +151,7 @@ numberRec (StringRec a _) = do c <- getStringCount
                                return $ StringRec a c
 
 numberGlobal (ArrayRec a _) = do c <- getGlobalCount (readDecafInteger (arrayLength a))
-                                 return $ ArrayRec a (-c-1)
+                                 return $ ArrayRec a (c)
 numberGlobal (VarRec a _ ) =  do c <- getGlobalCount 1
                                  return $ VarRec a (-c-1)
 numberGlobal m@(MethodRec {}) = return m
