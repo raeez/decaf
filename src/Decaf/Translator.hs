@@ -124,17 +124,18 @@ translateStm st (DecafAssignStm loc op expr _) =
     do (instructions1, LIRRegOperand reg) <- translateLocation st loc
        (instructions2, operand) <- translateExpr st expr
        --(instructions3, operand2) <- expr' reg operand
-       let arrayStore = genArrayStore instructions1
+       let arrayStore = genArrayStore instructions1 loc
        return (instructions1
            ++ instructions2
            -- ++ instructions3
            ++ [CFGLIRInst $ LIRRegAssignInst reg (LIROperExpr operand)]
            ++ arrayStore)
   where
-    genArrayStore [] = []
-    genArrayStore instructions = (case last instructions of
-                                     CFGLIRInst (LIRLoadInst s memaddr) -> [CFGLIRInst $ LIRStoreInst memaddr (LIRRegOperand s)]
-                                     _ -> [])
+    genArrayStore [] _ = []
+    genArrayStore instructions (DecafArrLoc{arrLocIdent=id})
+        = case last instructions of
+            CFGLIRInst (LIRLoadInst s (LIRRegMemAddr reg _)) -> [CFGLIRInst $ LIRRegOffAssignInst (MEM id ) (LIRRegOperand reg) (LIRInt 0) (LIRRegOperand s)]
+            _ -> []
 
     expr' reg oper = case op of
                          DecafEq _ -> return ([], oper)
