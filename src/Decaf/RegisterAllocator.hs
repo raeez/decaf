@@ -444,18 +444,20 @@ getMethods st =
 allocateRegisters :: SymbolTree -> LIRProgram -> (LIRProgram, Int, [RegCounterState])
 allocateRegisters st prog = 
     let initUnits = lirProgUnits prog 
+
+        allocUnit :: LIRUnit -> (LIRUnit, RegCounterState)
         allocUnit unit = runAllocator (everywhereM (mkM updateCounter) unit) (mkRCState st)
-        enhUnits :: [(LIRUnit, RegCounterState)]
         enhUnits = map allocUnit initUnits
+
         units = map fst enhUnits
         counters = map snd enhUnits
 
---        withEnters = map appendEnter $ zip (map rcCount counters) units
-
         methods = getMethods st
+
         units' = (map appendEnter $ zip (map rcCount counters) 
                                         (map fixOffset $ zip methods (init units))) 
                  ++ [last $ units]
+
 
         appendEnter :: (Int, LIRUnit) -> LIRUnit
         appendEnter (i, u) = 
