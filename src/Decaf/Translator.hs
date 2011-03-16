@@ -118,23 +118,18 @@ translateStm :: SymbolTree -> DecafStm -> Translator [CFGInst]
 translateStm st (DecafAssignStm loc op expr _) =
     do (instructions1, LIRRegOperand reg) <- translateLocation st loc
        (instructions2, operand) <- translateExpr st expr
-       let arrayStore = genArrayStore instructions1 loc
        (instructions3, operand2) <- expr' reg operand
-
+       let arrayStore = genArrayStore instructions1
        return (instructions1
            ++ instructions2
            ++ instructions3
            ++ [CFGLIRInst $ LIRRegAssignInst reg (LIROperExpr operand2)]
            ++ arrayStore)
   where
-    genArrayStore [] _ = []
-    genArrayStore instructions (DecafArrLoc{arrLocIdent=id})
-        = case last instructions of
-            CFGLIRInst (LIRLoadInst s (LIRRegMemAddr off (LIRInt l))) -> 
-                [CFGLIRInst $ LIRRegOffAssignInst (MEM $ arrayLabel l) off (LIRInt 0) (LIRRegOperand s)]
-            CFGLIRInst (LIRLoadInst s (LIRRegOffMemAddr reg off _)) -> 
-                [CFGLIRInst $ LIRRegOffAssignInst reg (MEM $ show off) (LIRInt 0) (LIRRegOperand s)]
-            _ -> []
+    genArrayStore [] = []
+    genArrayStore instructions = (case last instructions of
+                                     CFGLIRInst (LIRLoadInst s memaddr) -> [CFGLIRInst $ LIRStoreInst memaddr (LIRRegOperand s)]
+                                     _ -> [])
 
     expr' reg oper = case op of
                          DecafEq _ -> return ([], oper)
@@ -231,11 +226,24 @@ translateArrDeclaration st (DecafArr ty ident len _) =
 
 translateRelExpr :: SymbolTree -> DecafExpr -> Translator ([CFGInst], LIRRelExpr)
 translateRelExpr st expr = 
-    do res <- translateExpr st expr
+    do res<- (translateExpr st expr)
        (case res of
-           (instructions, oper) -> return (instructions, LIROperRelExpr oper) 
-  
-           _ -> return ([CFGLIRInst $ LIRLabelInst $ LIRLabel $ "Translator.hs:translateRelExpr Invalid Expression tree; not of type relExpr"], LIROperRelExpr $ LIRRegOperand RAX))
+           ([], oper@(LIRRegOperand {})) -> return ([], LIROperRelExpr oper)
+           ([], oper@(LIRIntOperand {})) -> return ([], LIROperRelExpr oper)
+           (instructions, oper) -> case last instructions of
+                                     CFGLIRInst (LIRRegAssignInst s e@(LIRBinExpr {})) ->
+                                         return (instructions, LIROperRelExpr oper)
+     
+                                     CFGLIRInst (LIRRegAssignInst s (LIRUnExpr LNOT operand)) ->
+                                         return (instructions, LIROperRelExpr oper)
+     
+                                     CFGLIRInst (LIRRegAssignInst s (LIROperExpr operand)) ->
+                                         return (instructions, LIROperRelExpr oper)
+     
+                                     CFGExprInst {} -> 
+                                         return (instructions, LIROperRelExpr oper)
+     
+                                     _ -> return ([CFGLIRInst $ LIRLabelInst $ LIRLabel $ "Translator.hs:translateRelExpr Invalid Expression tree; not of type relExpr"], LIROperRelExpr $ LIRRegOperand RAX))
 
 translateExpr :: SymbolTree -> DecafExpr -> Translator ([CFGInst], LIROperand)
 translateExpr st (DecafLocExpr loc _) =
@@ -431,7 +439,7 @@ arrayMemaddr (DecafArr ty _ len _) (ArrayRec _ l) offset operand =
                     sr2 = SREG t2
                 return ([LIRRegAssignInst sr1 (LIRBinExpr operand LMUL (LIRIntOperand (LIRInt size)))]
                     ++ [LIRRegAssignInst sr2 (LIRBinExpr (LIRRegOperand sr1) LADD (LIRIntOperand (LIRInt offset)))]
-                    , LIRRegMemAddr sr2 (LIRInt l))
+                    , LIRRegMemAddr sr2 (LIRInt size))
   where
     arrlen = readDecafInteger len
     size = (case ty of

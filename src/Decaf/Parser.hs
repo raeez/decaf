@@ -619,10 +619,10 @@ factor :: DecafParser Factor
 factor = (try methodcall >>= \o -> fmap (DecafMethodExpr' o . morphPos) getPosition)
       <|> (location >>= \o -> fmap (DecafLocExpr' o . morphPos) getPosition)
       <|> (lit >>= \o -> fmap (DecafLitExpr' o . morphPos) getPosition)
-      <|> (opnot >> expr >>= \o -> fmap (DecafNotExpr' o . morphPos) getPosition)
+      <|> (opnot >> smallexpr >>= \o -> fmap (DecafNotExpr' o . morphPos) getPosition)
       <|> do
             opmin
-            e <- expr
+            e <- smallexpr
             p <- getPosition
             let p' = morphPos p
             return $ DecafMinExpr' (case e of
@@ -635,6 +635,50 @@ factor = (try methodcall >>= \o -> fmap (DecafMethodExpr' o . morphPos) getPosit
             rparen
             fmap (DecafParenExpr' e . morphPos) getPosition
 
+smallexpr :: DecafParser DecafExpr
+smallexpr = (try methodcall >>= \o -> fmap (rewriteFactor . DecafMethodExpr' o . morphPos) getPosition)
+         <|> (location >>= \o -> fmap (rewriteFactor . DecafLocExpr' o . morphPos) getPosition)
+         <|> (lit >>= \o -> fmap (rewriteFactor . DecafLitExpr' o . morphPos) getPosition)
+         <|> (opnot >> ((try smallexpr) <|> expr) >>= \o -> fmap (rewriteFactor . DecafNotExpr' o . morphPos) getPosition)
+         <|> do
+                opmin
+                e <- (try smallexpr) <|> expr
+                p <- getPosition
+                let p' = morphPos p
+                return $ rewriteFactor $ DecafMinExpr' (case e of
+                            DecafLitExpr (DecafIntLit (DecafHex int) _) _ -> DecafLitExpr (DecafIntLit (DecafHex ('-' : int)) p') p'
+                            DecafLitExpr (DecafIntLit (DecafDec int) _) _ -> DecafLitExpr (DecafIntLit (DecafDec ('-' : int)) p') p'
+                            e -> e) p'
+          <|> do
+                lparen
+                e <- (try smallexpr) <|> expr
+                rparen
+                fmap (rewriteFactor . DecafParenExpr' e . morphPos) getPosition
+{-
+
+expr = buildExpressionParser table term
+    <?> "expression"
+
+term = parens expr 
+    <|> natural
+     <?> "simple expression"
+
+  table   = [ [binary orop _ AssocLeft]
+            , [binary andop _ AssocLeft]
+            , [binary eqop _ AssocLeft]
+            , [binary relop _ AssocLeft]
+            , [prefix minop _, prefix plusop _]
+            , [prefix opnot DecafNotExpr]
+            , [prefix opmin DecafMinExpr]
+            , [postfix "++" (+1)]
+            , [binary "*" (*) AssocLeft, binary "/" (div) AssocLeft ]
+            , [binary "+" (+) AssocLeft, binary "-" (-)   AssocLeft ]
+            ]
+          
+  binary  name fun assoc = Infix (do{ reservedOp name; return fun }) assoc
+  prefix  name fun       = Prefix (do{ reservedOp name; return fun })
+  postfix name fun       = Postfix (do{ reservedOp name; return fun })
+-}
 firstlevelop, secondlevelop, thirdlevelop, fourthlevelop, fourthlevelop', fifthlevelop :: DecafParser DecafBinOp
 firstlevelop = condop
 secondlevelop = eqop
