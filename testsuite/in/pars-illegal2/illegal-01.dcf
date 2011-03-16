@@ -1,5 +1,5 @@
 class Program {
-      	  int a[-1];
 	  void main() {
+	   	  int a[10];
 	  }
 }
