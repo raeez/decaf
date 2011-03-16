@@ -188,10 +188,11 @@ instance Data LIRBinOp where
  gmapM f (LSHRA) =
   do 
      return (LSHRA)
- gmapM f (LIRBinRelOp a1) =
+ gmapM f (LIRBinRelOp a1 a2) =
   do 
      a'1 <- f a1
-     return (LIRBinRelOp a'1)
+     a'2 <- f a2
+     return (LIRBinRelOp a'1 a'2)
 
 instance Data LIRUnOp where
  gmapM f (LNEG) =
@@ -279,17 +280,14 @@ instance Data LIRReg where
  gmapM f (R15) =
   do 
      return (R15)
-
- gmapM f (GP) = 
-  do
-     return (GP)
- gmapM f (IP) = 
-  do
-     return (IP)
  gmapM f (SREG a1) =
   do 
      a'1 <- f a1
      return (SREG a'1)
+ gmapM f (MEM a1) =
+  do 
+     a'1 <- f a1
+     return (MEM a'1)
 
 instance Data LIROperand where
  gmapM f (LIRRegOperand a1) =
