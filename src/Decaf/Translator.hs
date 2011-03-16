@@ -119,7 +119,7 @@ translateStm st (DecafAssignStm loc op expr _) =
     do (instructions1, LIRRegOperand reg) <- translateLocation st loc
        (instructions2, operand) <- translateExpr st expr
        (instructions3, operand2) <- expr' reg operand
-       let arrayStore = genArrayStore instructions1
+       let arrayStore = genArrayStore instructions1 loc
        return (instructions1
            ++ instructions2
            ++ instructions3
@@ -443,12 +443,7 @@ arrayMemaddr (DecafArr ty _ len _) (ArrayRec _ l) offset operand =
                     sr2 = SREG t2
                 return ([LIRRegAssignInst sr1 (LIRBinExpr operand LMUL (LIRIntOperand (LIRInt size)))]
                     ++ [LIRRegAssignInst sr2 (LIRBinExpr (LIRRegOperand sr1) LADD (LIRIntOperand (LIRInt offset)))]
-<<<<<<< HEAD
-                    , LIRRegMemAddr sr2 (LIRInt size))
-=======
                     , LIRRegPlusMemAddr (MEM $ arrayLabel l) sr2 (LIRInt size))
---LIRRegMemAddr sr2 (LIRInt l))
->>>>>>> 65a4fad240ff1b897ae579cf75b89b83cbb4dd97
   where
     arrlen = readDecafInteger len
     size = (case ty of
