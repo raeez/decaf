@@ -144,7 +144,9 @@ instance ASM LIRInst where
     intelasm (LIRRegAssignInst reg (LIROperExpr operand)) =
         mov reg operand
 
-    intelasm (LIRRegOffAssignInst reg offset size operand) = "******************* " ++ intelasm reg ++ "(" ++ intelasm offset ++ ", " ++ intelasm size ++ ") <- " ++ intelasm operand
+    intelasm (LIRRegOffAssignInst reg offset size operand) = 
+        (operOpen offset 0)++(operOpen operand 1)++"mov ["++intelasm reg++" + r10], r11"++sep
+
     intelasm (LIRCondAssignInst reg reg' operand) = "******************* " ++ intelasm reg ++ " <- (" ++ intelasm reg' ++ ") " ++ intelasm operand
 
     intelasm (LIRStoreInst mem operand) =
