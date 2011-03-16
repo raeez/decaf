@@ -462,20 +462,22 @@ exceptionHandlers = [missingRetHandler, outOfBoundsHandler]
 
 missingRetHandler :: SymbolTree ->Translator [CFGInst]
 missingRetHandler st =
-    --do (instructions, operand) <- translateString st outOfBoundsMessage
-       return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel 0]
-            -- ++ instructions
-            ++ [CFGLIRInst $ LIRRegAssignInst RDI (LIROperExpr (LIRRegOperand $ MEM "__string1"))]
-            ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr (LIRIntOperand $ LIRInt 0))]
-            ++ [CFGLIRInst $ LIRCallInst (LIRProcLabel "printf")]
-            ++ [CFGLIRInst LIRRetInst]
+       do let var = case globalSymLookup ('.':missingRetMessage) st of
+                      Just (StringRec _ l) -> show l
+                      _ -> error $ "Translate.hs:missingRetHandler could not find symbol for :" ++ missingRetMessage
+          return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel 0]
+                ++ [CFGLIRInst $ LIRRegAssignInst RDI (LIROperExpr (LIRRegOperand $ MEM $ "__string" ++ var))]
+                ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr (LIRIntOperand $ LIRInt 0))]
+                ++ [CFGLIRInst $ LIRCallInst (LIRProcLabel "printf")]
+                ++ [CFGLIRInst LIRRetInst]
 
 outOfBoundsHandler :: SymbolTree -> Translator [CFGInst]
 outOfBoundsHandler st =
-    --do (instructions, operand) <- translateString st outOfBoundsMessage
-       return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel 1]
-            -- ++ instructions
-            ++ [CFGLIRInst $ LIRRegAssignInst RDI (LIROperExpr (LIRRegOperand $ MEM "__string0"))]
-            ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr (LIRIntOperand $ LIRInt 0))]
-            ++ [CFGLIRInst $ LIRCallInst (LIRProcLabel "printf")]
-            ++ [CFGLIRInst LIRRetInst]
+       do let var = case globalSymLookup ('.':outOfBoundsMessage) st of
+                      Just (StringRec _ l) -> show l
+                      _ -> error $ "Translate.hs:outOfBoundsHandler could not find symbol for :" ++ outOfBoundsMessage
+          return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel 1]
+               ++ [CFGLIRInst $ LIRRegAssignInst RDI (LIROperExpr (LIRRegOperand $ MEM $ "__string" ++ var))]
+               ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr (LIRIntOperand $ LIRInt 0))]
+               ++ [CFGLIRInst $ LIRCallInst (LIRProcLabel "printf")]
+               ++ [CFGLIRInst LIRRetInst]
