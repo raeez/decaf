@@ -140,6 +140,7 @@ data Subr = Subr Term Subr' DecafPosition deriving (Show, Eq)
 data Subr' = Subr' DecafBinOp Term Subr' DecafPosition
            | EmptySubr'
            deriving (Show, Eq)
+
 data Term = Term Factor Term' DecafPosition deriving (Show, Eq)
 data Term' = Term' DecafBinOp Factor Term' DecafPosition
            | EmptyTerm'

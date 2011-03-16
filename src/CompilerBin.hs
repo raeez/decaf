@@ -6,7 +6,7 @@ import Decaf.IR.ASM
 import System.Environment
 
 main = do input <- getArgs
-          let fileName = input !! 0
+          let (fileName:fs) = input
           source <- readFile fileName
           let (e, p, t, formattedTree, formattedErrors) = getRSuccess $ check source fileName
           --graph $ generify t
