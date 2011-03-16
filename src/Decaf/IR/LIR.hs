@@ -27,8 +27,11 @@ exceptionLabel c = LIRLabel $ "__exception" ++ show c
 boundsLabel :: Int -> LIRLabel
 boundsLabel c = LIRLabel $ "__boundscheck" ++ show c
 
+compareLabel :: Int -> LIRLabel
+compareLabel c = LIRLabel $  "__cmp" ++ show c
+
 stringLabel :: Int -> String
-stringLabel  c = "__string" ++ show c
+stringLabel c = "__string" ++ show c
 
 arrayLabel :: Int -> String
 arrayLabel c = "__array" ++ show c
@@ -96,7 +99,7 @@ data LIRBinOp = LADD
               | LSHL
               | LSHR
               | LSHRA
-              | LIRBinRelOp LIRRelOp
+              | LIRBinRelOp LIRRelOp LIRLabel
               deriving (Show, Eq, Typeable)
 
 data LIRUnOp = LNEG
@@ -137,10 +140,10 @@ data LIRReg = RAX
             | R13
             | R14
             | R15
-            | GP
             | IP
             | GI Int
             | SREG Int
+            | MEM String
             deriving (Show, Eq, Typeable)
 
 type LIRSize = LIRInt
@@ -248,8 +251,8 @@ instance IRNode LIRBinOp where
     pp (LSHL) = "SHL"
     pp (LSHR) = "SHR"
     pp (LSHRA) = "SHRA"
-    pp (LIRBinRelOp relop) = pp relop
-    treeify (LIRBinRelOp relop) = treeify relop
+    pp (LIRBinRelOp relop label) = pp relop
+    treeify (LIRBinRelOp relop label) = treeify relop
     treeify a = Node (pp a) []
     pos _     = error "LIR has no associated position"
 
@@ -302,9 +305,8 @@ instance IRNode LIRReg where
     pp (R13) = "R13"
     pp (R14) = "R14"
     pp (R15) = "R15"
-    pp (GP)  = "GP"
-    pp (IP)  = "IP"
     pp (GI i) = "g"++(show i)
+    pp (MEM s)  = s
     pp (SREG i) = "s" ++ (show i)
     treeify a = Node (pp a) []
     pos _     = error "LIR has no associated position"
