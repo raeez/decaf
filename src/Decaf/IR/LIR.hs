@@ -60,7 +60,7 @@ data LIRUnit = LIRUnit
 
 data LIRInst = LIRRegAssignInst LIRReg LIRExpr
              | LIRRegCmpAssignInst LIRReg LIRExpr LIRLabel
-             | LIRRegOffAssignInst LIRReg LIROffset LIRSize LIROperand  -- ^ Element-wise Assign
+             | LIRRegOffAssignInst LIRReg LIRReg LIRSize LIROperand  -- ^ Element-wise Assign
              | LIRCondAssignInst LIRReg LIRReg LIROperand    -- ^ Conditional Assign
              | LIRStoreInst LIRMemAddr LIROperand
              | LIRLoadInst LIRReg LIRMemAddr
