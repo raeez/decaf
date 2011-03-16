@@ -341,46 +341,48 @@ translateMethodPostcall st (DecafMethod ty ident _ _ _) =
                   DecafVoid -> False
                   _ -> True
 
-translateMethodPrecall :: SymbolTree -> DecafMethodCall -> Translator [CFGInst]
+translateMethodPrecall :: SymbolTree -> DecafMethodCall -> Translator ([CFGInst], [CFGInst])
 translateMethodPrecall st (DecafPureMethodCall ident exprs _) =
     do let numRegArgs = min 6 (length exprs)
-       regargs <- mapM handleRegArg (zip [RDI, RSI, RDX, RCX, R8, R9] exprs)
-       stackargs <- mapM handleStackArg (reverse $ drop numRegArgs exprs)
-       return (concat regargs ++ concat stackargs)
+       regargtuples <- mapM handleRegArg (zip [RDI, RSI, RDX, RCX, R8, R9] exprs)
+       stackargtuples <- mapM handleStackArg (reverse $ drop numRegArgs exprs)
+       let (tails, heads) = unzip (regargtuples ++ stackargtuples)
+       return (concat tails, concat heads)
   where
     handleRegArg (reg, expr) = do (instructions, operand) <- translateExpr st expr
-                                  return $ instructions
-                                        ++ [CFGLIRInst $ LIRRegAssignInst reg (LIROperExpr operand)]
+                                  return $ (instructions,
+                                           [CFGLIRInst $ LIRRegAssignInst reg (LIROperExpr operand)])
 
     handleStackArg expr = do (instructions, operand) <- translateExpr st expr
-                             return $ instructions
-                                   ++ [CFGLIRInst $ LIRRegAssignInst RSP $ LIRBinExpr (LIRRegOperand RSP) LSUB (LIRIntOperand qword)] -- ^ the next two instructions form a push
-                                   ++ [CFGLIRInst $ LIRRegAssignInst RSP (LIROperExpr operand)]
+                             return $ (instructions,
+                                      [CFGLIRInst $ LIRRegAssignInst RSP $ LIRBinExpr (LIRRegOperand RSP) LSUB (LIRIntOperand qword)] -- ^ the next two instructions form a push
+                                   ++ [CFGLIRInst $ LIRRegAssignInst RSP (LIROperExpr operand)])
 
 translateMethodPrecall st (DecafMethodCallout ident exprs _) =
     do let numRegArgs = min 6 (length exprs)
-       regargs <- mapM handleRegArg (zip [RDI, RSI, RDX, RCX, R8, R9] exprs)
-       stackargs <- mapM handleStackArg (reverse $ drop numRegArgs exprs)
-       return (concat regargs ++ concat stackargs)
+       regargtuples <- mapM handleRegArg (zip [RDI, RSI, RDX, RCX, R8, R9] exprs)
+       stackargtuples <- mapM handleStackArg (reverse $ drop numRegArgs exprs)
+       let (tails, heads) = unzip (regargtuples ++ stackargtuples)
+       return (concat tails, concat heads)
   where
     translateCalloutArg (DecafCalloutArgExpr expr _) = translateExpr st expr
     translateCalloutArg (DecafCalloutArgStr str _) = translateString st str
 
     handleRegArg (reg, expr) = do (instructions, operand) <- translateCalloutArg expr
-                                  return $ instructions
-                                        ++ [CFGLIRInst $ LIRRegAssignInst reg (LIROperExpr operand)]
+                                  return $ (instructions, [CFGLIRInst $ LIRRegAssignInst reg (LIROperExpr operand)])
 
     handleStackArg expr = do (instructions, operand) <- translateCalloutArg expr
-                             return $ instructions
-                                   ++ [CFGLIRInst $ LIRRegAssignInst RSP (LIRBinExpr (LIRRegOperand RSP) LSUB (LIRIntOperand qword))] -- ^ the next two instructions form a push
-                                   ++ [CFGLIRInst $ LIRRegAssignInst RSP (LIROperExpr operand)]
+                             return $ (instructions,
+                                      [CFGLIRInst $ LIRRegAssignInst RSP (LIRBinExpr (LIRRegOperand RSP) LSUB (LIRIntOperand qword))] -- ^ the next two instructions form a push
+                                   ++ [CFGLIRInst $ LIRRegAssignInst RSP (LIROperExpr operand)])
 
 
 translateMethodCall :: SymbolTree -> DecafMethodCall -> Translator ([CFGInst], LIROperand)
 translateMethodCall st mc =
-    do precall <- translateMethodPrecall st mc
+    do (preinstructions, precall) <- translateMethodPrecall st mc
        t <- incTemp
-       return (precall
+       return (preinstructions
+            ++ precall
             ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr $ LIRIntOperand $ LIRInt 0)]
             ++ [CFGLIRInst $ LIRCallInst func]
             ++ [CFGLIRInst $ LIRRegAssignInst (SREG t) (LIROperExpr $ LIRRegOperand $ RAX)]
