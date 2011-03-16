@@ -443,16 +443,19 @@ getMethods st =
 
 allocateRegisters :: SymbolTree -> LIRProgram -> (LIRProgram, Int, [RegCounterState])
 allocateRegisters st prog = 
-    let units = lirProgUnits prog 
+    let initUnits = lirProgUnits prog 
         allocUnit unit = runAllocator (everywhereM (mkM updateCounter) unit) (mkRCState st)
-        unitcounts' :: [(LIRUnit, RegCounterState)]
-        unitcounts' = map allocUnit units
-        unitcounts = map appendEnter  $ zip (map (rcCount.snd) unitcounts') (map fst unitcounts')
+        enhUnits :: [(LIRUnit, RegCounterState)]
+        enhUnits = map allocUnit initUnits
+        units = map fst enhUnits
+        counters = map snd enhUnits
+
+--        withEnters = map appendEnter $ zip (map rcCount counters) units
+
         methods = getMethods st
-        units' = (map fixOffset $ zip methods (init unitcounts)) ++ [last $ unitcounts]
-
-        
-
+        units' = (map appendEnter $ zip (map rcCount counters) 
+                                        (map fixOffset $ zip methods (init units))) 
+                 ++ [last $ units]
 
         appendEnter :: (Int, LIRUnit) -> LIRUnit
         appendEnter (i, u) = 
@@ -476,9 +479,10 @@ allocateRegisters st prog =
                     
 
     in
-      if (length methods) /= (length unitcounts - 1)
+      if (length methods) /= (length units - 1)
 
-        then error ("number of methods does not equal number of units" ++ show (length methods) ++ show (length unitcounts))
+        then error ("number of methods does not equal number of units" 
+                    ++ show (length methods) ++ show (length units))
         else
-          ((LIRProgram (lirProgLabel prog) units'), countGlobals st, (map snd unitcounts'))
+          ((LIRProgram (lirProgLabel prog) units'), countGlobals st, counters)
         
