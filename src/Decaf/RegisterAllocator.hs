@@ -447,7 +447,7 @@ allocateRegisters st prog =
         allocUnit unit = runAllocator (everywhereM (mkM updateCounter) unit) (mkRCState st)
         unitcounts = map allocUnit units
         methods = getMethods st
-        units' = map fixOffset $ zip methods (init (map fst unitcounts))
+        units' = (map fixOffset $ zip methods (init (map fst unitcounts))) ++ [fst.last$ unitcounts]
 
 
 
