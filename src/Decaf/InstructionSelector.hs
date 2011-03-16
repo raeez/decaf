@@ -12,9 +12,7 @@ import Decaf.IR.ASM
 --
 
 regOpen r = 
-    case r of
-      R10 -> ""
-      otherwise -> "mov r10, "++ intelasm r ++ sep
+    "mov r10, "++ intelasm r ++ sep
 
 regSave r = "mov " ++ intelasm r ++ ", r10" ++ sep
 
@@ -22,8 +20,6 @@ regSave r = "mov " ++ intelasm r ++ ", r10" ++ sep
               SREG s -> "mov " ++ intelasm r ++", r10" ++ sep
               GI   s -> "mov " ++ intelasm r ++", r10" ++ sep
               otherwise -> ""-}
-
-
 
 operOpen op num = 
     "mov r1"++ show num ++", "++ intelasm op ++ sep -- selects either r10 or r11
@@ -128,8 +124,8 @@ instance ASM LIRInst where
           then if reg == RSP
                then 
                  case binop of
-                   LSUB -> operOpen op2 1++ "sub RSP, r11" 
-                   LADD -> operOpen op2 1++ "add RSP, r11" 
+                   LSUB -> operOpen op2 1++ "sub rsp, r11" 
+                   LADD -> operOpen op2 1++ "add rsp, r11" 
                    otherwise -> genExpr reg expr
                else
                  genExpr reg expr
