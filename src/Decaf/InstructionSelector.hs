@@ -13,10 +13,14 @@ import Decaf.IR.ASM
 
 regOpen r = "mov r10, "++ intelasm r ++ sep
 
-regSave r = case r of
+regSave r = "mov " ++ intelasm r ++ ", r10" ++ sep
+
+{-case r of
               SREG s -> "mov " ++ intelasm r ++", r10" ++ sep
               GI   s -> "mov " ++ intelasm r ++", r10" ++ sep
-              otherwise -> ""
+              otherwise -> ""-}
+
+
 
 operOpen op num = 
     "mov r1"++ show num ++", "++ intelasm op ++ sep -- selects either r10 or r11
