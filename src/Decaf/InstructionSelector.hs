@@ -144,7 +144,7 @@ instance ASM LIRInst where
 
     intelasm (LIRRegAssignInst reg (LIROperExpr operand)) =
         case reg of
-          RSP -> mov RSP operand
+          RSP -> mov (MEM "[rsp]") operand
           otherwise -> mov reg operand
 
     intelasm (LIRRegOffAssignInst reg offset size operand) = 
