@@ -15,6 +15,7 @@ regOpen r = "mov r10, "++ intelasm r ++ sep
 
 regSave r = case r of
               SREG s -> "mov " ++ intelasm r ++", r10" ++ sep
+              GI   s -> "mov " ++ intelasm r ++", r10" ++ sep
               otherwise -> ""
 
 operOpen op num = 
@@ -23,7 +24,8 @@ operOpen op num =
 movaddr addr op2 = (operOpen op2 1) ++ "mov "++ intelasm addr ++ ", " ++ intelasm R11
 
 sep = "\n        "
-twoop t o1 o2 = (operOpen o2 1) ++ t ++ " " ++ intelasm R10 ++ ", " ++ intelasm R11 ++ sep ++ regSave o1
+twoop t o1@(SREG {}) o2 = (operOpen o2 1) ++ t ++ " " ++ intelasm R10 ++ ", " ++ intelasm R11 ++ sep ++ regSave o1
+twoop t o1 o2 = operOpen o2 1 ++ t ++ " " ++ intelasm o1 ++ ", " ++ intelasm R11 ++ sep
 mov op1 op2 = twoop "mov" op1 op2
 add op1 op2 = twoop "add" op1 op2
 sub op1 op2 = twoop "sub" op1 op2

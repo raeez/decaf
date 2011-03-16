@@ -291,6 +291,10 @@ instance Data LIRReg where
  gmapM f (R15) =
   do 
      return (R15)
+ gmapM f (GI a1) =
+  do 
+     a'1 <- f a1
+     return (GI a'1)
  gmapM f (SREG a1) =
   do 
      a'1 <- f a1
@@ -400,6 +404,12 @@ updateCounter reg@(SREG num)
                Nothing  -> do setST st{rcCount = c+1, rcDict = (Map.insert num c dict)} 
                               return $ SREG c
                           
+updateCounter s = return s
+
+fixStackOffset :: Int -> LIRReg -> RegAllocator LIRReg
+fixStackOffset i reg@(SREG num) = 
+    return $ SREG (num+i)
+fixStackOffset i x = return x           
 {-updateCounter reg@(GI num)
     = do st <- getST
          let c = glCount st
@@ -409,7 +419,7 @@ updateCounter reg@(SREG num)
               Nothing -> do setST st{glCount = c+1, glDict = (Map.insert num c dict)} 
                             return $ GI c
 -}
-updateCounter s = return s
+
 
 
 testCounter :: String -> RegAllocator String
@@ -422,11 +432,29 @@ testCounter s =
 --fun1 = ((mkM testCounter) `extM` (mkM updateCounter))
 --fun2 = ((mkM updateCounter) `extM` (mkM testCounter))
 
+getMethods :: SymbolTree -> [DecafMethod]
+getMethods st = 
+    let recs = symbolRecords.getContent $ st
+        pullMethod (MethodRec m _) = [m]
+        pullMethod _ = []
+    in 
+      concatMap pullMethod recs
+
+
 allocateRegisters :: SymbolTree -> LIRProgram -> (LIRProgram, Int, [RegCounterState])
 allocateRegisters st prog = 
     let units = lirProgUnits prog 
         allocUnit unit = runAllocator (everywhereM (mkM updateCounter) unit) (mkRCState st)
         unitcounts = map allocUnit units
+        methods = getMethods st
+        units' = map fixOffset $ zip methods (init (map fst unitcounts))
+
+
+
+        fixOffset :: (DecafMethod, LIRUnit) -> LIRUnit
+        fixOffset (m,u) = (fst $ runAllocator (everywhereM (mkM (fixStackOffset nargs')) u) (mkRCState st)) 
+                 where nargs' = max 0 (length (methodArg m)-6)
+
         countGlobals st = 
             help 0 $ symbolRecords $ getContent st
           where help c [] = c
@@ -438,5 +466,9 @@ allocateRegisters st prog =
                     
 
     in
-      ((LIRProgram (lirProgLabel prog) (map fst unitcounts)), countGlobals st, (map snd unitcounts))
+      if (length methods) /= (length unitcounts - 1)
+
+        then error ("number of methods does not equal number of units" ++ show (length methods) ++ show (length unitcounts))
+        else
+          ((LIRProgram (lirProgLabel prog) units'), countGlobals st, (map snd unitcounts))
         

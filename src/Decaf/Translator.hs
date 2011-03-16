@@ -404,11 +404,11 @@ translateLocation :: SymbolTree -> DecafLoc -> Translator ([CFGInst], LIROperand
 translateLocation st loc =
     (case globalSymLookup (ident loc) st of
         Just (VarRec _ sr) -> return ([], LIRRegOperand $ SREG sr)
-        Just (ArrayRec arr o) -> 
+        Just ar@(ArrayRec arr o) -> 
             do t <- incTemp
                (prep, index) <- translateExpr st (arrLocExpr loc)
                checkCode <- arrayBoundsCheck st arr index
-               (instructions, mem) <- arrayMemaddr arr o index
+               (instructions, mem) <- arrayMemaddr arr ar o index
                return (prep
                        ++ checkCode
                        ++ (map CFGLIRInst instructions)
