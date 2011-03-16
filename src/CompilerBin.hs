@@ -20,7 +20,6 @@ main = do input <- getArgs
           --putStrLn.pp $ prog' 
           ---putStrLn.show $ c
           --mapM (putStrLn.show) results
-          let asm =  ((intelasm . content) numberedTable) ++ (intelasm prog)
+          let asm =  ((intelasm . content) numberedTable) ++ (intelasm prog')
           putStrLn asm
           writeFile ((fst $ break (=='.') fileName) ++ ".asm") asm
-

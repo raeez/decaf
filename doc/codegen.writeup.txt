@@ -14,6 +14,19 @@
 
          presents the writeup covering the implementation of the code generator
 
+                               ==================
+                               |  Instructions  |
+                               ==================
+
+
+     filename.asm <- runhaskell CompilerBin.hs filename.dcf
+     nasm -f elf64 filename.asm -o test.o
+     gcc -o filename filename.o
+     ./filename
+
+    *** ALL ASSEMBLY IS IN AT&T SYNTAX; IF YOU WANT TO USE ***
+    *** GNUASSEMBLER, TURN ON THE .intel_syntax DIRECTIVE  ***
+
                                    ===========
                                    |  Redux  |
                                    ===========
@@ -32,6 +45,39 @@ in Decaf.IR.ASM.
                       
                       (SymbolTable x AST) -> (SymbolTable x LIR)
 
+    That is, we map a high-lever Abstract Syntax Tree and SymbolTable
+    Zipper to a low-level intermediate language; A simple example is:
+    
+        class Program {
+            void main() {
+                for i = 0, i < 10 {
+                    callout ("printf", "hello!");
+                }
+            }
+        }
+            
+
+        main:
+            ENTER
+            s0 <- 0x0
+
+        LLOOP0:
+            s1 <- s0 < 0xa
+            IF s1 JMP LTRUE0
+            JMP LEND0
+
+        LTRUE0:
+            s1 <- "__string0"
+            RDI <- s1
+            RAX <- 0x0
+            call printf
+            s2 <- RAX
+            s0 <- s0 ADD 0x1
+            JMP LLOOP0
+
+        LEND0:
+            RET
+     
     While our initial design accounted for the complexity of such a transform, we
     ultimately found this step to be challenging; not so much on a conceptual level,
     but rather on the raw mechanical level; the limitations of programming in an
@@ -74,252 +120,183 @@ followed by the 3rd child of the subsequent subtree, followed by a retrieval of 
 content stored at that point in the tree); beyond trees, however, we found it
 *incredibly* challenging to represent arbitrary *graphs*, but more on this later.
 
+                           =======================
+                           |  Partners in Crime  |
+                           =======================
+
+        skovach - Implemented the Symbol Table identifier unique
+                  identifier counting routines,  control flow graph
+                  short-circuit evaluation and naive register allocator.
+
+        raeez   - Designed and implemented the LIR, AST to LIR Transforms
+                  and the monadic Translator for all the high level
+                  decaf code (except short circuit evaluation). Designed
+                  the original code emission scheme, but instead implemented
+                  the LIR to ASM map as a typeclass.
+
+         jzz    - wrote some tests.
+
+                           =========================
+                           |  Generic Programming  |
+                           =========================
+
+    Manipulating the necessary data structures for code generation and
+    data flow analysis presents several problems in Haskell.  
+
+                       
+
+    The type system is fantastic for checking errors (giving us the data
+    structure integrity checkers mentioned in class automatically) but it
+    introduces a lot of boilerplate code when we need to iterate over our
+    recursive type structures.  The register allocator, for instance,
+    needs to search the LIRProgram tree, which involves roughly 15 data
+    types (representing instructions), for just symbolic registers and
+    update their labels.  This would traditionally require 15 function
+    declarations, as would any other later iteration function we discover
+    we need, and they would all depend on the exact structure of the data
+    type.  Adding one member would require us to change the function
+    definitions for each iteration function.  
+
+    Luckily, Haskell includes a basic dynamic typing function which solves
+    our problem and also avoids breaking the static type system.
+    Data.Data includes a type-safe cast function:
+
+          (cast 5) :: Integer = Just 5
+          (cast 'a') :: Integer = Nothing
+
+    Which is straightforward to use.  This allows us to define a
+    "make generic" function
+          
+          (a is some given type)
+          f :: a -> m a
+
+          mkM f = case cast f of 
+                  Just g -> g
+                  Nothing -> return
+
+    defined for monadic functions.  Now, (mkM f) can be applied to *any*
+    type implementing the class Typeable, which allows for run-time type
+    checks.  If it is applied to x :: a, then we get back f a; otherwise,
+    if x does not have type a, we get back x.
+
+    Now, for any recursive data type we have, we implement an interface function
+
+
+        gmapM f (Thing arg1 arg2 arg3 ) = do a1 <- f arg1
+                                         a2 <- f arg2
+                                         a3 <- f arg3
+                                             return $ Thing a1 a2 a3
+
+    this gives us a way to apply polymorphic functions (like mkM f) to Thing's.
+    Defining gmapM for the types and subtypes of arg1, arg2, arge3, etc, we can
+    get a full traversal using everywhere:
+
+         everywhereM f x = do x' <- gmapM (everywhereM f) x
+                              f x'
+
+    this one is responsible for recursively applying f to all
+    subexpressions of x.  It changes those things which it is defined on,
+    and leaves everything else alone.
+
+
+    We use this to naively assign registers.  All that's necessary,
+    after the above interface is defined, is to create a function ::
+    LIRReg -> RegAllocator LIRReg which looks up how many variables have
+    been used in the current stack frame (using the monad), and then
+    annotates the reg with the current number.  This transforms an
+    LIRProgram into a new one, where SREG's have been assigned stack
+    offsets.  It also returns the total number of variables defined in the
+    global scope and each function scope, so that we can output enter op
+    codes, and it does so in only about 30 lines of code.
+         
 
                                 ================
                                 |  Translator  |
                                 ================
+    *Raeez Lorgat*
 
-    Each SymbolTable is utilized as the conanical record for the definition
-    of program symbols; however, the SymbolRecord as defined in our
-    Semantic Checking phase is inadequate (as-is) for code generation;
-    thus, we augment the SymbolRecords to hold key information: the
-    Symbolic Address of the given record.
+    Decaf.Translator implements a simultaneous monadic walk over both
+    the Abstract Syntax Tree and the SymbolTree, taking in an Abstract
+    Syntax Tree and producing an LIRProgram; 
+    
+    newtype Translator a = Translator
+        { runTranslator :: Namespace -> (a, Namespace) }
 
-        * a symbolic register, denoted as sx, where x is positive
-          integer
+    instance Monad Translator where
+        return a = Translator (\s -> (a, s))
+        m >>= f = Translator (\s ->
+                    let (a, ns) = runTranslator m s
+                    in runTranslator (f a) ns)
 
-        * an offset from the global pointer, denoted as gp + x, where x
-          is the (positive or negative) integer of the offset in bytes
+    The following functionality is implemented in src/Decaf/Translator.hs
 
-        * an offset from the frame pointer, denoted as fp + x, where x
-          is the (positive or negative) integer of the offset in bytes
+        * Function pre-call, prologue, epilogue and postcall
 
-        * a static resource label (i.e. in the case of strings)
+        * Control flow graph construction
 
-2. Augmenting the Checking Phase (src/Decaf/Checker.hs)
+        * translation of blocks to low level LIR
 
-    Given the improved design of the SymbolTable and SymbolRecord data structures,
-    we can now trivially augment our monadic walk of the AST (see src/Decaf/Checker.hs)
-    by assigning monotonically increasing (within a given scope) symbolic addresses;
-    this can be done with an internal state counter (as already implemented in Checker.hs)
+        * translation of expressions to operand trees
 
-    At this point in time, we've chosen to delay this implementation in favour of
-    tackling some of the more challenging infrastructure required for Control Flow
-    graphs (see Zippers)
+    While the Translator is the bridge between the front and back-end's
+    of our compiler, the resulting implementation was incredibly clean;
+    however, the attention to detail in getting everything correct
+    proved to be the most challenging part of the implementation
 
-                               ======================
-                               | Intermediate Codes |
-                               ======================
+                               ==========
+                               | Graphs |
+                               ==========
+    *Scott*
 
-1. AST - The Abstract Syntax Tree
+    We implemented a basic control flow graph.  Our original plan was
+    to implement a generic graph type, since graph algorithms will be
+    important for future intelligent register allocation and data flow
+    algorithms.  However, we found that working with graphs (and other
+    non-recursive data types) is very awkward in Haskell.  There is
+    extensive literature on this subject, but still no conclusive
+    solutions.
 
-
-    The first intermediate code our compiler generates is the Abstract Syntax
-    Tree (see src/Decaf/AST.hs); the Abstract Syntax Tree is a high-level
-    representation of the Decaf Program to be compiled. In it, we represent
-    all high-level program constructs as first class Algebraic Datatypes
-    in Haskell. i.e. a Statement in the AST would be represented as:
-
-
-    data DecafExpr = DecafExpr Term Expr' DecafPosition
-                   | DecafLocExpr DecafLoc DecafPosition
-                   | DecafMethodExpr DecafMethodCall DecafPosition
-                   | DecafLitExpr DecafLiteral DecafPosition
-                   | DecafBinExpr DecafExpr DecafBinOp DecafExpr DecafPosition
-                   | DecafNotExpr DecafExpr DecafPosition
-                   | DecafMinExpr DecafExpr DecafPosition
-                   | DecafParenExpr DecafExpr DecafPosition
-                   deriving (Show, Eq)
+    The control flow graph is implemented recursively:
 
 
-    This translates to each high level construct (Program, Location, Field,
-    Variable, Array, Method, Statement, Argument, Expression, Operator, Type
-    etc.) having it's own representation as an Algebraic Data Type. The
-    benefits of doing so are two-fold:
+    data ControlNode = BasicBlock [LIRInst]
+                     | Branch
+                       { condReg :: LIROperand
+                       , branchNumber :: Int
+                       , trueBlock  :: ControlPath
+                       , falseBlock :: ControlPath
+                       }
+
+    type ControlPath = [ControlNode]
+
+    Branches simply recombine at the next node.  Back edges are
+    traversed by just moving up in the ControlNode list. Loops are as of
+    yet not specially marked.
+
+    I believe that using the generic programming techniques outlined in
+    the previous section may allow us to construct zippers for any type
+    implementing Data.  This would give us a rich set of operations for
+    manipulating ControlFlow graphs.  It would also help us implement
+    graph algorithms while ignoring the exact representation of the
+    graphs.
+
+                       ======================
+                       | Control Flow Graph |
+                       ======================
 
 
-        * Haskell's Hindley Milner type system guarantees only valid
-          instantiations of Abstract Syntax Trees
+    The control flow graph is constructed as part of the AST to LIR
+    Translation phase; while no analyses are currently performed, the
+    structure of the graph is utilized in order to generate the template
+    matched code for short circuit evaluation.
 
-        * Walking the Abstract Syntax Tree is accentuated with
-          Constructor-styled pattern matching
-
-        * We gain Haskell's type inference abilities as an advantage;
-          non-exhaustive pattern's (and hence related bugs) are caught
-          by the host language's compiler
-
-
-    The inherent disadvantages of constructing the AST as a recursive
-    Algebraic Data Type reveals itself in:
-
-
-        * having to write a lot of redundant, case-specific code; i.e.
-          each Node of the Abstract Syntax Tree has to have it's own
-          'walk' function, 'pretty print' function etc.
-
-        * being unable to express generic invariants
-
-    This results in quite verbose code (AST.hs clocks in at 447 lines of
-    code!). These disadvantages were somewhat offset by the use of Haskell's
-    typeclasses; despite having to write implementations for each node
-    of the AST, we can have a unified interface for dealing nodes:
-
-    class ASTNode a where
-        pos :: a -> DecafPosition   -- return the source position
-        pp :: a -> String           -- pretty print
-        treeify :: a -> Tree String -- turn into a generic tree
-
-    The interface corresponds to the original source Position of the AST
-    Node, a pretty printer function and custom 'treeify' function that
-    casts the structured AST into an unstructured 'generic' tree (we
-    utilize the generic tree in pretty printing, graphing etc.)
-
-
-2. LIR - The Low-level Intermediate Representation
-
-
-    The second intermediate code used in code generation is the
-    Low-Level Intermediate Representation, or LIR. In stark comparison to
-    the AST, the LIR has an almost 1-to-1 correspondance to x86_64 machine
-    instructions; essentially, our LIR can be classified as a linearized
-    series of Trees, each tree represented as a double, triple or quadruple;
-    a single component making up each double|triple|quadruple can itself be
-    a quadruple or triple (i.e. in the case of assignment of expressions).    
-    A few examples of the LIR trees as doubles | triples | quadruples:
-
-
-    (1)  + s1 s1 0x3      -- a quadruple
-    (2)  goto L3          -- a double
-    (3)  = s7 [fp - 80]   -- a triple, with a nested triple
-
-
-    representing (1) adding the integer literal '0x3' to the value stored in
-    symbolic register 's2', and storing the result in 's1'; (2) an unconditional
-    jump to named label and (3) an assignment of the value found at relative
-    memory 80 bytes below the frame pointer into symbolic register 's7'.
-    It's important to note that in LIR
-
-
-        - all scalar values are represented by symbolic registers
-          (naive register allocaction occurs later)
-
-        - all array locations are represented as offsets from a global
-          pointer (represented symbolically as gp, to be resolved later
-          on)
-
-        - conditionals are represented as both 'if-cond' and as
-          individual 'cmp-jmp' instructions; the purpose of having both
-          a higher level and lower level construct in LIR is to assist using
-          the high level constructs in LIR prior to doing control flow
-          analysis, and then transitioning to using the lower level
-          constructs post control flow analysis.
-
-        - all array bounds accesses are surrounded by guards (i.e. to
-          check if the result is out of bounds)
-
-    LIR is purposefully low-level, such that generating x86_64 code from
-    it is incredibly simple; most of the work is done lowering the
-    abstraction from the AST to the LIR, and subsequently in control
-    flow analysis. Thus, the following is performed on lowering to LIR:
-
-
-        * Generation of function prologue and epilogue, and
-          register/value passing
-
-        * Reduction of high level looping constructs to if comparisons
-          and looping structures
-
-    The grammar for our LIR is given below:
-
-    LIRProg = (Maybe Label) [LIRUnit]
-    LIRUnit = (Maybe Label) begin LIRInstructions end
-    LIRInstructions = (Maybe Label)
-    LIRInst = RegAssignInst
-            | CondAssignInst
-            | StoreInst
-            | LoadInst
-            | GotoInst
-            | IfInst
-            | CallInst
-            | ReturnInst
-            | SequenceInst
-            | Label LIRInst
-    RegAssignInst = RegName Expr            -- copy expr to RegName
-                  | RegName                 -- copy Integer bytes from (RegName + Integer), to RegName
-                        RegName (Integer, Integer)
-                        Operand -- register
-
-    CondAssignInst = RegName Operand RegName
-    IfInst = RelExpr Label
-    StoreInst = MemAddr Operand
-    LoadInst = RegName MemAddr
-    GotoInst = goto Label           -- explicit label
-             | goto Regname Offset  -- mem addr in reg
-    CallInst = (Maybe RegName) ProcName RegName
-             | (Maybe RegName) RegName RegName
-    Operand = RegName
-            | IntegerLiteral
-    MemAddr = RegName
-            | RegName RegName -- register offset addressing
-            | RegName Offset  -- literal offset addressing
-    RegName = String
-    Label = String
-    Expr = Operand BinOper Operand
-         | UnaryOper Operand
-         | Operand
-    RelExpr = Operand RelOpr Operand
-            | ! Operand
-    BinOpr = +
-           | -
-           | *
-           | /
-           | mod
-           | RelOper
-           | shl
-           | shr
-           | shra
-           | and
-           | or
-           | xor
-    RelOpr = ==
-           | !=
-           | <
-           | >
-           | <=
-           | >=
-
-                       =========================
-                       | Control Flow Analysis |
-                       =========================
-
-
-    While at this stage our Control Flow Analysis pass does little in
-    the way of analysis, we do take care to structure the pass
-    correctly. Namely:
-
-
-        * we first divy up the sequence of LIR instructions (and their
-          subsequent trees) into Basic Blocks, where a basic block is a
-          sequence of LIR instructions with the invariant that the only
-          way to enter the basic block is at the first LIR instruction
-          (namely the label), and the only way to leave the basic block
-          is by way of the last instruction (which may or may not be a
-          jump)
-
-        * we then insert the basic blocks into a zipper, representing
-          our Control Flow Graph, where edges in the graph represent
-          jumps
-
-        * we then do some *minimal* control flow analysis, namely to
-          implement short-circuiting (i.e. we flatten our boolean
-          expressions into nodes in the zipper, such that we can
-          generate new nodes representing short circuit conditional
-          logic.
-
-       * Finally, we linearize the zipper, taking care to place basic
-         blocks in linear order, such that we have all false blocks after
-         a conditional, and all true blocks after said false blacks.
-         Note that new conditionals 
+    The output of the translate functions in Translator.hs is a slightly
+    abstracted version of LIR.  It preserves the structures of if's and
+    expressions involving && and ||.  Everything else is flattened to LIR.
+    This output is taken by the CFG constructor: it creates a graph and
+    generates short-circuit evaluation code for all expressions.  This
+    representation can then be converted into straight LIR code, which is
+    easily converted to assembly.
 
                        =============================
                        | Naive register Allocation |
@@ -341,6 +318,7 @@ content stored at that point in the tree); beyond trees, however, we found it
                            ======================
                            | Mapping LIR to ASM |
                            ======================
+    *Raeez*
 
     While we initially had far more elaborate plans for mapping LIR to
     ASM, little time dictated that we produce a quick solution.
@@ -376,7 +354,7 @@ content stored at that point in the tree); beyond trees, however, we found it
     Which takes a more or less linearized stream of LIRInstructions (of
     type LIRInst), and maps it into the corresponding assembly.
 
-    Mosty importantly about this part of the implementation, we regret
+    Most important about this part of the implementation, we regret
     not implementing the map as a monadic traversal of the (as was done
     in Translator); a decision mostly forced on us by the time crunch.
     This decision led to two major complexities, and will need to be
@@ -388,6 +366,126 @@ content stored at that point in the tree); beyond trees, however, we found it
           about the required structure of the mapping emerged as serious
           implementation limitations; instead, we were constrained to a
           more-or-less direct (1-to-1) mapping from LIR to ASM, even when
-          there would be simpler implementations available
+          there would be simpler implementations available; the code
+          quality suffered as a result.
 
-        * 
+        * We realized that specifying all registers as symbolic
+
+        * We realized that specifying all registers as symbolic
+          registers was an incredibly tough design decision to have
+          made; the choice made writing the code emitter challenging
+          (indeed, we had to implement a naive register + stack
+          allocator, alongside the code emitter); the extra complexity
+          made the resulting code far harder to debug; however, we now
+          have extremely good infrastructure for doing optimizations
+          (our LIR is already in a form close to SSA, and writing a
+          transform to such would be trivial).
+
+    A result of the map (in intel assembly):
+
+    USE64
+    extern printf
+    section .data:
+        __string0: db "EXCEPTION: ARRAY OUT OF BOUNDS", 0
+        __string1: db "EXCEPTION: MISSING RETURN STATEMENT", 0
+        __string2: db "EXCEPTION: ARRAY OUT OF BOUNDS", 0
+        __string3: db "EXCEPTION: MISSING RETURN STATEMENT", 0
+        __string4: db "hello!", 0
+        __string5: db "bye!", 0
+
+    section .text:
+        global main
+
+        main:
+            push rbp
+            mov rbp, rsp
+            sub rsp, 0
+            mov r11, 0x0
+            mov r10, r11
+            mov [rbp-0], r10
+            
+
+        LLOOP0:
+            mov r10, [rbp-0]
+            mov r11, 0xa
+            cmp r10, r11
+            jl __cmp2
+            mov r11, 0x0
+            mov r10, r11
+            mov [rbp-8], r10
+            
+            jmp __cmp2_end
+        __cmp2:
+            mov r11, 0x1
+            mov r10, r11
+            mov [rbp-8], r10
+            
+        __cmp2_end:
+            mov r10, [rbp-8]
+            mov r11, 0x1
+            cmp r10, r11
+            jge LTRUE0
+            jmp LEND0
+
+        LTRUE0:
+            mov r11, __string6
+            mov r10, r11
+            mov [rbp-8], r10
+            
+            mov r11, [rbp-8]
+            mov rdi, r11
+            
+            mov r11, 0x0
+            mov rax, r11
+            
+            call printf
+            mov r11, rax
+            mov r10, r11
+            mov [rbp-16], r10
+            
+            mov r11, __string7
+            mov r10, r11
+            mov [rbp-24], r10
+            
+            mov r11, [rbp-24]
+            mov rdi, r11
+            
+            mov r11, 0x0
+            mov rax, r11
+            
+            call printf
+            mov r11, rax
+            mov r10, r11
+            mov [rbp-32], r10
+            
+            mov r11, 0x1
+            add r10, r11
+            mov [rbp-0], r10
+            
+            jmp LLOOP0
+
+        LEND0:
+            mov rsp, rbp
+            pop rbp
+            ret
+
+
+        __exceptionhandlers:
+
+        __exception0:
+            mov r11, __string1
+            mov rdi, r11
+            
+            mov r11, 0x0
+            mov rax, r11
+            
+            call printf
+
+        __exception1:
+            mov r11, __string0
+            mov rdi, r11
+            
+            mov r11, 0x0
+            mov rax, r11
+            
+            call printf
