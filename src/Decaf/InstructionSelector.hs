@@ -80,7 +80,7 @@ genExpr reg expr =
       LIRBinExpr op1' (LIRBinRelOp LLTE label) op2' -> "******************* " ++ intelasm reg ++ " <- " ++ intelasm expr
 
 instance ASM SymbolTable where
-    intelasm (SymbolTable records _) = "USE64\nextern printf\nsection .data:\n" ++ unlines (indentMap records) ++ "\n"
+    intelasm (SymbolTable records _) = "USE64\nextern printf\nextern get_int_035\nsection .data:\n" ++ unlines (indentMap records) ++ "\n"
       where
         indentMap :: [SymbolRecord] -> [String]
         indentMap [] = []
