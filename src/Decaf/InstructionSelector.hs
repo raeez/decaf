@@ -123,10 +123,6 @@ instance ASM LIRInst where
     intelasm (LIRRegAssignInst reg expr@(LIRBinExpr (LIRRegOperand reg') binop op2)) =
         if reg == reg'
           then case binop of
---                    LSUB -> sub reg op2
-
---                    LADD -> add reg op2
-
                     _ -> genExpr reg expr
           else genExpr reg expr
 
