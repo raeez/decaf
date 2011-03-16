@@ -49,7 +49,7 @@ coderun str = do
 	 writeFile "test.s" str 
 	 rawSystem "gcc" ["test.s", "-o", "test"]
 	 rawSystem "rm" ["-rf", "testout"]
-	 x <- rawSystem "ls" [">", "testout"]
+	 x <- rawSystem "./run.sh" ["test", "testout"]
 	 case x of 
 	      ExitSuccess -> do {
 	      		     	x <- readresult;
@@ -135,6 +135,7 @@ addExt ext = map (\x -> x++"."++ext)
 
 main:: IO Counts
 main = do
+
   putStrLn "Scanner Tests..."
   l <- readTList "scan-legal/l"
   scannerlegal <- readTests (addPath "scan-legal" l) True scanner_
@@ -199,11 +200,13 @@ main = do
   runTestTT cc3
 
 
-{-
+
   putStrLn "\ncodegen Tests..."
   cil2 <- readTestsRuntimeError (addPath "coge-illegal2" $ makeIllegals 1 4) cogen_ coderun
   l <- readTList "coge/l"  
   runTestTT cil2
+
+
   cc <- readTestsWithOut (addPath "coge" l) cogen_ coderun
   l <- readTList "coge2/l"  
   cc2 <- readTestsWithOut (addPath "coge2" l) cogen_ coderun
@@ -214,4 +217,3 @@ main = do
   runTestTT cc2
   runTestTT cc3
 
--}
