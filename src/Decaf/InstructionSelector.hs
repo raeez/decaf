@@ -11,7 +11,10 @@ import Decaf.IR.ASM
 -- this code then just becomes the pretty printer into gnuasm, or intelasm
 --
 
-regOpen r = "mov r10, "++ intelasm r ++ sep
+regOpen r = 
+    case r of
+      R10 -> ""
+      otherwise -> "mov r10, "++ intelasm r ++ sep
 
 regSave r = "mov " ++ intelasm r ++ ", r10" ++ sep
 
@@ -122,8 +125,14 @@ instance ASM LIRUnit where
 instance ASM LIRInst where
     intelasm (LIRRegAssignInst reg expr@(LIRBinExpr (LIRRegOperand reg') binop op2)) =
         if reg == reg'
-          then case binop of
-                    _ -> genExpr reg expr
+          then if reg == RSP
+               then 
+                 case binop of
+                   LSUB -> operOpen op2 1++ "sub RSP, r11" 
+                   LADD -> operOpen op2 1++ "add RSP, r11" 
+                   otherwise -> genExpr reg expr
+               else
+                 genExpr reg expr
           else genExpr reg expr
 
     intelasm (LIRRegAssignInst reg expr@(LIRBinExpr op1 binop op2)) =
@@ -138,7 +147,9 @@ instance ASM LIRInst where
      ++ "not " ++ intelasm reg
 
     intelasm (LIRRegAssignInst reg (LIROperExpr operand)) =
-        mov reg operand
+        case reg of
+          RSP -> mov RSP operand
+          otherwise -> mov reg operand
 
     intelasm (LIRRegOffAssignInst reg offset size operand) = 
         (operOpen offset 0)++(operOpen operand 1)++"mov ["++intelasm reg++" + r10], r11"++sep
@@ -148,6 +159,9 @@ instance ASM LIRInst where
     intelasm (LIRStoreInst mem operand) =
         movaddr mem operand 
 
+    intelasm (LIRLoadInst reg (LIRRegPlusMemAddr arr offset (LIRInt size))) = 
+        (operOpen offset 1) ++ "mov r10, ["++intelasm arr++" + r11]" ++ sep ++ regSave reg
+        
     intelasm (LIRLoadInst reg mem) =
         mov reg mem
 
