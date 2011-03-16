@@ -64,7 +64,7 @@ data LIRInst = LIRRegAssignInst LIRReg LIRExpr
              | LIRCondAssignInst LIRReg LIRReg LIROperand    -- ^ Conditional Assign
              | LIRStoreInst LIRMemAddr LIROperand
              | LIRLoadInst LIRReg LIRMemAddr
-             | LIRTempEnterInst
+             | LIRTempEnterInst Int
              | LIRJumpRegInst LIRReg LIROffset
              | LIRJumpLabelInst LIRLabel
              | LIRIfInst LIRRelExpr LIRLabel
@@ -140,6 +140,8 @@ data LIRReg = RAX
             | R13
             | R14
             | R15
+            | IP
+            | GI Int
             | SREG Int
             | MEM String
             deriving (Show, Eq, Typeable)
@@ -192,7 +194,7 @@ instance IRNode LIRInst where
     pp (LIRCondAssignInst reg reg' operand) = pp reg ++ " <- (" ++ pp reg' ++ ") " ++ pp operand
     pp (LIRStoreInst mem operand) = "STORE " ++ pp mem ++ ", " ++ pp operand
     pp (LIRLoadInst reg mem) = "LOAD " ++ pp reg ++ ", " ++ pp mem
-    pp (LIRTempEnterInst) = "ENTER"
+    pp (LIRTempEnterInst num) = "ENTER"
     pp (LIRJumpRegInst reg offset) = "JMP " ++ pp reg ++ "[" ++ show offset ++ "]"
     pp (LIRJumpLabelInst label) = "JMP " ++ pp label
     pp (LIRIfInst expr label) = "IF " ++ pp expr ++ " JMP " ++ pp label
@@ -303,6 +305,7 @@ instance IRNode LIRReg where
     pp (R13) = "R13"
     pp (R14) = "R14"
     pp (R15) = "R15"
+    pp (GI i) = "g"++(show i)
     pp (MEM s)  = s
     pp (SREG i) = "s" ++ (show i)
     treeify a = Node (pp a) []
