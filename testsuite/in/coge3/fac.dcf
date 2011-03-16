@@ -1,7 +1,8 @@
 class Program {
       int fac(int n)
       {	  
-      	  int rrr = 1;
+      	  int rrr;
+	  rrr = 1;
 	  for i=1,n {
 	      rrr = rrr * i;
 	  }

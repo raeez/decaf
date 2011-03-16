@@ -123,11 +123,21 @@ getStringCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
                          let n = stringCount c
                          in (n, s{csCounter=c{stringCount = n+1}}))
 
+
+
+
 numberTree :: Tree SymbolTable -> RegisterCounter (Tree SymbolTable)
 numberTree t = 
     let table = content t
+    in do cont <- sequence $ map numberGlobal (symbolRecords table)
+          cs <- sequence $ map numberTreeH (children t)
+          return $ Node table{symbolRecords = cont} cs
+
+numberTreeH :: Tree SymbolTable -> RegisterCounter (Tree SymbolTable)
+numberTreeH t = 
+    let table = content t
     in do cont <- sequence $ map numberRec (symbolRecords table)
-          cs <- sequence $ map numberTree (children t)
+          cs <- sequence $ map numberTreeH (children t)
           return $ Node table{symbolRecords = cont} cs
 
 numberRec :: SymbolRecord -> RegisterCounter SymbolRecord
@@ -135,11 +145,16 @@ numberRec (VarRec a _) = do c <- getRegCount
                             return $ VarRec a c
 numberRec (MethodRec a _) = do c <- getMethodCount
                                return $ MethodRec a ("meth", c)
-numberRec (ArrayRec a _) = do c <- getGlobalCount (readDecafInteger (arrayLength a))
-                              return $ ArrayRec a c
+numberRec (ArrayRec {}) = error "Tried to number locally defined array in SymbolTable.hs: numberRec"
 numberRec (StringRec a _) = do c <- getStringCount
                                return $ StringRec a c
 
+numberGlobal (ArrayRec a _) = do c <- getGlobalCount (readDecafInteger (arrayLength a))
+                                 return $ ArrayRec a (-c-1)
+numberGlobal (VarRec a _ ) =  do c <- getGlobalCount 1
+                                 return $ VarRec a (-c-1)
+numberGlobal m@(MethodRec {}) = return m
+numberGlobal str@(StringRec {}) = return str
 
 findStrings :: SymbolTree -> [SymbolRecord]
 findStrings st = help (tree st)

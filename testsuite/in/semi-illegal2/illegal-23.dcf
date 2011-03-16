@@ -1,6 +1,6 @@
 class Program {
+  	   boolean i[10];
 	  void main() {
-	  	   boolean i[10];
 		   i -= 0;
 	  }
 }

@@ -1,0 +1,5 @@
+class Program {
+       	  int a[10];
+	  void test() { a[11] = 1;} 
+	  void main() {  }
+}

@@ -7,7 +7,8 @@ import Decaf.Checker
 import Decaf.Scanner
 import Decaf.Parser
 import Decaf.Util.Report
-
+import GHC.IO.Exception
+import System.Cmd
 
 -------------------------------------
 -- program to be tested
@@ -22,17 +23,47 @@ parser_ i = case ps program i of
 semchecker_ :: String -> Bool                      
 semchecker_  = checker 
 
--- cogen
-cogen_ :: String -> [String]
-cogen_ _ = ["\t.global main", "main:", "\tret"]
-
--- cogen legal, returns true if running without runtime error
-cogenl_ :: String -> Bool
-cogenl_ _ = True
 
 -- cogen content, return program output
-cogenc_ :: String -> String
-cogenc_ _ = ""
+cogen_ :: String -> String
+cogen_ str = str   -- plug codegen in
+
+
+
+
+
+-- load
+readresult :: IO String 
+readresult = do
+	   x <- readFile "testout"
+	   return x
+
+-- run
+coderun :: String -> IO (Maybe String)
+coderun str = do
+	 writeFile "test.asm" str 
+	 rawSystem "gcc" ["test.asm", "-o", "test"]
+	 rawSystem "rm" ["-rf", "testout"]
+	 x <- rawSystem "test" [">", "testout"]
+	 case x of 
+	      ExitSuccess -> do {
+	      		     	x <- readresult;
+	      		     	return $ Just x
+	      		     }
+	      _ -> return $ Nothing
+
+
+-- runmany
+manyrun :: [String] -> IO [Maybe String]
+manyrun ss = do
+	x <- sequence (map coderun ss)
+	return x
+
+
+
+
+
+
 
 
 
@@ -56,15 +87,29 @@ readTests names expected func =
     do
       files <- sequence (map readFile names)
       return $TestList.(map (uncurry TestLabel)) $ zip names (map (\cont -> expected ~=? (func cont)) files)
+
+
+-- read tests and their .out file      : Finish me 
+readTestsRuntimeError :: [String] -> (String -> String) -> (String -> IO (Maybe String)) -> IO Test
+readTestsRuntimeError names func run =
+    do
+      files <- sequence (map readFile names)
+      let asms = map func files 
+      filesout <- sequence (map run asms)
+      let tests = map (\x -> Nothing ~=? x) filesout    -- fix Func, func need to go through gcc
+      return $TestList.(map (uncurry TestLabel)) $ zip names tests
+
       
       
 -- read tests and their .out file      : Finish me 
-readTestsWithOut :: [String] -> (String -> String) -> IO Test
-readTestsWithOut names func =
+readTestsWithOut :: [String] -> (String -> String) -> (String -> IO (Maybe String)) -> IO Test
+readTestsWithOut names func run =
     do
       files <- sequence (map readFile $ map (\x -> x++".dcf") names)
       outs <- sequence (map readFile $ map (\x -> x++".out") names)
-      let tests = map (\x -> snd x ~=? (func $ fst x)) $ zip files outs   -- fix Func, func need to go through gcc
+      let asms = map func files 
+      filesout <- sequence (map run asms)
+      let tests = map (\x -> (Just $ snd x) ~=? (fst x)) $ zip filesout outs   -- fix Func, func need to go through gcc
       return $TestList.(map (uncurry TestLabel)) $ zip names tests
       
       
@@ -97,28 +142,28 @@ main = do
   putStrLn "\nParser Tests..."  
   hiddenparselegals <- readTests (addPath "pars-legal" $ makeLegals 21 31) True parser_
   hiddenparseillegals <- readTests (addPath "pars-illegal" $ makeIllegals 21 40) False parser_
+  parsil2 <- readTests (addPath "pars-illegal2" $ makeIllegals 1 6) False parser_
   runTestTT hiddenparselegals
   runTestTT hiddenparseillegals
+  runTestTT parsil2
 
   -- all semchecker and coge tests are parer legal
   hiddenSemLegals <- readTests (addPath "semi-legal" $ makeLegals 1 18) True parser_
   hiddenSemIllegals <- readTests (addPath "semi-illegal" $ makeIllegals 1 52) True parser_
   tests2 <- readTests (addPath "semi-legal2" $ makeLegals 1 11) True parser_
-  testsillegal2 <- readTests (addPath "semi-illegal2" $ makeIllegals 1 62) True parser_
+  testsillegal2 <- readTests (addPath "semi-illegal2" $ makeIllegals 1 56) True parser_
   runTestTT hiddenSemLegals
   runTestTT hiddenSemIllegals
   runTestTT tests2
   runTestTT testsillegal2
 
-  cl2 <- readTests (addPath "semi-legal2" $ makeLegals 1 3) True parser_
-  cil2 <- readTests (addPath "semi-illegal2" $ makeIllegals 1 4) True parser_
+  cil2 <- readTests (addPath "coge-illegal2" $ makeIllegals 1 4) True parser_
   l <- readTList "coge/l"  
   cc <- readTests (addExt "dcf" $ addPath "coge" l) True parser_
   l <- readTList "coge2/l"  
   cc2 <- readTests (addExt "dcf" $ addPath "coge2" l) True parser_
   l <- readTList "coge3/l"  
   cc3 <- readTests (addExt "dcf" $ addPath "coge3" l) True parser_
-  runTestTT cl2
   runTestTT cil2
   runTestTT cc
   runTestTT cc2
@@ -130,21 +175,19 @@ main = do
   hiddenSemLegals <- readTests (addPath "semi-legal" $ makeLegals 1 18) True semchecker_
   hiddenSemIllegals <- readTests (addPath "semi-illegal" $ makeIllegals 1 52) False semchecker_
   tests2 <- readTests (addPath "semi-legal2" $ makeLegals 1 11) True semchecker_
-  testsillegal2 <- readTests (addPath "semi-illegal2" $ makeIllegals 1 62) False semchecker_
+  testsillegal2 <- readTests (addPath "semi-illegal2" $ makeIllegals 1 56) False semchecker_
   runTestTT hiddenSemLegals
   runTestTT hiddenSemIllegals
   runTestTT tests2
-  runTestTT testsillegal2
+  --runTestTT testsillegal2
 
-  cl2 <- readTests (addPath "semi-legal2" $ makeLegals 1 3) True semchecker_
-  cil2 <- readTests (addPath "semi-illegal2" $ makeIllegals 1 4) True semchecker_
+  cil2 <- readTests (addPath "coge-illegal2" $ makeIllegals 1 4) True semchecker_
   l <- readTList "coge/l"  
   cc <- readTests (addExt "dcf" $ addPath "coge" l) True semchecker_
   l <- readTList "coge2/l"  
   cc2 <- readTests (addExt "dcf" $ addPath "coge2" l) True semchecker_
   l <- readTList "coge3/l"  
   cc3 <- readTests (addExt "dcf" $ addPath "coge3" l) True semchecker_
-  runTestTT cl2
   runTestTT cil2
   runTestTT cc
   runTestTT cc2
@@ -155,15 +198,13 @@ main = do
 
 
   putStrLn "\ncodegen Tests..."
-  cl2 <- readTests (addPath "semi-legal2" $ makeLegals 1 3) True cogenl_
-  cil2 <- readTests (addPath "semi-illegal2" $ makeIllegals 1 4) False cogenl_
+  cil2 <- readTestsRuntimeError (addPath "coge-illegal2" $ makeIllegals 1 4) cogen_ coderun
   l <- readTList "coge/l"  
-  cc <- readTestsWithOut (addPath "coge" l) cogenc_  
+  cc <- readTestsWithOut (addPath "coge" l) cogen_ coderun
   l <- readTList "coge2/l"  
-  cc2 <- readTestsWithOut (addPath "coge2" l) cogenc_  
+  cc2 <- readTestsWithOut (addPath "coge2" l) cogen_ coderun
   l <- readTList "coge3/l"  
-  cc3 <- readTestsWithOut (addPath "coge3" l) cogenc_  
-  runTestTT cl2
+  cc3 <- readTestsWithOut (addPath "coge3" l) cogen_ coderun
   runTestTT cil2
   runTestTT cc
   runTestTT cc2

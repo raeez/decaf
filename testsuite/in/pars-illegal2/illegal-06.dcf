@@ -1,0 +1,6 @@
+class Program {
+	  void main() {
+	  	   int i;
+		   if (true) {i=1; } else i=1;
+	  }
+}

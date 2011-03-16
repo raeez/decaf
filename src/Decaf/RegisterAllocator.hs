@@ -106,6 +106,12 @@ instance Data LIRInst where
      a'1 <- f a1
      a'2 <- f a2
      return (LIRRegAssignInst a'1 a'2)
+ gmapM f (LIRRegCmpAssignInst a1 a2 a3) =
+  do 
+     a'1 <- f a1
+     a'2 <- f a2
+     a'3 <- f a3
+     return (LIRRegCmpAssignInst a'1 a'2 a'3)
  gmapM f (LIRRegOffAssignInst a1 a2 a3 a4) =
   do 
      a'1 <- f a1
@@ -129,9 +135,10 @@ instance Data LIRInst where
      a'1 <- f a1
      a'2 <- f a2
      return (LIRLoadInst a'1 a'2)
- gmapM f (LIRTempEnterInst) = 
-  do
-     return (LIRTempEnterInst)
+ gmapM f (LIRTempEnterInst a1) = 
+  do 
+     a'1 <- f a1
+     return (LIRTempEnterInst a'1)
  gmapM f (LIRJumpRegInst a1 a2) =
   do 
      a'1 <- f a1
@@ -146,6 +153,10 @@ instance Data LIRInst where
      a'1 <- f a1
      a'2 <- f a2
      return (LIRIfInst a'1 a'2)
+ gmapM f (LIRCallInst a1) =
+  do 
+     a'1 <- f a1
+     return (LIRCallInst a'1)
  gmapM f (LIRRetInst) =
   do 
      return (LIRRetInst)
@@ -280,6 +291,10 @@ instance Data LIRReg where
  gmapM f (R15) =
   do 
      return (R15)
+ gmapM f (GI a1) =
+  do 
+     a'1 <- f a1
+     return (GI a'1)
  gmapM f (SREG a1) =
   do 
      a'1 <- f a1
@@ -341,10 +356,13 @@ data RegCounterState
     = RCState 
       { rcDict :: Map.Map Int Int
       , rcCount :: Int
+      , glDict :: Map.Map Int Int
+      , glCount :: Int
+--      , rcTable :: SymbolTree
       }
     deriving (Show, Eq)
 
-mkRCState = RCState (Map.empty) 0
+mkRCState t = RCState (Map.empty) 0 (Map.empty) 0 -- t
 
 data RegAllocator a = RegAllocator { runAllocator :: RegCounterState -> (a, RegCounterState) }
                     deriving Typeable
@@ -360,18 +378,48 @@ getST = RegAllocator (\s -> (s,s))
 setST :: RegCounterState -> RegAllocator ()
 setST st = RegAllocator (\s -> ((), st))
 
+{-isGlobal :: Int -> RegAllocator Bool
+isGlobal num = 
+    do st <- getST
+       let srs = map getSR $symbolRecords.rcTable $ st
+
+       if num `elem` srs
+         then return True
+         else return False
+  where getSR (VarRec _ sr) = sr
+        getSR _ = -1
+-}
 updateCounter :: LIRReg -> RegAllocator LIRReg
 updateCounter reg@(SREG num)
     = do st <- getST
          let c = rcCount st
              dict = rcDict st
-         case Map.lookup num dict of
-              Just lab -> return $ SREG lab
-              Nothing -> do setST st{rcCount = c+1, rcDict = (Map.insert num c dict)} 
-                            return $ SREG c
 
-
+         if num < 0
+           then do setST st{glCount = (glCount st)+1, glDict = (Map.insert num 0 (glDict st))}
+                   return $ GI (-num-1)
+           else
+             case Map.lookup num dict of
+               Just lab -> return $ SREG lab
+               Nothing  -> do setST st{rcCount = c+1, rcDict = (Map.insert num c dict)} 
+                              return $ SREG c
+                          
 updateCounter s = return s
+
+fixStackOffset :: Int -> LIRReg -> RegAllocator LIRReg
+fixStackOffset i reg@(SREG num) = 
+    return $ SREG (num+i)
+fixStackOffset i x = return x           
+{-updateCounter reg@(GI num)
+    = do st <- getST
+         let c = glCount st
+             dict = glDict st
+         case Map.lookup num dict of
+              Just lab -> return $ GI lab
+              Nothing -> do setST st{glCount = c+1, glDict = (Map.insert num c dict)} 
+                            return $ GI c
+-}
+
 
 
 testCounter :: String -> RegAllocator String
@@ -384,11 +432,29 @@ testCounter s =
 --fun1 = ((mkM testCounter) `extM` (mkM updateCounter))
 --fun2 = ((mkM updateCounter) `extM` (mkM testCounter))
 
+getMethods :: SymbolTree -> [DecafMethod]
+getMethods st = 
+    let recs = symbolRecords.getContent $ st
+        pullMethod (MethodRec m _) = [m]
+        pullMethod _ = []
+    in 
+      concatMap pullMethod recs
+
+
 allocateRegisters :: SymbolTree -> LIRProgram -> (LIRProgram, Int, [RegCounterState])
 allocateRegisters st prog = 
     let units = lirProgUnits prog 
-        allocUnit unit = runAllocator (everywhereM (mkM updateCounter) unit) mkRCState
+        allocUnit unit = runAllocator (everywhereM (mkM updateCounter) unit) (mkRCState st)
         unitcounts = map allocUnit units
+        methods = getMethods st
+        units' = map fixOffset $ zip methods (init (map fst unitcounts))
+
+
+
+        fixOffset :: (DecafMethod, LIRUnit) -> LIRUnit
+        fixOffset (m,u) = (fst $ runAllocator (everywhereM (mkM (fixStackOffset nargs')) u) (mkRCState st)) 
+                 where nargs' = max 0 (length (methodArg m)-6)
+
         countGlobals st = 
             help 0 $ symbolRecords $ getContent st
           where help c [] = c
@@ -400,5 +466,9 @@ allocateRegisters st prog =
                     
 
     in
-      ((LIRProgram (lirProgLabel prog) (map fst unitcounts)), countGlobals st, (map snd unitcounts))
+      if (length methods) /= (length unitcounts - 1)
+
+        then error ("number of methods does not equal number of units" ++ show (length methods) ++ show (length unitcounts))
+        else
+          ((LIRProgram (lirProgLabel prog) units'), countGlobals st, (map snd unitcounts))
         

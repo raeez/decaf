@@ -1,4 +1,0 @@
-class Program {
-	  void test() { int a[10]; a[11] = 1;} 
-	  void main() {  }
-}
