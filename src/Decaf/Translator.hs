@@ -169,17 +169,18 @@ translateStm st (DecafForStm ident expr expr' block _) =
     do  l <- incLabel
         (instructions, operand) <- translateExpr st expr
         ns <- getNS
-        (instructions2, relexpr) <- translateRelExpr st expr' ns
+        (instructions2, (LIROperRelExpr terminateoperand)) <- translateRelExpr st expr' ns
         forblock <- withScope l $ translateBlock st block
         let ivarlabel = (case symLookup ident (table st) of
                             Just (_, (VarRec _ label)) -> (show label) -- stupid!
                             Nothing -> error "Translator.hs:translateStm Invalid SymbolTable; could not find a valid symbol for'" ++ show ident ++ "'")
             ivarlabelreg = SREG (read ivarlabel :: Int)
+            lessThan = LIRBinRelExpr (LIRRegOperand ivarlabelreg) LLTE terminateoperand
         return (instructions
             ++ [CFGLIRInst $ LIRRegAssignInst ivarlabelreg (LIROperExpr operand)]
             ++ [CFGLIRInst $ LIRLabelInst (loopLabel l)]
             ++ instructions2
-            ++ [CFGLIRInst $ LIRIfInst relexpr (trueLabel l)]
+            ++ [CFGLIRInst $ LIRIfInst lessThan (trueLabel l)]
             ++ [CFGLIRInst $ LIRJumpLabelInst (endLabel l)]
             ++ [CFGLIRInst $ LIRLabelInst (trueLabel l)]
             ++ forblock
