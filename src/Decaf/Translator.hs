@@ -398,7 +398,8 @@ translateString :: SymbolTree -> DecafString -> Translator ([CFGInst], LIROperan
 translateString st string =
     (case globalSymLookup ('.':string) st of
          Just (StringRec _ label) ->
-             do t <- incTemp
+             do t' <- incTemp
+                t <- incTemp -- WTF
                 return ([CFGLIRInst $ LIRRegAssignInst (SREG t) (LIROperExpr $ LIRStringOperand $ stringLabel label)], LIRRegOperand $ SREG t)
          _ -> return ([CFGLIRInst $ LIRLabelInst $ LIRLabel $ "Translator.hs:translateString Invalid SymbolTable; could not find '" ++ string ++ "' symbol"], LIRRegOperand RBP))
 
