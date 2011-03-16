@@ -174,14 +174,16 @@ translateStm st (DecafForStm ident expr expr' block _) =
         let ivarlabel = (case symLookup ident (table st) of
                             Just (_, (VarRec _ label)) -> (show label) -- stupid!
                             Nothing -> error "Translator.hs:translateStm Invalid SymbolTable; could not find a valid symbol for'" ++ show ident ++ "'")
+            ivarlabelreg = SREG (read ivarlabel :: Int)
         return (instructions
-            ++ [CFGLIRInst $ LIRRegAssignInst (SREG (read ivarlabel :: Int)) (LIROperExpr operand)]
+            ++ [CFGLIRInst $ LIRRegAssignInst ivarlabelreg (LIROperExpr operand)]
             ++ [CFGLIRInst $ LIRLabelInst (loopLabel l)]
             ++ instructions2
             ++ [CFGLIRInst $ LIRIfInst relexpr (trueLabel l)]
             ++ [CFGLIRInst $ LIRJumpLabelInst (endLabel l)]
             ++ [CFGLIRInst $ LIRLabelInst (trueLabel l)]
             ++ forblock
+            ++ [CFGLIRInst $ LIRRegAssignInst ivarlabelreg (LIRBinExpr (LIRRegOperand ivarlabelreg) LADD (LIRIntOperand $ LIRInt 1))]
             ++ [CFGLIRInst $ LIRJumpLabelInst (loopLabel l)]
             ++ [CFGLIRInst $ LIRLabelInst (endLabel l)])
 
@@ -394,11 +396,11 @@ translateMethodCall st mc =
 
 translateString :: SymbolTree -> DecafString -> Translator ([CFGInst], LIROperand)
 translateString st string =
-    (case symLookup ('.':string) (table st) of
-         Just (_, StringRec _ label) ->
+    (case globalSymLookup ('.':string) st of
+         Just (StringRec _ label) ->
              do t <- incTemp
                 return ([CFGLIRInst $ LIRRegAssignInst (SREG t) (LIROperExpr $ LIRStringOperand $ stringLabel label)], LIRRegOperand $ SREG t)
-         _ -> return ([CFGLIRInst $ LIRLabelInst $ LIRLabel $ "Translator.hs:translateString Invalid SymbolTable; could not find '" ++ '.':string ++ "' symbol"], LIRRegOperand RBP))
+         _ -> return ([CFGLIRInst $ LIRLabelInst $ LIRLabel $ "Translator.hs:translateString Invalid SymbolTable; could not find '" ++ string ++ "' symbol"], LIRRegOperand RBP))
 
 translateLocation :: SymbolTree -> DecafLoc -> Translator ([CFGInst], LIROperand)
 translateLocation st loc =
