@@ -131,7 +131,7 @@ numberTree t =
     let table = content t
     in do cont <- sequence $ map numberGlobal (symbolRecords table)
           cs <- sequence $ map numberTreeH (children t)
-          return $ Node table{symbolRecords = cont} cs
+          return $ Node table{symbolRecords = cont++findStrings t} cs
 
 numberTreeH :: Tree SymbolTable -> RegisterCounter (Tree SymbolTable)
 numberTreeH t = 
@@ -155,9 +155,12 @@ numberGlobal (VarRec a _ ) =  do c <- getGlobalCount 1
                                  return $ VarRec a (-c-1)
 numberGlobal m@(MethodRec {}) = return m
 numberGlobal str@(StringRec {}) = return str
+numberGlobal (StringRec a _) = do c <- getStringCount
+                                  return $ StringRec a c
 
-findStrings :: SymbolTree -> [SymbolRecord]
-findStrings st = help (tree st)
+
+findStrings :: Tree SymbolTable -> [SymbolRecord]
+findStrings st = help st
   where 
     help tree = 
         filter isString (symbolRecords.content $ tree) ++ (concatMap help (children tree))
