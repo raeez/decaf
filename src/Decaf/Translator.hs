@@ -130,8 +130,8 @@ translateStm st (DecafAssignStm loc op expr _) =
     genArrayStore instructions (DecafArrLoc{arrLocIdent=id})
         = case last instructions of
             CFGLIRInst (LIRLoadInst s (LIRRegPlusMemAddr reg off (LIRInt l))) -> 
-                [CFGLIRInst $ LIRRegOffAssignInst reg (MEM $ show off) (LIRInt 0) (LIRRegOperand s)]
-            CFGLIRInst (LIRLoadInst s (LIRRegOffMemAddr reg off _)) -> 
+                [CFGLIRInst $ LIRRegOffAssignInst reg (off) (LIRInt 0) (LIRRegOperand s)]
+            CFGLIRInst (LIRLoadInst s (LIRRegOffMemAddr reg (LIRInt off) _)) -> 
                 [CFGLIRInst $ LIRRegOffAssignInst reg (MEM $ show off) (LIRInt 0) (LIRRegOperand s)]
             _ -> []
 
