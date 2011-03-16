@@ -128,10 +128,11 @@ getStringCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
 
 numberTree :: Tree SymbolTable -> RegisterCounter (Tree SymbolTable)
 numberTree t = 
-    let table = content t
+    let table' = content t
+        table = table'{symbolRecords = (symbolRecords table')++ findStrings t}
     in do cont <- sequence $ map numberGlobal (symbolRecords table)
           cs <- sequence $ map numberTreeH (children t)
-          return $ Node table{symbolRecords = cont++findStrings t} cs
+          return $ Node table{symbolRecords = cont} cs
 
 numberTreeH :: Tree SymbolTable -> RegisterCounter (Tree SymbolTable)
 numberTreeH t = 
@@ -154,7 +155,6 @@ numberGlobal (ArrayRec a _) = do c <- getGlobalCount (readDecafInteger (arrayLen
 numberGlobal (VarRec a _ ) =  do c <- getGlobalCount 1
                                  return $ VarRec a (-c-1)
 numberGlobal m@(MethodRec {}) = return m
-numberGlobal str@(StringRec {}) = return str
 numberGlobal (StringRec a _) = do c <- getStringCount
                                   return $ StringRec a c
 
