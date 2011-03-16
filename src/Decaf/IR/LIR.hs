@@ -194,7 +194,7 @@ instance IRNode LIRInst where
     pp (LIRCondAssignInst reg reg' operand) = pp reg ++ " <- (" ++ pp reg' ++ ") " ++ pp operand
     pp (LIRStoreInst mem operand) = "STORE " ++ pp mem ++ ", " ++ pp operand
     pp (LIRLoadInst reg mem) = "LOAD " ++ pp reg ++ ", " ++ pp mem
-    pp (LIRTempEnterInst num) = "ENTER"
+    pp (LIRTempEnterInst num) = "ENTER " ++ (show num)
     pp (LIRJumpRegInst reg offset) = "JMP " ++ pp reg ++ "[" ++ show offset ++ "]"
     pp (LIRJumpLabelInst label) = "JMP " ++ pp label
     pp (LIRIfInst expr label) = "IF " ++ pp expr ++ " JMP " ++ pp label

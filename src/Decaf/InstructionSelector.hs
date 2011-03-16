@@ -254,7 +254,7 @@ instance ASM LIRReg where
     intelasm (R14) = "r14"
     intelasm (R15) = "r15"
     intelasm (GI i) = "g"++(show i)
-    intelasm (SREG i) = "[rbp-" ++ show(8*i)++"]"
+    intelasm (SREG i) = "[rbp-" ++ show(8*(i+1))++"]"
     intelasm (MEM i) = i
 
 instance ASM LIRInt where

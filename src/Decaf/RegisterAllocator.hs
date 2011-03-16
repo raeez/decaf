@@ -458,7 +458,7 @@ allocateRegisters st prog =
         appendEnter (i, u) = 
             let insts = lirUnitInstructions u
             in
-              u{lirUnitInstructions = (LIRTempEnterInst i):insts}
+              u{lirUnitInstructions = (head insts) : ((LIRTempEnterInst i):(tail insts))}
 
 
         fixOffset :: (DecafMethod, LIRUnit) -> LIRUnit
