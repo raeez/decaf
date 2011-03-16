@@ -51,16 +51,19 @@ genExpr reg expr =
                                 ++ mov reg RAX
 
       LIRBinExpr op1' LMOD  op2' -> mov RAX op1' ++ sep
-                                ++ idiv op2'
+                                ++ idiv op2' ++ sep
                                 ++ mov reg RDX
 
       LIRBinExpr op1' (LIRBinRelOp binop label) op2' ->
             cmp op1' op2' ++ sep
          ++ jtype ++ sep
-         ++ mov reg (LIRIntOperand $ LIRInt 0) ++ "\n"
+         ++ mov reg (LIRIntOperand $ LIRInt 0) ++ sep
+         ++ "jmp " ++ end ++ "\n"
          ++ "    " ++ intelasm label ++ ":" ++ sep
-         ++ mov reg (LIRIntOperand $ LIRInt 1)
+         ++ mov reg (LIRIntOperand $ LIRInt 1) ++ "\n"
+         ++ "    " ++ intelasm label ++ "_end:"
         where
+          end = intelasm label ++ "_end"
           jtype = case binop of
                     LEQ -> "je " ++ intelasm label
                     LNEQ -> "jne " ++ intelasm label
