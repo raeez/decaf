@@ -175,7 +175,7 @@ translateStm st (DecafForStm ident expr expr' block _) =
                             Just (_, (VarRec _ label)) -> (show label) -- stupid!
                             Nothing -> error "Translator.hs:translateStm Invalid SymbolTable; could not find a valid symbol for'" ++ show ident ++ "'")
             ivarlabelreg = SREG (read ivarlabel :: Int)
-            lessThan = LIRBinRelExpr (LIRRegOperand ivarlabelreg) LLTE terminateoperand
+            lessThan = LIRBinRelExpr (LIRRegOperand ivarlabelreg) LLT terminateoperand
         return (instructions
             ++ [CFGLIRInst $ LIRRegAssignInst ivarlabelreg (LIROperExpr operand)]
             ++ [CFGLIRInst $ LIRLabelInst (loopLabel l)]
@@ -426,7 +426,7 @@ arrayBoundsCheck st (DecafArr _ _ len _) indexOperand =
        return ([CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LLT (LIRIntOperand $ LIRInt $ readDecafInteger len)) ((boundsLabel False l))]
            ++ throwException outOfBounds
            ++ [CFGLIRInst $ LIRLabelInst $ (boundsLabel False l)]
-           ++ [CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LGT (LIRIntOperand $ LIRInt $ 0)) (boundsLabel True l)]
+           ++ [CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LGTE (LIRIntOperand $ LIRInt $ 0)) (boundsLabel True l)]
            ++ throwException outOfBounds
            ++ [CFGLIRInst $ LIRLabelInst $ boundsLabel True l])
 
