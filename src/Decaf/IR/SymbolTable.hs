@@ -129,7 +129,7 @@ getStringCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
 numberTree :: Tree SymbolTable -> RegisterCounter (Tree SymbolTable)
 numberTree t = 
     let table' = content t
-        table = table'{symbolRecords = (symbolRecords table')++ findStrings t}
+        table = table'{symbolRecords = (symbolRecords table')}
     in do cont <- sequence $ map numberGlobal (symbolRecords table)
           cs <- sequence $ map numberTreeH (children t)
           return $ Node table{symbolRecords = cont} cs

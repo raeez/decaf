@@ -40,9 +40,15 @@ pushError (l,c) str = Checker (\s@(CST{cstErrors = e}) -> (False, s{cstErrors = 
     err = SemanticError str (l, c)
 
 addSymbol :: SymbolRecord -> Checker Bool
-addSymbol sr = Checker (\s@(CST{cstTable = t}) -> (True, s{cstTable = modifyContent g t}))
-  where
-    g (SymbolTable rs bt) = SymbolTable (rs ++ [sr]) bt -- this order of adding symbols is important!
+addSymbol sr@(StringRec s l) = 
+    Checker (\s@(CST{cstTable = t}) -> 
+                 let cont = context t
+                 in 
+                   (True,  s{cstTable = setContext cont (modifyContent (addtotable sr) (root t))}))
+
+addSymbol sr = Checker (\s@(CST{cstTable = t}) -> (True, s{cstTable = modifyContent (addtotable sr)t}))
+
+addtotable sr (SymbolTable rs bt) = SymbolTable (rs ++ [sr]) bt -- this order of adding symbols is important!
 
 local :: BlockType -> Checker a -> Checker a
 local tp m = Checker (\s@(CST{cstTable = t}) ->
