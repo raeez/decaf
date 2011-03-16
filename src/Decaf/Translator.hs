@@ -88,7 +88,7 @@ translateMethod st declarations method =
                prologue <- translateMethodPrologue (st' index) method
                postcall <- translateMethodPostcall st method
                let decs = if (methodID method) == "main" then declarations else []
-               return $ CFGUnit (methodlabel count) ([CFGLIRInst LIRTempEnterInst]
+               return $ CFGUnit (methodlabel count) ([CFGLIRInst $ LIRTempEnterInst 0]
                                                   ++ prologue
                                                   ++ decs
                                                   ++ body
@@ -403,13 +403,15 @@ translateLocation :: SymbolTree -> DecafLoc -> Translator ([CFGInst], LIROperand
 translateLocation st loc =
     (case globalSymLookup (ident loc) st of
         Just (VarRec _ sr) -> return ([], LIRRegOperand $ SREG sr)
-        Just (ArrayRec arr o) -> incTemp >>= \t -> (do (prep, index) <- translateExpr st (arrLocExpr loc)
-                                                       checkCode <- arrayBoundsCheck st arr index
-                                                       (instructions, mem) <- arrayMemaddr arr o index
-                                                       return (prep
-                                                            ++ checkCode
-                                                            ++ (map CFGLIRInst instructions)
-                                                            ++ [CFGLIRInst $ LIRLoadInst (SREG t) mem], LIRRegOperand (SREG t)))
+        Just (ArrayRec arr o) -> 
+            do t <- incTemp
+               (prep, index) <- translateExpr st (arrLocExpr loc)
+               checkCode <- arrayBoundsCheck st arr index
+               (instructions, mem) <- arrayMemaddr arr o index
+               return (prep
+                       ++ checkCode
+                       ++ (map CFGLIRInst instructions)
+                       ++ [CFGLIRInst $ LIRLoadInst (SREG t) mem], LIRRegOperand (SREG t))
         _ -> return ([CFGLIRInst $ LIRLabelInst (LIRLabel $ "Translator.hs:translateLocation Invalid SymbolTable; could not find '" ++ ident loc ++ "' symbol in\n" ++ show st)], LIRRegOperand $ SREG (-1)))
 
 arrayBoundsCheck :: SymbolTree -> DecafArr -> LIROperand -> Translator [CFGInst]

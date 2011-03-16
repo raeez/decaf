@@ -29,6 +29,7 @@ add op1 op2 = twoop "add" op1 op2
 sub op1 op2 = twoop "sub" op1 op2
 cmp op1 op2 = operOpen op1 0 ++ operOpen op2 1 ++ "cmp " ++ intelasm R10 ++ ", " ++ intelasm R11
 imul op = (operOpen op 0) ++ "imul " ++ intelasm R10
+idiv op = (operOpen op 0) ++ "idiv " ++ intelasm R10
 jmp label = "jmp " ++ intelasm label
 
 movaddr addr op2 = (operOpen op2 1) ++ "mov "++ intelasm addr ++ intelasm R11
@@ -49,11 +50,10 @@ genExpr reg expr =
 
       LIRBinExpr op1' LDIV  op2' -> mov RAX op1' ++ sep
                                 ++ idiv op2'     ++ sep
-                                ++ mov reg RAX
-
+                                ++ "mov "++(intelasm reg)++ ", "++intelasm RAX
       LIRBinExpr op1' LMOD  op2' -> mov RAX op1' ++ sep
                                 ++ idiv op2'
-                                ++ mov reg RDX
+                                ++ "mov "++(intelasm reg)++ ", "++intelasm RDX
 
       _ -> "******************* " ++ intelasm reg ++ " <- " ++ intelasm expr
 
@@ -155,8 +155,8 @@ instance ASM LIRInst where
     intelasm (LIRCallInst proc) =
         "call " ++ intelasm proc
 
-    intelasm LIRTempEnterInst =
-        "push rbp\n        mov rbp, rsp\n        sub rsp, 100"
+    intelasm (LIRTempEnterInst s) =
+        "push rbp"++sep++"mov rbp, rsp"++sep++"sub rsp, "++(show $ 8*s)
 
     intelasm LIRRetInst =
         "mov rsp, rbp\n        pop rbp\n        ret"
@@ -232,7 +232,8 @@ instance ASM LIRReg where
     intelasm (R15) = "r15"
     intelasm (GP)  = "gp"
     intelasm (IP)  = "ip"
-    intelasm (SREG i) = "[rbp+" ++ (show i)++"]"
+    intelasm (GI i) = "g"++(show i)
+    intelasm (SREG i) = "[rbp+" ++ show(8*i)++"]"
 
 instance ASM LIRInt where
     intelasm (LIRInt i) = "0x" ++ (if i < 0 then "-" else "") ++ showHex (abs i) ""

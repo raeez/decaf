@@ -106,6 +106,12 @@ instance Data LIRInst where
      a'1 <- f a1
      a'2 <- f a2
      return (LIRRegAssignInst a'1 a'2)
+ gmapM f (LIRRegCmpAssignInst a1 a2 a3) =
+  do 
+     a'1 <- f a1
+     a'2 <- f a2
+     a'3 <- f a3
+     return (LIRRegCmpAssignInst a'1 a'2 a'3)
  gmapM f (LIRRegOffAssignInst a1 a2 a3 a4) =
   do 
      a'1 <- f a1
@@ -129,9 +135,10 @@ instance Data LIRInst where
      a'1 <- f a1
      a'2 <- f a2
      return (LIRLoadInst a'1 a'2)
- gmapM f (LIRTempEnterInst) = 
-  do
-     return (LIRTempEnterInst)
+ gmapM f (LIRTempEnterInst a1) = 
+  do 
+     a'1 <- f a1
+     return (LIRTempEnterInst a'1)
  gmapM f (LIRJumpRegInst a1 a2) =
   do 
      a'1 <- f a1
@@ -146,6 +153,10 @@ instance Data LIRInst where
      a'1 <- f a1
      a'2 <- f a2
      return (LIRIfInst a'1 a'2)
+ gmapM f (LIRCallInst a1) =
+  do 
+     a'1 <- f a1
+     return (LIRCallInst a'1)
  gmapM f (LIRRetInst) =
   do 
      return (LIRRetInst)
@@ -343,10 +354,13 @@ data RegCounterState
     = RCState 
       { rcDict :: Map.Map Int Int
       , rcCount :: Int
+      , glDict :: Map.Map Int Int
+      , glCount :: Int
+--      , rcTable :: SymbolTree
       }
     deriving (Show, Eq)
 
-mkRCState = RCState (Map.empty) 0
+mkRCState t = RCState (Map.empty) 0 (Map.empty) 0 -- t
 
 data RegAllocator a = RegAllocator { runAllocator :: RegCounterState -> (a, RegCounterState) }
                     deriving Typeable
@@ -362,17 +376,41 @@ getST = RegAllocator (\s -> (s,s))
 setST :: RegCounterState -> RegAllocator ()
 setST st = RegAllocator (\s -> ((), st))
 
+{-isGlobal :: Int -> RegAllocator Bool
+isGlobal num = 
+    do st <- getST
+       let srs = map getSR $symbolRecords.rcTable $ st
+
+       if num `elem` srs
+         then return True
+         else return False
+  where getSR (VarRec _ sr) = sr
+        getSR _ = -1
+-}
 updateCounter :: LIRReg -> RegAllocator LIRReg
 updateCounter reg@(SREG num)
     = do st <- getST
          let c = rcCount st
              dict = rcDict st
+
+         if num < 0
+           then do setST st{glCount = (glCount st)+1, glDict = (Map.insert num 0 (glDict st))}
+                   return $ GI (-num-1)
+           else
+             case Map.lookup num dict of
+               Just lab -> return $ SREG lab
+               Nothing  -> do setST st{rcCount = c+1, rcDict = (Map.insert num c dict)} 
+                              return $ SREG c
+                          
+{-updateCounter reg@(GI num)
+    = do st <- getST
+         let c = glCount st
+             dict = glDict st
          case Map.lookup num dict of
-              Just lab -> return $ SREG lab
-              Nothing -> do setST st{rcCount = c+1, rcDict = (Map.insert num c dict)} 
-                            return $ SREG c
-
-
+              Just lab -> return $ GI lab
+              Nothing -> do setST st{glCount = c+1, glDict = (Map.insert num c dict)} 
+                            return $ GI c
+-}
 updateCounter s = return s
 
 
@@ -389,7 +427,7 @@ testCounter s =
 allocateRegisters :: SymbolTree -> LIRProgram -> (LIRProgram, Int, [RegCounterState])
 allocateRegisters st prog = 
     let units = lirProgUnits prog 
-        allocUnit unit = runAllocator (everywhereM (mkM updateCounter) unit) mkRCState
+        allocUnit unit = runAllocator (everywhereM (mkM updateCounter) unit) (mkRCState st)
         unitcounts = map allocUnit units
         countGlobals st = 
             help 0 $ symbolRecords $ getContent st
