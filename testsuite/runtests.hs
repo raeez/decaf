@@ -1,14 +1,13 @@
 module Main where
 import Test.HUnit
---import Decaf.ScannerTests
---import Decaf.ParserTests
---import Decaf.SemcheckerTests
-import Decaf.Checker
-import Decaf.Scanner
-import Decaf.Parser
-import Decaf.Util.Report
+import Decaf
+import Decaf.RegisterAllocator
+import Decaf.IR.ASM
 import GHC.IO.Exception
 import System.Cmd
+
+
+
 
 -------------------------------------
 -- program to be tested
@@ -26,8 +25,14 @@ semchecker_  = checker
 
 -- cogen content, return program output
 cogen_ :: String -> String
-cogen_ str = str   -- plug codegen in
-
+cogen_ source = 
+       let (e, p, t, formattedTree, formattedErrors) = getRSuccess $ check source "DummyFilenname"
+           (numberedTable, CounterState (LabelCounter rc _ _ _)) = runRegisterCounter (numberTree $ tree t) (CounterState mkCounter)
+           (lir, _) = runTranslator (translateProgram (top numberedTable) p) (mkNamespace rc)
+           prog = (translateCFG . convertProgram) lir
+           (prog', c, results) = allocateRegisters t prog 
+           asm =  ((intelasm . content) numberedTable) ++ (intelasm prog)
+	in asm
 
 
 
@@ -41,10 +46,10 @@ readresult = do
 -- run
 coderun :: String -> IO (Maybe String)
 coderun str = do
-	 writeFile "test.asm" str 
-	 rawSystem "gcc" ["test.asm", "-o", "test"]
+	 writeFile "test.s" str 
+	 rawSystem "gcc" ["test.s", "-o", "test"]
 	 rawSystem "rm" ["-rf", "testout"]
-	 x <- rawSystem "test" [">", "testout"]
+	 x <- rawSystem "./run.sh" ["test", "testout"]
 	 case x of 
 	      ExitSuccess -> do {
 	      		     	x <- readresult;
@@ -130,6 +135,7 @@ addExt ext = map (\x -> x++"."++ext)
 
 main:: IO Counts
 main = do
+
   putStrLn "Scanner Tests..."
   l <- readTList "scan-legal/l"
   scannerlegal <- readTests (addPath "scan-legal" l) True scanner_
@@ -195,17 +201,18 @@ main = do
 
 
 
-
-
   putStrLn "\ncodegen Tests..."
   cil2 <- readTestsRuntimeError (addPath "coge-illegal2" $ makeIllegals 1 4) cogen_ coderun
   l <- readTList "coge/l"  
+  runTestTT cil2
+
+
   cc <- readTestsWithOut (addPath "coge" l) cogen_ coderun
   l <- readTList "coge2/l"  
   cc2 <- readTestsWithOut (addPath "coge2" l) cogen_ coderun
   l <- readTList "coge3/l"  
   cc3 <- readTestsWithOut (addPath "coge3" l) cogen_ coderun
-  runTestTT cil2
+
   runTestTT cc
   runTestTT cc2
   runTestTT cc3
