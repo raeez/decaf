@@ -37,7 +37,7 @@ can be split cleanly into three distinct parts; the implementation of our compil
 of the *Translator* (a program that converts our abstract high-level language into the
 lower form; and finally, the augmentation of the existing Symbol Tables and Symbol Trees.
 The x86_64 assembly code was generated as a simple map from LIR to assembly, implemented
-in Decaf.IR.ASM.
+in Decaf.IR.ASM and Decaf.InstructionSelector.
 
     Since LIR represents a language in an incredibly low-level (indeed, almost
     machine-specific) form, most of the time spent in implementation was directed
@@ -110,7 +110,7 @@ namespace accross the pipeline; this led to the proliferation of numerous repeti
 etc. More on this later.
 
 [2] The SymbolTree (a zipper of SymbolTable; see Decaf.IR.SymbolTable) was dealt with
-in an incredibly natuaral and powerful language; traversing the tree functionally can
+in an incredibly natural and powerful language; traversing the tree functionally can
 be performed as a series of 'direction' functions:
 
               content . tree . select 3 . select 5 .  (SymbolTree)
@@ -124,7 +124,7 @@ content stored at that point in the tree); beyond trees, however, we found it
                            |  Partners in Crime  |
                            =======================
 
-        skovach - Implemented the Symbol Table identifier unique
+        kovach  - Implemented the Symbol Table identifier unique
                   identifier counting routines,  control flow graph
                   short-circuit evaluation and naive register allocator.
 
@@ -143,7 +143,6 @@ content stored at that point in the tree); beyond trees, however, we found it
     Manipulating the necessary data structures for code generation and
     data flow analysis presents several problems in Haskell.  
 
-                       
 
     The type system is fantastic for checking errors (giving us the data
     structure integrity checkers mentioned in class automatically) but it
@@ -182,10 +181,11 @@ content stored at that point in the tree); beyond trees, however, we found it
     Now, for any recursive data type we have, we implement an interface function
 
 
-        gmapM f (Thing arg1 arg2 arg3 ) = do a1 <- f arg1
-                                         a2 <- f arg2
-                                         a3 <- f arg3
-                                             return $ Thing a1 a2 a3
+        gmapM f (Thing arg1 arg2 arg3) 
+	    = do a1 <- f arg1
+                 a2 <- f arg2
+                 a3 <- f arg3
+		 return $ Thing a1 a2 a3
 
     this gives us a way to apply polymorphic functions (like mkM f) to Thing's.
     Defining gmapM for the types and subtypes of arg1, arg2, arge3, etc, we can
@@ -253,8 +253,8 @@ content stored at that point in the tree); beyond trees, however, we found it
     important for future intelligent register allocation and data flow
     algorithms.  However, we found that working with graphs (and other
     non-recursive data types) is very awkward in Haskell.  There is
-    extensive literature on this subject, but still no conclusive
-    solutions.
+    extensive literature on this subject, but still there are no
+    conclusive solutions.
 
     The control flow graph is implemented recursively:
 
@@ -273,12 +273,12 @@ content stored at that point in the tree); beyond trees, however, we found it
     traversed by just moving up in the ControlNode list. Loops are as of
     yet not specially marked.
 
-    I believe that using the generic programming techniques outlined in
-    the previous section may allow us to construct zippers for any type
-    implementing Data.  This would give us a rich set of operations for
-    manipulating ControlFlow graphs.  It would also help us implement
-    graph algorithms while ignoring the exact representation of the
-    graphs.
+    We believe that using the generic programming techniques outlined
+    in the previous section may allow us to construct zippers for any
+    type implementing Data.  This would give us a rich set of
+    operations for manipulating ControlFlow graphs along with all of
+    our other types.  It would also help us implement graph algorithms
+    while ignoring the exact representation of the graphs.
 
                        ======================
                        | Control Flow Graph |
@@ -296,7 +296,7 @@ content stored at that point in the tree); beyond trees, however, we found it
     This output is taken by the CFG constructor: it creates a graph and
     generates short-circuit evaluation code for all expressions.  This
     representation can then be converted into straight LIR code, which is
-    easily converted to assembly.
+    readily converted to assembly.
 
                        =============================
                        | Naive register Allocation |
@@ -311,9 +311,9 @@ content stored at that point in the tree); beyond trees, however, we found it
           the stack, along with the generation of corresponding loads
           and stores.
 
-    This is an incredibly simple/trivial phase; not much work is done
-    (indeed, all the variables are placed on the stack, decrementing the
-    frame pointer as we go)
+    This is current a very simple phase; not much work is done
+    (indeed, all the variables are placed on the stack, decrementing
+    the frame pointer as we go)
 
                            ======================
                            | Mapping LIR to ASM |
