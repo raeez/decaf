@@ -1,5 +1,6 @@
 module Decaf.InstructionSelector where
 import Numeric
+import Data.Char
 import Decaf.IR.SymbolTable
 import Decaf.IR.LIR
 import Decaf.IR.AST
@@ -83,7 +84,7 @@ genExpr reg expr =
       LIRBinExpr op1' (LIRBinRelOp LLTE label) op2' -> "******************* " ++ intelasm reg ++ " <- " ++ intelasm expr
 
 instance ASM SymbolTable where
-    intelasm (SymbolTable records _) = "USE64\nextern printf\nextern get_int_035\nsection .data:\n" ++ unlines (indentMap records) ++ "\n"
+    intelasm (SymbolTable records _) = "USE64\nextern printf\nextern get_int_035\nextern random\nextern srandom\nsection .data:\n" ++ unlines (indentMap records) ++ "\n"
       where
         indentMap :: [SymbolRecord] -> [String]
         indentMap [] = []
@@ -96,10 +97,21 @@ instance ASM SymbolRecord where
         "common g" ++ show (-num - 1) ++ " 8:1"
 
     intelasm (ArrayRec (DecafArr ty ident len _) go) =
-        "common " ++ arrayLabel go ++ " " ++( show  $ 8 * (readDecafInteger len))++ ":" ++ show 8
+        "common " ++ arrayLabel go ++ " " ++(show $ 8 * (readDecafInteger len))++ ":" ++ show 8
 
     intelasm (StringRec str sl) =
-        stringLabel sl ++ ": db " ++ show str ++ ", " ++ show 0
+        stringLabel sl ++ ": db " ++ "\"" ++ fmt str ++ "\", " ++ show 0
+      where
+        fmt :: String -> String
+        fmt [] = []
+        fmt (x:xs)
+               | x == '\n' || x == '\t' || x == '\0' =
+                  let byte = case x of
+                                '\0' -> "0x0"
+                                '\n' -> "0xA"
+                                '\t' -> "0x9"
+                  in "\", " ++ byte ++ ", \"" ++ fmt xs
+               | otherwise = (x:fmt xs)
 
     intelasm _ = ""
 
