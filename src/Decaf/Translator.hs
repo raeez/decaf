@@ -167,10 +167,12 @@ translateStm st (DecafForStm ident expr expr' block _) =
     do  l <- incLabel
         (instructions, operand) <- translateExpr st expr
         (instructions2, (LIROperRelExpr terminateoperand)) <- translateRelExpr st expr'
+        bs <- getNesting -- can't use getBlock, it assumes you're in a new block
+        let st' = select (last bs) st -- needed to lookup index variable correctly
         forblock <- withScope l $ translateBlock st block
-        let ivarlabel = (case symLookup ident (table st) of
+        let ivarlabel = (case symLookup ident (table st') of
                             Just (_, (VarRec _ label)) -> (show label) -- stupid!
-                            Nothing -> error "Translator.hs:translateStm Invalid SymbolTable; could not find a valid symbol for'" ++ show ident ++ "'")
+                            Nothing -> error ("Translator.hs:translateStm Invalid SymbolTable; could not find a valid symbol for'" ++ show ident ++ "'") )
             ivarlabelreg = SREG (read ivarlabel :: Int)
             lessThan = LIRBinRelExpr (LIRRegOperand ivarlabelreg) LLT terminateoperand
         return (instructions
