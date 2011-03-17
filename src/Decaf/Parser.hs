@@ -451,24 +451,45 @@ rewriteEqrTail EmptyEqr'
 
 rewriteRelr :: Relr -> DecafExpr
 rewriteRelr (Relr term EmptyRelr' _)
-  = rewriteTerm term
+  = rewriteSubr term
 
 rewriteRelr (Relr term (Relr' binop term' EmptyRelr' p) _)
-  = DecafBinExpr (rewriteTerm term) binop (rewriteTerm term') p
+  = DecafBinExpr (rewriteSubr term) binop (rewriteSubr term') p
 
 rewriteRelr (Relr term (Relr' binop term' relr'@(Relr' binop' _ _ p) p') _)
-  = DecafBinExpr (rewriteTerm term) binop  (DecafBinExpr (rewriteTerm term') binop' (rewriteRelrTail relr') p') p
+  = DecafBinExpr (rewriteSubr term) binop  (DecafBinExpr (rewriteSubr term') binop' (rewriteRelrTail relr') p') p
 
 -- |'rewriteExprTail'
 rewriteRelrTail :: Relr' -> DecafExpr
 rewriteRelrTail (Relr' _ term relr@(Relr' binop _ _ p) _)
-  = DecafBinExpr (rewriteTerm term) binop (rewriteRelrTail relr) p
+  = DecafBinExpr (rewriteSubr term) binop (rewriteRelrTail relr) p
 
 rewriteRelrTail (Relr' _ term EmptyRelr' _)
-  = rewriteTerm term
+  = rewriteSubr term
 
 rewriteRelrTail EmptyRelr'
   = error "Parser.hs:rewriteRelrTail invalid concrete expr tree; rewriteRelrTail encountered an EmptyRelr'"
+
+rewriteSubr :: Subr -> DecafExpr
+rewriteSubr (Subr term EmptySubr' _)
+  = rewriteTerm term
+
+rewriteSubr (Subr term (Subr' binop term' EmptySubr' p) _)
+  = DecafBinExpr (rewriteTerm term) binop (rewriteTerm term') p
+
+rewriteSubr (Subr term (Subr' binop term' subr'@(Subr' binop' _ _ p) p') _)
+  = DecafBinExpr (rewriteTerm term) binop  (DecafBinExpr (rewriteTerm term') binop' (rewriteSubrTail subr') p') p
+
+-- |'rewriteExprTail'
+rewriteSubrTail :: Subr' -> DecafExpr
+rewriteSubrTail (Subr' _ term relr@(Subr' binop _ _ p) _)
+  = DecafBinExpr (rewriteTerm term) binop (rewriteSubrTail relr) p
+
+rewriteSubrTail (Subr' _ term EmptySubr' _)
+  = rewriteTerm term
+
+rewriteSubrTail EmptySubr'
+  = error "Parser.hs:rewriteSubrTail invalid concrete expr tree; rewriteSubrTail encountered an EmptySubr'"
 
 
 rewriteTerm :: Term -> DecafExpr
@@ -497,7 +518,7 @@ rewriteFactor (DecafNotExpr' expr p)
   = DecafNotExpr (rewriteExpr expr) p
 
 rewriteFactor (DecafMinExpr' expr p)
-  = DecafMinExpr (rewriteExpr expr) p
+  = rewriteExpr expr
 
 rewriteFactor (DecafLocExpr' loc p)
   = DecafLocExpr loc p
@@ -556,17 +577,31 @@ eqr' = do
 
 relr :: DecafParser Relr
 relr = do
-        t <- term
+        t <- subr
         e <- relr'
         fmap (Relr t e . morphPos) getPosition
 
 relr' :: DecafParser Relr'
 relr' = do
           b <- fourthlevelop
-          t <- term
+          t <- subr
           e <- relr'
           fmap (Relr' b t e . morphPos) getPosition
      <|> return EmptyRelr'
+
+subr :: DecafParser Subr
+subr = do
+        t <- term
+        e <- subr'
+        fmap (Subr t e . morphPos) getPosition
+
+subr' :: DecafParser Subr'
+subr' = do
+          b <- fourthlevelop'
+          t <- term
+          e <- subr'
+          fmap (Subr' b t e . morphPos) getPosition
+     <|> return EmptySubr'
 
 term :: DecafParser Term
 term = do
@@ -586,10 +621,10 @@ factor :: DecafParser Factor
 factor = (try methodcall >>= \o -> fmap (DecafMethodExpr' o . morphPos) getPosition)
       <|> (location >>= \o -> fmap (DecafLocExpr' o . morphPos) getPosition)
       <|> (lit >>= \o -> fmap (DecafLitExpr' o . morphPos) getPosition)
-      <|> (opnot >> expr >>= \o -> fmap (DecafNotExpr' o . morphPos) getPosition)
+      <|> (opnot >> smallexpr >>= \o -> fmap (DecafNotExpr' o . morphPos) getPosition)
       <|> do
             opmin
-            e <- expr
+            e <- smallexpr
             p <- getPosition
             let p' = morphPos p
             return $ DecafMinExpr' (case e of
@@ -602,15 +637,57 @@ factor = (try methodcall >>= \o -> fmap (DecafMethodExpr' o . morphPos) getPosit
             rparen
             fmap (DecafParenExpr' e . morphPos) getPosition
 
-firstlevelop, secondlevelop, thirdlevelop, fourthlevelop, fifthlevelop :: DecafParser DecafBinOp
+smallexpr :: DecafParser DecafExpr
+smallexpr = (try methodcall >>= \o -> fmap (rewriteFactor . DecafMethodExpr' o . morphPos) getPosition)
+         <|> (location >>= \o -> fmap (rewriteFactor . DecafLocExpr' o . morphPos) getPosition)
+         <|> (lit >>= \o -> fmap (rewriteFactor . DecafLitExpr' o . morphPos) getPosition)
+         <|> (opnot >> ((try smallexpr) <|> expr) >>= \o -> fmap (rewriteFactor . DecafNotExpr' o . morphPos) getPosition)
+         <|> do
+                opmin
+                e <- (try smallexpr) <|> expr
+                p <- getPosition
+                let p' = morphPos p
+                return $ rewriteFactor $ DecafMinExpr' (case e of
+                            DecafLitExpr (DecafIntLit (DecafHex int) _) _ -> DecafLitExpr (DecafIntLit (DecafHex ('-' : int)) p') p'
+                            DecafLitExpr (DecafIntLit (DecafDec int) _) _ -> DecafLitExpr (DecafIntLit (DecafDec ('-' : int)) p') p'
+                            e -> e) p'
+          <|> do
+                lparen
+                e <- (try smallexpr) <|> expr
+                rparen
+                fmap (rewriteFactor . DecafParenExpr' e . morphPos) getPosition
+{-
+
+expr = buildExpressionParser table term
+    <?> "expression"
+
+term = parens expr 
+    <|> natural
+     <?> "simple expression"
+
+  table   = [ [binary orop _ AssocLeft]
+            , [binary andop _ AssocLeft]
+            , [binary eqop _ AssocLeft]
+            , [binary relop _ AssocLeft]
+            , [prefix minop _, prefix plusop _]
+            , [prefix opnot DecafNotExpr]
+            , [prefix opmin DecafMinExpr]
+            , [postfix "++" (+1)]
+            , [binary "*" (*) AssocLeft, binary "/" (div) AssocLeft ]
+            , [binary "+" (+) AssocLeft, binary "-" (-)   AssocLeft ]
+            ]
+          
+  binary  name fun assoc = Infix (do{ reservedOp name; return fun }) assoc
+  prefix  name fun       = Prefix (do{ reservedOp name; return fun })
+  postfix name fun       = Postfix (do{ reservedOp name; return fun })
+-}
+firstlevelop, secondlevelop, thirdlevelop, fourthlevelop, fourthlevelop', fifthlevelop :: DecafParser DecafBinOp
 firstlevelop = condop
 secondlevelop = eqop
 thirdlevelop = relop
-fourthlevelop = toparithop
+fourthlevelop = (subop) >>= \o -> fmap (DecafBinArithOp o . morphPos) getPosition
+fourthlevelop' = (addop) >>= \o -> fmap (DecafBinArithOp o . morphPos) getPosition
 fifthlevelop = botarithop
-
-toparithop :: DecafParser DecafBinOp
-toparithop = (addop <|> subop) >>= \o -> fmap (DecafBinArithOp o . morphPos) getPosition
 
 botarithop :: DecafParser DecafBinOp
 botarithop = (mulop <|> divop <|> modop) >>= \o -> fmap (DecafBinArithOp o . morphPos) getPosition

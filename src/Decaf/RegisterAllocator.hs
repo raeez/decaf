@@ -443,22 +443,27 @@ getMethods st =
 
 allocateRegisters :: SymbolTree -> LIRProgram -> (LIRProgram, Int, [RegCounterState])
 allocateRegisters st prog = 
-    let units = lirProgUnits prog 
-        allocUnit unit = runAllocator (everywhereM (mkM updateCounter) unit) (mkRCState st)
-        unitcounts' :: [(LIRUnit, RegCounterState)]
-        unitcounts' = map allocUnit units
-        unitcounts = map appendEnter  $ zip (map (rcCount.snd) unitcounts') (map fst unitcounts')
-        methods = getMethods st
-        units' = (map fixOffset $ zip methods (init unitcounts)) ++ [last $ unitcounts]
+    let initUnits = lirProgUnits prog 
 
-        
+        allocUnit :: LIRUnit -> (LIRUnit, RegCounterState)
+        allocUnit unit = runAllocator (everywhereM (mkM updateCounter) unit) (mkRCState st)
+        enhUnits = map allocUnit initUnits
+
+        units = map fst enhUnits
+        counters = map snd enhUnits
+
+        methods = getMethods st
+
+        units' = (map appendEnter $ zip (map rcCount counters) 
+                                        (map fixOffset $ zip methods (init units))) 
+                 ++ [last $ units]
 
 
         appendEnter :: (Int, LIRUnit) -> LIRUnit
         appendEnter (i, u) = 
             let insts = lirUnitInstructions u
             in
-              u{lirUnitInstructions = (LIRTempEnterInst i):insts}
+              u{lirUnitInstructions = (head insts) : ((LIRTempEnterInst i):(tail insts))}
 
 
         fixOffset :: (DecafMethod, LIRUnit) -> LIRUnit
@@ -476,9 +481,10 @@ allocateRegisters st prog =
                     
 
     in
-      if (length methods) /= (length unitcounts - 1)
+      if (length methods) /= (length units - 1)
 
-        then error ("number of methods does not equal number of units" ++ show (length methods) ++ show (length unitcounts))
+        then error ("number of methods does not equal number of units" 
+                    ++ show (length methods) ++ show (length units))
         else
-          ((LIRProgram (lirProgLabel prog) units'), countGlobals st, (map snd unitcounts'))
+          ((LIRProgram (lirProgLabel prog) units'), countGlobals st, counters)
         

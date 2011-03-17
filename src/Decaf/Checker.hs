@@ -44,11 +44,12 @@ addSymbol sr@(StringRec s l) =
     Checker (\s@(CST{cstTable = t}) -> 
                  let cont = context t
                  in 
-                   (True,  s{cstTable = setContext cont (modifyContent (addtotable sr) (root t))}))
+                   (True,  s{cstTable = setContext cont (modifyContent (addtobegtable sr) (root t))}))
 
-addSymbol sr = Checker (\s@(CST{cstTable = t}) -> (True, s{cstTable = modifyContent (addtotable sr)t}))
+addSymbol sr = Checker (\s@(CST{cstTable = t}) -> (True, s{cstTable = modifyContent (addtoendtable sr)t}))
 
-addtotable sr (SymbolTable rs bt) = SymbolTable (rs ++ [sr]) bt -- this order of adding symbols is important!
+addtoendtable sr (SymbolTable rs bt) = SymbolTable (rs ++ [sr]) bt -- this order of adding symbols is important!
+addtobegtable sr (SymbolTable rs bt) = SymbolTable (sr : rs) bt -- this order of adding symbols is important!
 
 local :: BlockType -> Checker a -> Checker a
 local tp m = Checker (\s@(CST{cstTable = t}) ->
@@ -156,12 +157,11 @@ checkStm (DecafIfStm expr block melse pos) =
         else pushError pos "If conditional must have type Boolean"
 
       case melse of
-          Just e -> checkBlock block IfBlock >> checkBlock e IfBlock
-          Nothing -> checkBlock block IfBlock
+          Just e -> checkBlock [] block IfBlock >> checkBlock [] e IfBlock
+          Nothing -> checkBlock [] block IfBlock
 
 checkStm (DecafForStm id expr1 expr2 block pos') =
           do
-            addSymbol $ VarRec (DecafVar DecafInteger id pos') (32)
             t1 <- checkExpr expr1
             t2 <- checkExpr expr2
             if t1 /= DecafInteger
@@ -170,7 +170,8 @@ checkStm (DecafForStm id expr1 expr2 block pos') =
             if t2 /= DecafInteger
               then pushError (pos expr2) "End expression in for loop must have type Integer"
               else return True
-            checkBlock block ForBlock
+            checkBlock [(DecafVar DecafInteger id pos')] block ForBlock
+                       -- pushes the index variable to the local scope
 
 checkStm (DecafRetStm rv pos) =
           do t <- inMethod -- returns method type, if there is one
@@ -198,7 +199,7 @@ checkStm (DecafContStm  pos) =
           guardFor pos
 
 checkStm (DecafBlockStm block _) =
-          checkBlock block TrivialBlock
+          checkBlock [] block TrivialBlock
 
 guardFor :: DecafPosition -> Checker Bool
 guardFor pos = do
@@ -208,10 +209,10 @@ guardFor pos = do
                   else pushError pos "break and continue may only be used inside for loops"
 
 
-checkBlock :: DecafBlock -> BlockType -> Checker Bool
-checkBlock (DecafBlock vars stmts pos) btype
-    = local btype (do (foldl (>>) (return False) (map checkVarDec vars))
-                      foldl (>>) (return False) (map checkStm stmts)
+checkBlock :: [DecafVar] -> DecafBlock -> BlockType -> Checker Bool
+checkBlock locals (DecafBlock vars stmts pos) btype
+    = local btype (do (foldl (>>) (return False) (map checkVarDec (locals++vars)))
+                      foldl  (>>) (return False) (map checkStm stmts)
                       case btype of
                         MethodBlock t ->
                             do mrec <- lookNear "return"
@@ -253,8 +254,8 @@ checkMethodDec :: DecafMethod -> Checker Bool
 checkMethodDec meth@(DecafMethod t id args body pos') = 
     do rec <- lookNear id
        case rec of
-         Nothing -> do addSymbol $ MethodRec meth ("", 32)
-                       checkBlock (DecafBlock (args ++ (blockVars body)) (blockStms body) (blockPos body)) (MethodBlock t)
+         Nothing -> do addSymbol $ MethodRec meth ("", 32) -- done first to support recursion
+                       checkBlock args body (MethodBlock t)
 
          Just (MethodRec meth _) -> pushError pos' ("Function " ++ id ++ " already defined at line number " ++ show(fst(pos meth)))
          Just _ -> pushError pos' ("Variable with identifier "++ id ++ " already defined")

@@ -24,8 +24,8 @@ exceptionHeader = LIRLabel "__exceptionhandlers"
 exceptionLabel :: Int -> LIRLabel
 exceptionLabel c = LIRLabel $ "__exception" ++ show c
 
-boundsLabel :: Int -> LIRLabel
-boundsLabel c = LIRLabel $ "__boundscheck" ++ show c
+boundsLabel :: Bool -> Int -> LIRLabel
+boundsLabel t c = if t then (LIRLabel $ "__boundscheck" ++ show c) else (LIRLabel $ "__boundscheck" ++ show c ++ "__positive")
 
 compareLabel :: Int -> LIRLabel
 compareLabel c = LIRLabel $  "__cmp" ++ show c
@@ -60,7 +60,7 @@ data LIRUnit = LIRUnit
 
 data LIRInst = LIRRegAssignInst LIRReg LIRExpr
              | LIRRegCmpAssignInst LIRReg LIRExpr LIRLabel
-             | LIRRegOffAssignInst LIRReg LIROffset LIRSize LIROperand  -- ^ Element-wise Assign
+             | LIRRegOffAssignInst LIRReg LIRReg LIRSize LIROperand  -- ^ Element-wise Assign
              | LIRCondAssignInst LIRReg LIRReg LIROperand    -- ^ Conditional Assign
              | LIRStoreInst LIRMemAddr LIROperand
              | LIRLoadInst LIRReg LIRMemAddr
@@ -194,7 +194,7 @@ instance IRNode LIRInst where
     pp (LIRCondAssignInst reg reg' operand) = pp reg ++ " <- (" ++ pp reg' ++ ") " ++ pp operand
     pp (LIRStoreInst mem operand) = "STORE " ++ pp mem ++ ", " ++ pp operand
     pp (LIRLoadInst reg mem) = "LOAD " ++ pp reg ++ ", " ++ pp mem
-    pp (LIRTempEnterInst num) = "ENTER"
+    pp (LIRTempEnterInst num) = "ENTER " ++ (show num)
     pp (LIRJumpRegInst reg offset) = "JMP " ++ pp reg ++ "[" ++ show offset ++ "]"
     pp (LIRJumpLabelInst label) = "JMP " ++ pp label
     pp (LIRIfInst expr label) = "IF " ++ pp expr ++ " JMP " ++ pp label
@@ -312,7 +312,7 @@ instance IRNode LIRReg where
     pos _     = error "LIR has no associated position"
 
 instance IRNode LIRInt where
-    pp (LIRInt i) = "0x" ++ (if i < 0 then "-" else "") ++ showHex (abs i) ""
+    pp (LIRInt i) = (if i < 0 then "-" else "") ++ "0x" ++ showHex (abs i) ""
     treeify i = Node (pp i) []
     pos _     = error "LIR has no associated position"
 

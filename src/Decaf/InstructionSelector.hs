@@ -11,12 +11,15 @@ import Decaf.IR.ASM
 -- this code then just becomes the pretty printer into gnuasm, or intelasm
 --
 
-regOpen r = "mov r10, "++ intelasm r ++ sep
+regOpen r = 
+    "mov r10, "++ intelasm r ++ sep
 
-regSave r = case r of
+regSave r = "mov " ++ intelasm r ++ ", r10" ++ sep
+
+{-case r of
               SREG s -> "mov " ++ intelasm r ++", r10" ++ sep
               GI   s -> "mov " ++ intelasm r ++", r10" ++ sep
-              otherwise -> ""
+              otherwise -> ""-}
 
 operOpen op num = 
     "mov r1"++ show num ++", "++ intelasm op ++ sep -- selects either r10 or r11
@@ -80,7 +83,7 @@ genExpr reg expr =
       LIRBinExpr op1' (LIRBinRelOp LLTE label) op2' -> "******************* " ++ intelasm reg ++ " <- " ++ intelasm expr
 
 instance ASM SymbolTable where
-    intelasm (SymbolTable records _) = "USE64\nextern printf\nsection .data:\n" ++ unlines (indentMap records) ++ "\n"
+    intelasm (SymbolTable records _) = "USE64\nextern printf\nextern get_int_035\nsection .data:\n" ++ unlines (indentMap records) ++ "\n"
       where
         indentMap :: [SymbolRecord] -> [String]
         indentMap [] = []
@@ -89,11 +92,11 @@ instance ASM SymbolTable where
                                _ -> ["    " ++ intelasm x] ++ indentMap xs
 
 instance ASM SymbolRecord where
-    intelasm (VarRec (DecafVar ty ident _) sr) =
-        "g" ++ show sr ++ " dq 0"
+    intelasm (VarRec (DecafVar ty ident _) num) =
+        "common g" ++ show (-num - 1) ++ " 8:1"
 
     intelasm (ArrayRec (DecafArr ty ident len _) go) =
-        arrayLabel go ++ ": dq " ++ foldl (\s1 -> \s2 -> s1++", "++s2) "0" (map (\_ -> "0") [1..readDecafInteger len])
+        "common " ++ arrayLabel go ++ " " ++( show  $ 8 * (readDecafInteger len))++ ":" ++ show 8
 
     intelasm (StringRec str sl) =
         stringLabel sl ++ ": db " ++ show str ++ ", " ++ show 0
@@ -118,12 +121,14 @@ instance ASM LIRUnit where
 instance ASM LIRInst where
     intelasm (LIRRegAssignInst reg expr@(LIRBinExpr (LIRRegOperand reg') binop op2)) =
         if reg == reg'
-          then case binop of
---                    LSUB -> sub reg op2
-
---                    LADD -> add reg op2
-
-                    _ -> genExpr reg expr
+          then if reg == RSP
+               then 
+                 case binop of
+                   LSUB -> operOpen op2 1++ "sub rsp, r11" 
+                   LADD -> operOpen op2 1++ "add rsp, r11" 
+                   otherwise -> genExpr reg expr
+               else
+                 genExpr reg expr
           else genExpr reg expr
 
     intelasm (LIRRegAssignInst reg expr@(LIRBinExpr op1 binop op2)) =
@@ -138,14 +143,21 @@ instance ASM LIRInst where
      ++ "not " ++ intelasm reg
 
     intelasm (LIRRegAssignInst reg (LIROperExpr operand)) =
-        mov reg operand
+        case reg of
+          RSP -> mov (MEM "[rsp]") operand
+          otherwise -> mov reg operand
 
-    intelasm (LIRRegOffAssignInst reg offset size operand) = "******************* " ++ intelasm reg ++ "(" ++ intelasm offset ++ ", " ++ intelasm size ++ ") <- " ++ intelasm operand
+    intelasm (LIRRegOffAssignInst reg offset size operand) = 
+        (operOpen offset 0)++(operOpen operand 1)++"mov ["++intelasm reg++" + r10], r11"++sep
+
     intelasm (LIRCondAssignInst reg reg' operand) = "******************* " ++ intelasm reg ++ " <- (" ++ intelasm reg' ++ ") " ++ intelasm operand
 
     intelasm (LIRStoreInst mem operand) =
         movaddr mem operand 
 
+    intelasm (LIRLoadInst reg (LIRRegPlusMemAddr arr offset (LIRInt size))) = 
+        (operOpen offset 1) ++ "mov r10, ["++intelasm arr++" + r11]" ++ sep ++ regSave reg
+        
     intelasm (LIRLoadInst reg mem) =
         mov reg mem
 
@@ -227,7 +239,7 @@ instance ASM LIRRelOp where
     intelasm (LLTE) = "<="
 
 instance ASM LIRMemAddr where
-    intelasm (LIRRegMemAddr reg (LIRInt size)) = intelPrefix size ++ " [" ++ intelasm reg ++ "]"
+    intelasm (LIRRegMemAddr reg (LIRInt size)) = intelasm reg
     intelasm (LIRRegPlusMemAddr reg reg' (LIRInt size)) = intelPrefix size ++ " [" ++ intelasm reg ++ " + " ++ intelasm reg' ++ "]"
     intelasm (LIRRegOffMemAddr reg offset (LIRInt size)) = intelPrefix size ++ " [" ++ intelasm reg ++ " + " ++ intelasm offset++ "]"
 
@@ -253,12 +265,12 @@ instance ASM LIRReg where
     intelasm (R13) = "r13"
     intelasm (R14) = "r14"
     intelasm (R15) = "r15"
-    intelasm (GI i) = "g"++(show i)
-    intelasm (SREG i) = "[rbp-" ++ show(8*i)++"]"
+    intelasm (GI i) = "qword [g"++(show i)++"]"
+    intelasm (SREG i) = "qword [rbp-" ++ show(8*(i+1))++"]"
     intelasm (MEM i) = i
 
 instance ASM LIRInt where
-    intelasm (LIRInt i) = "0x" ++ (if i < 0 then "-" else "") ++ showHex (abs i) ""
+    intelasm (LIRInt i) = (if i < 0 then "-" else "") ++ "0x" ++ showHex (abs i) ""
 
 instance ASM LIRLabel where
     intelasm (LIRLabel s) = s
