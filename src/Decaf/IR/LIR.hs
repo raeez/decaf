@@ -284,7 +284,7 @@ instance IRNode LIRMemAddr where
 instance IRNode LIROperand where
     pp (LIRRegOperand reg) = pp reg
     pp (LIRIntOperand i) = pp i
-    pp (LIRStringOperand s) = show s
+    pp (LIRStringOperand s) = s
     treeify a = Node (pp a) []
     pos _     = error "LIR has no associated position"
 
