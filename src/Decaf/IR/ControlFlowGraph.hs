@@ -73,7 +73,7 @@ convertLIRInsts insts = convHelp [] [] insts
               convHelp (nodes ++ pushBlock ++ [mkBranch reg label (convHelp [] [] block) (convHelp [] [] eblock)]) [] is
           CFGExprInst (CFGLogExpr expr1 op expr2 reg) -> -- reg is used for labeling new branches
             let contEvaling   = (convHelp [] [] ([expr2] ++ [CFGLIRInst $ LIRRegAssignInst reg (LIROperExpr $ (cgOper expr2))]))
-                retValBlock b = [mkBasicBlock [LIRRegAssignInst reg (LIROperExpr (LIRIntOperand (LIRInt b)))]]
+                retValBlock b = [mkBasicBlock [LIRRegAssignInst reg (LIROperExpr (LIRIntOperand b))]]
             in
               case op of
 -- add code to fill in final value in reg
@@ -81,11 +81,11 @@ convertLIRInsts insts = convHelp [] [] insts
                                   ++[mkBranch (cgOper expr1) 
                                               (symToInt reg)
                                               contEvaling
-                                              (retValBlock 0)]) [] is
+                                              (retValBlock asmFalse)]) [] is
                 LOR -> convHelp (nodes ++ pushBlock ++ (convHelp [] [] [expr1])
                                   ++[mkBranch (cgOper expr1) 
                                               (symToInt reg)
-                                              (retValBlock 1)
+                                              (retValBlock asmTrue)
                                               contEvaling]) [] is
 
           CFGExprInst (CFGFlatExpr insts _) ->

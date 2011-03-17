@@ -52,20 +52,22 @@ genExpr reg expr =
                                 ++ imul op2'    ++ sep
                                 ++ "mov "++(intelasm reg)++ ", "++intelasm RAX
 
-      LIRBinExpr op1' LDIV  op2' -> mov RAX op1' ++ sep
+      LIRBinExpr op1' LDIV  op2' -> mov RDX (LIRIntOperand $ LIRInt 0) ++ sep -- must be 0
+                                ++ mov RAX op1' ++ sep
                                 ++ idiv op2'     ++ sep
                                 ++ "mov "++(intelasm reg)++ ", "++intelasm RAX
-      LIRBinExpr op1' LMOD  op2' -> mov RAX op1' ++ sep
+      LIRBinExpr op1' LMOD  op2' -> mov RDX (LIRIntOperand $ LIRInt 0) ++ sep --must be 0
+                                ++ mov RAX op1' ++ sep
                                 ++ idiv op2' ++ sep
                                 ++ "mov "++(intelasm reg)++ ", "++intelasm RDX
 
       LIRBinExpr op1' (LIRBinRelOp binop label) op2' ->
             cmp op1' op2' ++ sep
          ++ jtype ++ sep
-         ++ mov reg (LIRIntOperand $ LIRInt 0) ++ sep
+         ++ mov reg (LIRIntOperand asmFalse) ++ sep
          ++ "jmp " ++ end ++ "\n"
          ++ "    " ++ intelasm label ++ ":" ++ sep
-         ++ mov reg (LIRIntOperand $ LIRInt 1) ++ "\n"
+         ++ mov reg (LIRIntOperand asmTrue) ++ "\n"
          ++ "    " ++ intelasm label ++ "_end:"
         where
           end = intelasm label ++ "_end"
@@ -136,8 +138,8 @@ instance ASM LIRInst where
           then if reg == RSP
                then 
                  case binop of
-                   LSUB -> operOpen op2 1++ "sub rsp, r11" 
-                   LADD -> operOpen op2 1++ "add rsp, r11" 
+                   LSUB -> operOpen op2 1 ++ "sub rsp, r11" 
+                   LADD -> operOpen op2 1 ++ "add rsp, r11" 
                    otherwise -> genExpr reg expr
                else
                  genExpr reg expr
@@ -160,7 +162,7 @@ instance ASM LIRInst where
           otherwise -> mov reg operand
 
     intelasm (LIRRegOffAssignInst reg offset size operand) = 
-        (operOpen offset 0)++(operOpen operand 1)++"mov ["++intelasm reg++" + r10], r11"++sep
+        (operOpen offset 0) ++ (operOpen operand 1)++"mov ["++intelasm reg++" + r10], r11"++sep
 
     intelasm (LIRCondAssignInst reg reg' operand) = "******************* " ++ intelasm reg ++ " <- (" ++ intelasm reg' ++ ") " ++ intelasm operand
 
@@ -192,12 +194,12 @@ instance ASM LIRInst where
                     LLTE -> "jle " ++ intelasm label
 
     intelasm (LIRIfInst (LIRNotRelExpr operand) label) =
-        cmp operand (LIRIntOperand $ LIRInt 0) ++ sep
-     ++ "je " ++ intelasm label
+        cmp operand (LIRIntOperand asmFalse) ++ sep -- 0x0 = false ; -0x1 = true
+     ++ "jl " ++ intelasm label
 
     intelasm (LIRIfInst (LIROperRelExpr operand) label) =
-        cmp operand (LIRIntOperand $ LIRInt 1) ++ sep
-     ++ "jge " ++ intelasm label
+        cmp operand (LIRIntOperand $ asmFalse) ++ sep -- 0x0 = false ; -0x1 = true
+     ++ "jl " ++ intelasm label
 
     intelasm (LIRCallInst proc) =
         "call " ++ intelasm proc

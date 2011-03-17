@@ -6,6 +6,9 @@ import Decaf.IR.Class
 import Decaf.Data.Tree
 import Data.Typeable
 
+asmTrue = LIRInt (-1)
+asmFalse = LIRInt 0
+
 missingRetMessage :: String
 missingRetMessage = "EXCEPTION: ARRAY OUT OF BOUNDS"
 

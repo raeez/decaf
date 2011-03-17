@@ -330,7 +330,7 @@ translateExpr _ _ =
 
 translateLiteral :: SymbolTree -> DecafLiteral -> Translator LIROperand
 translateLiteral _ (DecafIntLit i _) = return $ LIRIntOperand $ LIRInt (readDecafInteger i)
-translateLiteral _ (DecafBoolLit b _) = return $ LIRIntOperand $ LIRInt (if b then 1 else 0)
+translateLiteral _ (DecafBoolLit b _) = return $ LIRIntOperand (if b then asmTrue else asmFalse)
 translateLiteral _ (DecafCharLit c _) = return $ LIRIntOperand $ LIRInt (ord c)
 
 translateMethodPostcall :: SymbolTree -> DecafMethod -> Translator [CFGInst]
@@ -423,10 +423,10 @@ translateLocation st loc =
 arrayBoundsCheck :: SymbolTree -> DecafArr -> LIROperand -> Translator [CFGInst]
 arrayBoundsCheck st (DecafArr _ _ len _) indexOperand =
     do l <- incTemp
-       return ([CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LLT (LIRIntOperand $ LIRInt $ readDecafInteger len)) ((boundsLabel False l))]
+       return ([CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LLT (LIRIntOperand $ LIRInt $ readDecafInteger len)) ((boundsLabel False l))] -- TODO check this
            ++ throwException outOfBounds
            ++ [CFGLIRInst $ LIRLabelInst $ (boundsLabel False l)]
-           ++ [CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LGTE (LIRIntOperand $ LIRInt $ 0)) (boundsLabel True l)]
+           ++ [CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LGTE (LIRIntOperand $ LIRInt $ 0)) (boundsLabel True l)] -- TODO check this
            ++ throwException outOfBounds
            ++ [CFGLIRInst $ LIRLabelInst $ boundsLabel True l])
 
