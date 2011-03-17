@@ -3,6 +3,7 @@ where
 import Text.ParserCombinators.Parsec
 import Text.Regex.Posix
 import Decaf.Tokens
+import Test.QuickCheck
 
 --------------------------------------------
 -- interface functions
@@ -15,14 +16,20 @@ type TokenD = Token
 -- |The 'scanner' function takes and generates a corresponding list of Token
 scanner :: String -> [TokenD]
 scanner = eatFirst
+scannerQc = (\s -> (length s == 0) || (length (scanner s) > 0))
+
+
 
 -- |The 'scprint' function scans a given string and returns provides formatted output
 scprint :: String -> String
 scprint = formatScannerOutput . scanner
 
+
+
 -- |The 'formatScannerOutput' function formats a list of scanned tokens into human readable format
 formatScannerOutput :: [TokenD] -> String
 formatScannerOutput = unlines . map showTokenD
+
 
 showTokenD :: TokenD -> String
 -- showTokenD (t, s) = showToken t --  ++ "  ::  " ++ show s
@@ -34,6 +41,7 @@ numLexErrorsIn :: [Token] -> Int
 numLexErrorsIn tokens = numErrors tokens' 0
                         where
                           tokens' = map getToken tokens
+
                           
 -- |The 'numErrors' function incrementally counts the number of errors in a list of DecafToken
 numErrors :: [DecafToken] -> Int -> Int
@@ -155,6 +163,7 @@ makeIdentifier (t) = if t `elem` keywords
                          "true",
                          "void"
                          ]
+
 
 identifier :: Parser Token
 identifier = do
@@ -428,7 +437,8 @@ positionCount :: String -> SourcePos -> Int -> Int               -- previous col
 positionCount input p pcol = let line = head $ lines input in
   if (sourceLine p == 1) then countChar line (sourceColumn p) pcol
   else positionCount (unlines $ tail $ lines input) (incSourceLine p (-1)) 0 + (length line) + 1 
-       
+
+
 
 -- count actual #char in a string with Parsec's col count, with previous col skips pcol
 countChar :: String -> Int -> Int -> Int 
@@ -438,3 +448,18 @@ countChar (c:cs) col pcol | c == '\t' =
                             in (countChar cs (col-skiped) (pcol+skiped)) + 1
                           | otherwise = (countChar cs (col-1) (pcol+1)) + 1   -- nahh
 countChar [] _ _ = 0
+countCharQc :: [Char] -> Bool
+countCharQc = (\x -> let notab = "a" ++ foldr (\x y -> if x == '\t' then y else x:y) "" x 
+	    in length notab - 1 == countChar notab (length notab) 0)
+
+
+
+
+--tests
+scannerQcTest :: IO ()
+scannerQcTest = do
+	    quickCheck scannerQc	    
+	    quickCheck countCharQc
+
+	    
+

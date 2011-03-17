@@ -133,8 +133,16 @@ addExt ext = map (\x -> x++"."++ext)
 
 
 
-main:: IO Counts
+main:: IO ()  -- Counts
 main = do
+     scannerQcTest
+     parserQcTest
+
+
+
+{-
+
+
 
   putStrLn "Scanner Tests..."
   l <- readTList "scan-legal/l"
@@ -217,3 +225,4 @@ main = do
   runTestTT cc2
   runTestTT cc3
 
+-}
