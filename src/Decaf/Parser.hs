@@ -6,6 +6,8 @@ import Decaf.IR.Class
 import Decaf.IR.AST
 import Decaf.Scanner
 import Decaf.Util.Report
+import Test.QuickCheck
+
 
 -- |DecafParser defines a Parser type for DecafToken
 type DecafParser a = GenParser Token () a
@@ -683,3 +685,15 @@ arrlocation = do
 calloutarg :: DecafParser DecafCalloutArg
 calloutarg = (expr >>= (\o -> fmap (DecafCalloutArgExpr o . morphPos) getPosition))
           <|> (slit >>= (\o -> fmap (DecafCalloutArgStr o . morphPos) getPosition))
+
+
+
+
+
+--tests
+parserQcTest :: IO ()
+parserQcTest = do
+	   quickCheck ((\x -> x==x) :: Char -> Bool)
+
+
+
