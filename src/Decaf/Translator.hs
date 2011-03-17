@@ -227,7 +227,7 @@ translateVarDeclaration st var =
 translateArrDeclaration :: SymbolTree -> DecafArr -> Translator [CFGInst]
 translateArrDeclaration st (DecafArr ty ident len _) =
     case symLookup ident (table st) of
-        Just (index, ar@(ArrayRec arr o)) -> mapM (\i -> (arrayMemaddr arr ar o (LIRIntOperand (LIRInt i))) >>= \(instructions, mem) -> return $ CFGLIRInst $ LIRStoreInst mem (LIRIntOperand $ LIRInt 0)) [1..readDecafInteger len]
+        Just (index, ar@(ArrayRec arr o)) -> mapM (\i -> (arrayMemaddr arr ar (LIRIntOperand (LIRInt i))) >>= \(instructions, mem) -> return $ CFGLIRInst $ LIRStoreInst mem (LIRIntOperand $ LIRInt 0)) [1..readDecafInteger len]
         _ -> error $ "Translator.hs:translateArrDeclaration Invalid SymbolTable; could not find a valid symbol for'" ++ ident ++ "'"
 
 translateRelExpr :: SymbolTree -> DecafExpr -> Translator ([CFGInst], LIRRelExpr)
@@ -412,7 +412,7 @@ translateLocation st loc =
             do t <- incTemp
                (prep, index) <- translateExpr st (arrLocExpr loc)
                checkCode <- arrayBoundsCheck st arr index
-               (instructions, mem) <- arrayMemaddr arr ar o index
+               (instructions, mem) <- arrayMemaddr arr ar index
                return (prep
                        ++ checkCode
                        ++ (map CFGLIRInst instructions)
@@ -436,18 +436,17 @@ symVar var st =
                     Just (_, VarRec _ label) -> label
                     _ -> error $ "Translator.hs:symVar Invalid SymbolTable; could not find a valid symbol for'" ++ (show $ varID var) ++ "'")
 
-arrayMemaddr :: DecafArr -> SymbolRecord -> Int -> (LIROperand) -> Translator ([LIRInst], LIRMemAddr)
-arrayMemaddr (DecafArr ty _ len _) (ArrayRec _ l) offset operand =
+arrayMemaddr :: DecafArr -> SymbolRecord -> (LIROperand) -> Translator ([LIRInst], LIRMemAddr)
+arrayMemaddr (DecafArr ty _ len _) (ArrayRec _ l) operand =
     case operand of
         (LIRIntOperand (LIRInt index))->
-            return ([], LIRRegOffMemAddr (MEM $ arrayLabel l) (LIRInt (offset + size*index)) (LIRInt size)) -- ^ TODO offset must include previous arrays length * size
+            return ([], LIRRegOffMemAddr (MEM $ arrayLabel l) (LIRInt (size*index)) (LIRInt size))
         _ -> do t1 <- incTemp
                 t2 <- incTemp
                 let sr1 = SREG t1
                     sr2 = SREG t2
                 return ([LIRRegAssignInst sr1 (LIRBinExpr operand LMUL (LIRIntOperand (LIRInt size)))]
-                    ++ [LIRRegAssignInst sr2 (LIRBinExpr (LIRRegOperand sr1) LADD (LIRIntOperand (LIRInt offset)))]
-                    , LIRRegPlusMemAddr (MEM $ arrayLabel l) sr2 (LIRInt size))
+                    , LIRRegPlusMemAddr (MEM $ arrayLabel l) sr1 (LIRInt size))
   where
     arrlen = readDecafInteger len
     size = (case ty of

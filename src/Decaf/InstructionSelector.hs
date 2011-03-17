@@ -52,14 +52,19 @@ genExpr reg expr =
                                 ++ imul op2'    ++ sep
                                 ++ "mov "++(intelasm reg)++ ", "++intelasm RAX
 
-      LIRBinExpr op1' LDIV  op2' -> mov RDX (LIRIntOperand $ LIRInt 0) ++ sep -- must be 0
+      LIRBinExpr op1' LDIV  op2' -> mov R9 RDX ++ sep
+                                ++ mov RDX (LIRIntOperand $ LIRInt 0) ++ sep -- must be 0
                                 ++ mov RAX op1' ++ sep
                                 ++ idiv op2'     ++ sep
-                                ++ "mov "++(intelasm reg)++ ", "++intelasm RAX
-      LIRBinExpr op1' LMOD  op2' -> mov RDX (LIRIntOperand $ LIRInt 0) ++ sep --must be 0
+                                ++ "mov "++(intelasm reg)++ ", "++intelasm RAX ++ sep
+                                ++ mov RDX R9
+
+      LIRBinExpr op1' LMOD  op2' -> mov R9 RDX ++ sep
+                                ++ mov RDX (LIRIntOperand $ LIRInt 0) ++ sep --must be 0
                                 ++ mov RAX op1' ++ sep
                                 ++ idiv op2' ++ sep
-                                ++ "mov "++(intelasm reg)++ ", "++intelasm RDX
+                                ++ "mov "++(intelasm reg)++ ", "++ intelasm RDX ++ sep
+                                ++ mov RDX R9
 
       LIRBinExpr op1' (LIRBinRelOp binop label) op2' ->
             cmp op1' op2' ++ sep

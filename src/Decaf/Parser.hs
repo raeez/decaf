@@ -371,16 +371,84 @@ methodcall = (do
                 let p'' = morphPos p'
                 return $ DecafPureMethodCall i p p'')
 
+
+rewriteWithMinus parentPlus (DecafBinExpr
+                              x
+                              (DecafBinArithOp (DecafMinOp p3) p2)
+                              (DecafBinExpr y (DecafBinArithOp (DecafPlusOp p3') p2') z p')
+                              p) =
+    DecafBinExpr (if parentPlus then (rewriteWithMinus True x) else (rewriteExpr x))
+                 (DecafBinArithOp (DecafPlusOp p3) p2)
+                 (DecafBinExpr (rewriteWithMinus True y) (DecafBinArithOp (DecafPlusOp p3') p2') (rewriteExpr z) p') -- note the rewriteExpr z
+                 p
+
+
+                 
+rewriteWithMinus parentPlus (DecafBinExpr
+                              x
+                              (DecafBinArithOp (DecafMinOp p3) p2)
+                              (DecafBinExpr y (DecafBinArithOp (DecafMinOp p3') p2') z p')
+                              p) =
+    DecafBinExpr (if parentPlus then (rewriteWithMinus True x) else (rewriteExpr x))
+                 (DecafBinArithOp (DecafPlusOp p3) p2)
+                 (DecafBinExpr (rewriteWithMinus True y) (DecafBinArithOp (DecafPlusOp p3') p2') (rewriteWithMinus True z) p')
+                 p
+
+
+
+rewriteWithMinus parentPlus (DecafBinExpr
+                              x
+                              (DecafBinArithOp (DecafMinOp p3) p2)
+                              y
+                              p) =
+    DecafBinExpr (if parentPlus then (rewriteWithMinus True x) else (rewriteExpr x))
+                 (DecafBinArithOp (DecafPlusOp p3) p2)
+                 (rewriteWithMinus True y)
+                 p
+
+
+
+rewriteWithMinus parentPlus (DecafBinExpr
+                              x
+                              op
+                              y
+                              p) =
+    DecafBinExpr (if parentPlus then (rewriteWithMinus True x) else (rewriteExpr x))
+                 op
+                 y
+                 p
+
+rewriteWithMinus parentPlus e = DecafMinExpr e (pos e)
+                 
+                 --    -                    +
+                 -- x    y         --->   x   - y
+                 --
+                 --
+                 --                         +
+                 -- x    -         --->   x   +
+                 --    y   z                 -y + z
+--rewriteWithMinus p e =  e
 -- |'rewriteExpr' rewrites a parsed concrete expression tree into an abstract syntax expression tree
 -- This function utilizes the recursive rewriteExprTail, rewriteTerm, rewriteTermTail and rewriteFactor to rewrite the entire tree in-place.
 rewriteExpr :: DecafExpr -> DecafExpr
 rewriteExpr e@(DecafLocExpr _ _)     = e
 rewriteExpr e@(DecafMethodExpr _ _)  = e
 rewriteExpr e@(DecafLitExpr _ _)     = e
-rewriteExpr e@(DecafBinExpr _ _ _ _) = e
-rewriteExpr e@(DecafNotExpr _ _)     = e
-rewriteExpr e@(DecafMinExpr _ _)     = e
-rewriteExpr e@(DecafParenExpr _ _)   = e
+
+rewriteExpr efinal@(DecafBinExpr e1 (DecafBinArithOp (DecafMinOp p3) p2) e2 p) =
+    rewriteWithMinus False efinal
+
+rewriteExpr (DecafBinExpr e1 o e2 p) =
+    DecafBinExpr (rewriteExpr e1) o (rewriteExpr e2) p
+
+rewriteExpr (DecafNotExpr e p) =
+    DecafNotExpr (rewriteExpr e) p
+
+rewriteExpr (DecafMinExpr e p) =
+    DecafMinExpr (rewriteExpr e) p
+
+rewriteExpr (DecafParenExpr e p) =
+    DecafParenExpr (rewriteExpr e) p
 
 rewriteExpr (Expr condr EmptyExpr' _)
   = rewriteCondr condr
@@ -414,7 +482,6 @@ rewriteCondr (Condr eqr (Condr' binop eqr' EmptyCondr' p) _)
 rewriteCondr (Condr eqr (Condr' binop eqr' condr'@(Condr' binop' _ _ p) p') _)
   = DecafBinExpr (rewriteEqr eqr) binop  (DecafBinExpr (rewriteEqr eqr') binop' (rewriteCondrTail condr') p') p
 
--- |'rewriteExprTail'
 rewriteCondrTail :: Condr' -> DecafExpr
 rewriteCondrTail(Condr' _ eqr condr@(Condr' binop _ _ p) _)
   = DecafBinExpr (rewriteEqr eqr) binop (rewriteCondrTail condr) p
@@ -437,7 +504,6 @@ rewriteEqr (Eqr relr (Eqr' binop relr' EmptyEqr' p) _)
 rewriteEqr (Eqr relr (Eqr' binop relr' eqr'@(Eqr' binop' _ _ p) p') _)
   = DecafBinExpr (rewriteRelr relr) binop (DecafBinExpr (rewriteRelr relr') binop' (rewriteEqrTail eqr') p') p
 
--- |'rewriteExprTail'
 rewriteEqrTail :: Eqr' -> DecafExpr
 rewriteEqrTail (Eqr' _ relr eqr@(Eqr' binop _ _ p) _)
   = DecafBinExpr (rewriteRelr relr) binop (rewriteEqrTail eqr) p
@@ -459,7 +525,6 @@ rewriteRelr (Relr term (Relr' binop term' EmptyRelr' p) _)
 rewriteRelr (Relr term (Relr' binop term' relr'@(Relr' binop' _ _ p) p') _)
   = DecafBinExpr (rewriteSubr term) binop  (DecafBinExpr (rewriteSubr term') binop' (rewriteRelrTail relr') p') p
 
--- |'rewriteExprTail'
 rewriteRelrTail :: Relr' -> DecafExpr
 rewriteRelrTail (Relr' _ term relr@(Relr' binop _ _ p) _)
   = DecafBinExpr (rewriteSubr term) binop (rewriteRelrTail relr) p
@@ -472,25 +537,43 @@ rewriteRelrTail EmptyRelr'
 
 rewriteSubr :: Subr -> DecafExpr
 rewriteSubr (Subr term EmptySubr' _)
-  = rewriteTerm term
+  = rewriteModr term
 
 rewriteSubr (Subr term (Subr' binop term' EmptySubr' p) _)
-  = DecafBinExpr (rewriteTerm term) binop (rewriteTerm term') p
+  = DecafBinExpr (rewriteModr term) binop (rewriteModr term') p
 
 rewriteSubr (Subr term (Subr' binop term' subr'@(Subr' binop' _ _ p) p') _)
-  = DecafBinExpr (rewriteTerm term) binop  (DecafBinExpr (rewriteTerm term') binop' (rewriteSubrTail subr') p') p
+  = DecafBinExpr (rewriteModr term) binop  (DecafBinExpr (rewriteModr term') binop' (rewriteSubrTail subr') p') p
 
--- |'rewriteExprTail'
 rewriteSubrTail :: Subr' -> DecafExpr
 rewriteSubrTail (Subr' _ term relr@(Subr' binop _ _ p) _)
-  = DecafBinExpr (rewriteTerm term) binop (rewriteSubrTail relr) p
+  = DecafBinExpr (rewriteModr term) binop (rewriteSubrTail relr) p
 
 rewriteSubrTail (Subr' _ term EmptySubr' _)
-  = rewriteTerm term
+  = rewriteModr term
 
 rewriteSubrTail EmptySubr'
   = error "Parser.hs:rewriteSubrTail invalid concrete expr tree; rewriteSubrTail encountered an EmptySubr'"
 
+rewriteModr :: Modr -> DecafExpr
+rewriteModr (Modr term EmptyModr' _)
+  = rewriteTerm term
+
+rewriteModr (Modr term (Modr' binop term' EmptyModr' p) _)
+  = DecafBinExpr (rewriteTerm term) binop (rewriteTerm term') p
+
+rewriteModr (Modr term (Modr' binop term' subr'@(Modr' binop' _ _ p) p') _)
+  = DecafBinExpr (rewriteTerm term) binop  (DecafBinExpr (rewriteTerm term') binop' (rewriteModrTail subr') p') p
+
+rewriteModrTail :: Modr' -> DecafExpr
+rewriteModrTail (Modr' _ term relr@(Modr' binop _ _ p) _)
+  = DecafBinExpr (rewriteTerm term) binop (rewriteModrTail relr) p
+
+rewriteModrTail (Modr' _ term EmptyModr' _)
+  = rewriteTerm term
+
+rewriteModrTail EmptyModr'
+  = error "Parser.hs:rewriteSubrTail invalid concrete expr tree; rewriteSubrTail encountered an EmptySubr'"
 
 rewriteTerm :: Term -> DecafExpr
 rewriteTerm (Term factor EmptyTerm' _)
@@ -512,13 +595,13 @@ rewriteTermTail (EmptyTerm')
 
 rewriteFactor :: Factor -> DecafExpr
 rewriteFactor (DecafParenExpr' expr p)
-  = DecafParenExpr (rewriteExpr expr) p
+  = DecafParenExpr (rewriteExpr . rewriteExpr $ expr) p
 
 rewriteFactor (DecafNotExpr' expr p)
-  = DecafNotExpr (rewriteExpr expr) p
+  = DecafNotExpr (rewriteExpr . rewriteExpr $ expr) p
 
 rewriteFactor (DecafMinExpr' expr p)
-  = rewriteExpr expr
+  = rewriteExpr . rewriteExpr $ expr
 
 rewriteFactor (DecafLocExpr' loc p)
   = DecafLocExpr loc p
@@ -537,7 +620,7 @@ expr :: DecafParser DecafExpr
 expr = do
         t <- condr
         e <- expr'
-        fmap (rewriteExpr . Expr t e . morphPos) getPosition
+        fmap (rewriteExpr . rewriteExpr . Expr t e . morphPos) getPosition
 
 expr' :: DecafParser Expr'
 expr' = do
@@ -591,17 +674,32 @@ relr' = do
 
 subr :: DecafParser Subr
 subr = do
-        t <- term
+        t <- modr
         e <- subr'
         fmap (Subr t e . morphPos) getPosition
 
 subr' :: DecafParser Subr'
 subr' = do
-          b <- fourthlevelop'
-          t <- term
+          b <- fifthlevelop
+          t <- modr
           e <- subr'
           fmap (Subr' b t e . morphPos) getPosition
      <|> return EmptySubr'
+
+
+modr :: DecafParser Modr
+modr = do
+        t <- term
+        e <- modr'
+        fmap (Modr t e . morphPos) getPosition
+
+modr' :: DecafParser Modr'
+modr' = do
+          b <- sixthlevelop
+          t <- term
+          e <- modr'
+          fmap (Modr' b t e . morphPos) getPosition
+     <|> return EmptyModr'
 
 term :: DecafParser Term
 term = do
@@ -611,7 +709,7 @@ term = do
 
 term' :: DecafParser Term'
 term' = do
-          b <- fifthlevelop
+          b <- seventhlevelop 
           f <- factor
           t <- term'
           fmap (Term' b f t . morphPos) getPosition
@@ -681,16 +779,17 @@ term = parens expr
   prefix  name fun       = Prefix (do{ reservedOp name; return fun })
   postfix name fun       = Postfix (do{ reservedOp name; return fun })
 -}
-firstlevelop, secondlevelop, thirdlevelop, fourthlevelop, fourthlevelop', fifthlevelop :: DecafParser DecafBinOp
+firstlevelop, secondlevelop, thirdlevelop, fourthlevelop, fifthlevelop, sixthlevelop :: DecafParser DecafBinOp
 firstlevelop = condop
 secondlevelop = eqop
 thirdlevelop = relop
 fourthlevelop = (subop) >>= \o -> fmap (DecafBinArithOp o . morphPos) getPosition
-fourthlevelop' = (addop) >>= \o -> fmap (DecafBinArithOp o . morphPos) getPosition
-fifthlevelop = botarithop
+fifthlevelop = (addop) >>= \o -> fmap (DecafBinArithOp o . morphPos) getPosition
+sixthlevelop = botarithop
+seventhlevelop = modop >>= \o -> fmap (DecafBinArithOp o . morphPos) getPosition
 
 botarithop :: DecafParser DecafBinOp
-botarithop = (mulop <|> divop <|> modop) >>= \o -> fmap (DecafBinArithOp o . morphPos) getPosition
+botarithop = (mulop <|> divop) >>= \o -> fmap (DecafBinArithOp o . morphPos) getPosition
 
 addop, subop, mulop, divop, modop :: DecafParser DecafArithOp
 addop = opadd >> fmap (DecafPlusOp . morphPos) getPosition

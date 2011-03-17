@@ -136,9 +136,14 @@ data Relr' = Relr' DecafBinOp Subr Relr' DecafPosition
            | EmptyRelr'
            deriving (Show, Eq)
 
-data Subr = Subr Term Subr' DecafPosition deriving (Show, Eq)
-data Subr' = Subr' DecafBinOp Term Subr' DecafPosition
+data Subr = Subr Modr Subr' DecafPosition deriving (Show, Eq)
+data Subr' = Subr' DecafBinOp Modr Subr' DecafPosition
            | EmptySubr'
+           deriving (Show, Eq)
+
+data Modr = Modr Term Modr' DecafPosition deriving (Show, Eq)
+data Modr' = Modr' DecafBinOp Term Modr' DecafPosition
+           | EmptyModr'
            deriving (Show, Eq)
 
 data Term = Term Factor Term' DecafPosition deriving (Show, Eq)
