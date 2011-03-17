@@ -336,7 +336,7 @@ translateLiteral _ (DecafCharLit c _) = return $ LIRIntOperand $ LIRInt (ord c)
 translateMethodPostcall :: SymbolTree -> DecafMethod -> Translator [CFGInst]
 translateMethodPostcall st (DecafMethod ty ident _ _ _) =
     if mustRet
-      then return $ throwException missingRet
+      then return $ throwException missingRet st
       else return [CFGLIRInst $ LIRRetInst]
   where
     mustRet = case ty of
@@ -424,10 +424,10 @@ arrayBoundsCheck :: SymbolTree -> DecafArr -> LIROperand -> Translator [CFGInst]
 arrayBoundsCheck st (DecafArr _ _ len _) indexOperand =
     do l <- incTemp
        return ([CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LLT (LIRIntOperand $ LIRInt $ readDecafInteger len)) ((boundsLabel False l))] -- TODO check this
-           ++ throwException outOfBounds
+           ++ (throwException outOfBounds st)
            ++ [CFGLIRInst $ LIRLabelInst $ (boundsLabel False l)]
            ++ [CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LGTE (LIRIntOperand $ LIRInt $ 0)) (boundsLabel True l)] -- TODO check this
-           ++ throwException outOfBounds
+           ++ (throwException outOfBounds st)
            ++ [CFGLIRInst $ LIRLabelInst $ boundsLabel True l])
 
 symVar :: DecafVar -> SymbolTree -> LIRReg
@@ -455,9 +455,9 @@ arrayMemaddr (DecafArr ty _ len _) (ArrayRec _ l) operand =
                 _ -> error "Translate.hs:arrayMemaddr Array cannot have type void")
 
 -- |'throwException' generates code for throwing an exception (our convention is to jump to the label __exception 
-throwException :: Int -> [CFGInst]
-throwException code = 
-    [CFGLIRInst $ LIRJumpLabelInst $ exceptionLabel code]
+throwException :: Int -> SymbolTree -> [CFGInst]
+throwException code st = 
+    [CFGLIRInst $ LIRJumpLabelInst $ exceptionLabel st (exception code)]
 
 exceptionHandlers = [missingRetHandler, outOfBoundsHandler]
 
@@ -466,8 +466,8 @@ missingRetHandler st =
        do let var = case globalSymLookup ('.':missingRetMessage) st of
                       Just (StringRec _ l) ->  l
                       _ -> error $ "Translate.hs:missingRetHandler could not find symbol for :" ++ missingRetMessage
-          return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel var]
-                ++ [CFGLIRInst $ LIRRegAssignInst RDI (LIROperExpr (LIRRegOperand $ MEM $ "__string" ++ show var))]
+          return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel st missingRetMessage]
+                ++ [CFGLIRInst $ LIRRegAssignInst RDI (LIROperExpr (LIRRegOperand $ MEM $ exceptionString st missingRetMessage))]
                 ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr (LIRIntOperand $ LIRInt 0))]
                 ++ [CFGLIRInst $ LIRCallInst (LIRProcLabel "printf")]
                 ++ [CFGLIRInst LIRRetInst]
@@ -477,8 +477,8 @@ outOfBoundsHandler st =
        do let var = case globalSymLookup ('.':outOfBoundsMessage) st of
                       Just (StringRec _ l) -> l
                       _ -> error $ "Translate.hs:outOfBoundsHandler could not find symbol for :" ++ outOfBoundsMessage
-          return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel var]
-               ++ [CFGLIRInst $ LIRRegAssignInst RDI (LIROperExpr (LIRRegOperand $ MEM $ "__string" ++ show var))]
+          return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel st outOfBoundsMessage]
+               ++ [CFGLIRInst $ LIRRegAssignInst RDI (LIROperExpr (LIRRegOperand $ MEM $ exceptionString st outOfBoundsMessage))]
                ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr (LIRIntOperand $ LIRInt 0))]
                ++ [CFGLIRInst $ LIRCallInst (LIRProcLabel "printf")]
                ++ [CFGLIRInst LIRRetInst]

@@ -5,27 +5,39 @@ import Numeric
 import Decaf.IR.Class
 import Decaf.Data.Tree
 import Data.Typeable
+import Decaf.IR.SymbolTable
 
 asmTrue = LIRInt (-1)
 asmFalse = LIRInt 0
 
 missingRetMessage :: String
-missingRetMessage = "EXCEPTION: ARRAY OUT OF BOUNDS"
+missingRetMessage = "EXCEPTION: ARRAY OUT OF BOUNDS\n"
 
 missingRet :: Int
-missingRet = 0
+missingRet = 1
 
 outOfBoundsMessage :: String
-outOfBoundsMessage = "EXCEPTION: MISSING RETURN STATEMENT"
+outOfBoundsMessage = "EXCEPTION: MISSING RETURN STATEMENT\n"
 
 outOfBounds :: Int
-outOfBounds = 1
+outOfBounds = 0
+
+exception code
+      | code == 1 = outOfBoundsMessage
+      | code == 0 = missingRetMessage
 
 exceptionHeader :: LIRLabel
 exceptionHeader = LIRLabel "__exceptionhandlers"
 
-exceptionLabel :: Int -> LIRLabel
-exceptionLabel c = LIRLabel $ "__exception" ++ show c
+exceptionString :: SymbolTree -> String -> String
+exceptionString st msg  = case globalSymLookup ('.':msg) st of
+                           Just (StringRec _ l) ->  "__string" ++ show l
+                           _ -> error $ "LIR.hs:exceptionString could not find symbol for :" ++msg 
+
+exceptionLabel :: SymbolTree -> String -> LIRLabel
+exceptionLabel st msg  = case globalSymLookup ('.':msg) st of
+                           Just (StringRec _ l) ->  LIRLabel $ "__exception" ++ show l
+                           _ -> error $ "LIR.hs:exceptionLabel could not find symbol for :" ++ msg
 
 boundsLabel :: Bool -> Int -> LIRLabel
 boundsLabel t c = if t then (LIRLabel $ "__boundscheck" ++ show c) else (LIRLabel $ "__boundscheck" ++ show c ++ "__positive")
