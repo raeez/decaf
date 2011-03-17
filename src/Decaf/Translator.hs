@@ -465,10 +465,10 @@ exceptionHandlers = [missingRetHandler, outOfBoundsHandler]
 missingRetHandler :: SymbolTree ->Translator [CFGInst]
 missingRetHandler st =
        do let var = case globalSymLookup ('.':missingRetMessage) st of
-                      Just (StringRec _ l) -> show l
+                      Just (StringRec _ l) ->  l
                       _ -> error $ "Translate.hs:missingRetHandler could not find symbol for :" ++ missingRetMessage
-          return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel 0]
-                ++ [CFGLIRInst $ LIRRegAssignInst RDI (LIROperExpr (LIRRegOperand $ MEM $ "__string" ++ var))]
+          return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel var]
+                ++ [CFGLIRInst $ LIRRegAssignInst RDI (LIROperExpr (LIRRegOperand $ MEM $ "__string" ++ show var))]
                 ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr (LIRIntOperand $ LIRInt 0))]
                 ++ [CFGLIRInst $ LIRCallInst (LIRProcLabel "printf")]
                 ++ [CFGLIRInst LIRRetInst]
@@ -476,10 +476,10 @@ missingRetHandler st =
 outOfBoundsHandler :: SymbolTree -> Translator [CFGInst]
 outOfBoundsHandler st =
        do let var = case globalSymLookup ('.':outOfBoundsMessage) st of
-                      Just (StringRec _ l) -> show l
+                      Just (StringRec _ l) -> l
                       _ -> error $ "Translate.hs:outOfBoundsHandler could not find symbol for :" ++ outOfBoundsMessage
-          return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel 1]
-               ++ [CFGLIRInst $ LIRRegAssignInst RDI (LIROperExpr (LIRRegOperand $ MEM $ "__string" ++ var))]
+          return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel var]
+               ++ [CFGLIRInst $ LIRRegAssignInst RDI (LIROperExpr (LIRRegOperand $ MEM $ "__string" ++ show var))]
                ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr (LIRIntOperand $ LIRInt 0))]
                ++ [CFGLIRInst $ LIRCallInst (LIRProcLabel "printf")]
                ++ [CFGLIRInst LIRRetInst]
