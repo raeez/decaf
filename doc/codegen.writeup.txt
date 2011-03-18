@@ -18,8 +18,10 @@
                                |  Instructions  |
                                ==================
 
-
-     filename.asm <- runhaskell CompilerBin.hs filename.dcf
+     cabal configure
+     cabal build
+     cabal install
+     compiler filename.dcf
      nasm -f elf64 filename.asm -o test.o
      gcc -o filename filename.o
      ./filename
