@@ -36,7 +36,7 @@ executable scanner
     main-is:            ScannerBin.hs
     other-modules:      Decaf
 
-    Build-Depends:      base > 4, parsec, regex-posix,  graphviz, QuickCheck
+    Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process, QuickCheck, containers
 
     if true 
         ghc-options:    -Wall -fno-warn-name-shadowing
@@ -60,7 +60,7 @@ executable parser
     main-is:            ParserBin.hs
     other-modules:      Decaf
 
-    Build-Depends:      base > 4, parsec, regex-posix,  graphviz, QuickCheck
+    Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process, QuickCheck, containers
 
     if true 
         ghc-options:    -Wall -fno-warn-name-shadowing
@@ -84,7 +84,7 @@ executable scanner-repl
     main-is:            ScannerREPL.hs
     other-modules:      Decaf
 
-    Build-Depends:      base > 4, parsec, regex-posix,  graphviz, QuickCheck
+    Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process, QuickCheck, containers
     if true 
         ghc-options:    -Wall -fno-warn-name-shadowing
 
@@ -108,7 +108,7 @@ executable grapher
     main-is:            GrapherBin.hs
     other-modules:      Decaf
 
-    Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process, QuickCheck
+    Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process, QuickCheck, containers
 
     if true 
         ghc-options:    -Wall -fno-warn-name-shadowing
@@ -132,7 +132,30 @@ executable checker
     main-is:            CheckerBin.hs
     other-modules:      Decaf
 
-    Build-Depends:      base > 4, parsec, regex-posix, haskell98, QuickCheck
+    Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process, QuickCheck, containers
+
+    if true 
+        ghc-options:    -Wall -fno-warn-name-shadowing
+
+    if impl(ghc >= 6.12.1)
+        ghc-options:    -fno-warn-unused-do-bind
+
+    ghc-prof-options:   -prof -auto-all
+    extensions:         CPP
+
+    if flag(testing)
+        cpp-options:    -DTESTING
+        hs-source-dirs: . tests/
+        build-depends:  QuickCheck < 2
+        ghc-options:    -Werror
+
+executable compiler
+    hs-source-dirs:     src/
+
+    main-is:            CompilerBin.hs
+    other-modules:      Decaf
+
+    Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process, QuickCheck, containers
 
     if true 
         ghc-options:    -Wall -fno-warn-name-shadowing
