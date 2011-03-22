@@ -1,3 +1,4 @@
+// main should have no parameter
 class Program {
 	  void main(int i) {}
 }
