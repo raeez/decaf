@@ -9,6 +9,172 @@ import System.Cmd
 
 
 
+
+
+main:: IO ()
+main = do
+      qcTests
+      x <- hunitTests
+      putStrLn ("Tests Ends")
+      
+
+-- quick check 
+qcTests :: IO ()
+qcTests =  do
+      putStrLn "Quickcheck Tests..."
+      scannerQcTest
+      parserQcTest
+      putStrLn "\n"
+
+
+-- all hunit tests 
+hunitTests :: IO () -- Counts
+hunitTests = do            
+      --hunitScannerTests
+      --hunitParserTests
+      --hunitCheckerTests
+      hunitCodegenTests
+  
+  
+
+-- hunit scanner tests
+hunitScannerTests :: IO () -- Counts
+hunitScannerTests = do
+  putStrLn "Scanner Tests..."
+  l <- readTList "scan-legal/l"
+  scannerlegal <- readTests (addPath "scan-legal" l) True scanner_
+  l <- readTList "scan-illegal/l"  
+  scannerillegal <- readTests (addPath "scan-illegal" l) False scanner_
+  runTestTT scannerlegal
+  runTestTT scannerillegal
+
+  -- from parser
+  hiddenparselegals <- readTests (addPath "pars-legal" $ makeLegals 21 31) True scanner_
+  hiddenparseillegals <- readTests (addPath "pars-illegal" $ makeIllegals 21 40) True scanner_
+  parsil2 <- readTests (addPath "pars-illegal2" $ makeIllegals 1 14) True scanner_
+  runTestTT hiddenparselegals
+  runTestTT hiddenparseillegals
+  runTestTT parsil2
+
+  -- from checker
+  hiddenSemLegals <- readTests (addPath "semi-legal" $ makeLegals 1 18) True scanner_
+  hiddenSemIllegals <- readTests (addPath "semi-illegal" $ makeIllegals 1 52) True scanner_
+  tests2 <- readTests (addPath "semi-legal2" $ makeLegals 1 11) True scanner_
+  testsillegal2 <- readTests (addPath "semi-illegal2" $ makeIllegals 1 56) True scanner_
+  runTestTT hiddenSemLegals
+  runTestTT hiddenSemIllegals
+  runTestTT tests2
+  runTestTT testsillegal2
+
+  -- from code gener
+  cil2 <- readTests (addPath "coge-illegal2" $ makeIllegals 1 2) True scanner_
+  l <- readTList "coge/l"  
+  cc <- readTests (addExt "dcf" $ addPath "coge" l) True scanner_
+  l <- readTList "coge2/l"  
+  cc2 <- readTests (addExt "dcf" $ addPath "coge2" l) True scanner_
+  l <- readTList "coge3/l"  
+  cc3 <- readTests (addExt "dcf" $ addPath "coge3" l) True scanner_
+  runTestTT cil2
+  runTestTT cc
+  runTestTT cc2
+  runTestTT cc3
+  putStrLn "\n"      
+
+
+
+
+-- hunit parser tests
+hunitParserTests :: IO () -- Counts
+hunitParserTests = do  
+  putStrLn "\nParser Tests..."  
+  hiddenparselegals <- readTests (addPath "pars-legal" $ makeLegals 21 31) True parser_
+  hiddenparseillegals <- readTests (addPath "pars-illegal" $ makeIllegals 21 40) False parser_
+  parsil2 <- readTests (addPath "pars-illegal2" $ makeIllegals 1 14) False parser_
+  runTestTT hiddenparselegals
+  runTestTT hiddenparseillegals
+  runTestTT parsil2
+
+  -- all semchecker and coge tests are parer legal
+  hiddenSemLegals <- readTests (addPath "semi-legal" $ makeLegals 1 18) True parser_
+  hiddenSemIllegals <- readTests (addPath "semi-illegal" $ makeIllegals 1 52) True parser_
+  tests2 <- readTests (addPath "semi-legal2" $ makeLegals 1 11) True parser_
+  testsillegal2 <- readTests (addPath "semi-illegal2" $ makeIllegals 1 56) True parser_
+  runTestTT hiddenSemLegals
+  runTestTT hiddenSemIllegals
+  runTestTT tests2
+  runTestTT testsillegal2
+
+  cil2 <- readTests (addPath "coge-illegal2" $ makeIllegals 1 2) True parser_
+  l <- readTList "coge/l"  
+  cc <- readTests (addExt "dcf" $ addPath "coge" l) True parser_
+  l <- readTList "coge2/l"  
+  cc2 <- readTests (addExt "dcf" $ addPath "coge2" l) True parser_
+  l <- readTList "coge3/l"  
+  cc3 <- readTests (addExt "dcf" $ addPath "coge3" l) True parser_
+  runTestTT cil2
+  runTestTT cc
+  runTestTT cc2
+  runTestTT cc3
+  putStrLn "\n"      
+
+
+
+
+-- hunit semchecker tests
+hunitCheckerTests :: IO () -- Counts
+hunitCheckerTests = do
+  putStrLn "\nSemchecker Tests..."
+  hiddenSemLegals <- readTests (addPath "semi-legal" $ makeLegals 1 18) True semchecker_
+  hiddenSemIllegals <- readTests (addPath "semi-illegal" $ makeIllegals 1 52) False semchecker_
+  tests2 <- readTests (addPath "semi-legal2" $ makeLegals 1 11) True semchecker_
+  testsillegal2 <- readTests (addPath "semi-illegal2" $ makeIllegals 1 56) False semchecker_
+  runTestTT hiddenSemLegals
+  runTestTT hiddenSemIllegals
+  runTestTT tests2
+  --runTestTT testsillegal2
+
+  -- from codegen
+  cil2 <- readTests (addPath "coge-illegal2" $ makeIllegals 1 2) True semchecker_
+  l <- readTList "coge/l"  
+  cc <- readTests (addExt "dcf" $ addPath "coge" l) True semchecker_
+  l <- readTList "coge2/l"  
+  cc2 <- readTests (addExt "dcf" $ addPath "coge2" l) True semchecker_
+  l <- readTList "coge3/l"  
+  cc3 <- readTests (addExt "dcf" $ addPath "coge3" l) True semchecker_
+  runTestTT cil2
+  runTestTT cc
+  runTestTT cc2
+  runTestTT cc3
+  putStrLn "\n"      
+
+
+
+
+-- hunit codegen tests
+hunitCodegenTests :: IO () -- Counts
+hunitCodegenTests = do
+  putStrLn "\ncodegen Tests..."
+  cil2 <- readTestsRuntimeError (addPath "coge-illegal2" $ makeIllegals 1 2) cogen_ coderun
+  runTestTT cil2
+
+  l <- readTList "coge/l"  
+  cc <- readTestsWithOut (addPath "coge" l) cogen_ coderun
+  l <- readTList "coge2/l"  
+  cc2 <- readTestsWithOut (addPath "coge2" l) cogen_ coderun
+  l <- readTList "coge3/l"  
+  cc3 <- readTestsWithOut (addPath "coge3" l) cogen_ coderun
+
+  runTestTT cc
+  runTestTT cc2
+  runTestTT cc3
+  putStrLn "\n"      
+
+
+
+
+
+
+
 -------------------------------------
 -- program to be tested
 scanner_ :: String -> Bool
@@ -133,96 +299,5 @@ addExt ext = map (\x -> x++"."++ext)
 
 
 
-main:: IO ()  -- Counts
-main = do
-     scannerQcTest
-     parserQcTest
 
 
-
-{-
-
-
-
-  putStrLn "Scanner Tests..."
-  l <- readTList "scan-legal/l"
-  scannerlegal <- readTests (addPath "scan-legal" l) True scanner_
-  l <- readTList "scan-illegal/l"  
-  scannerillegal <- readTests (addPath "scan-illegal" l) False scanner_
-  runTestTT scannerlegal
-  runTestTT scannerillegal
-  
-
-  putStrLn "\nParser Tests..."  
-  hiddenparselegals <- readTests (addPath "pars-legal" $ makeLegals 21 31) True parser_
-  hiddenparseillegals <- readTests (addPath "pars-illegal" $ makeIllegals 21 40) False parser_
-  parsil2 <- readTests (addPath "pars-illegal2" $ makeIllegals 1 6) False parser_
-  runTestTT hiddenparselegals
-  runTestTT hiddenparseillegals
-  runTestTT parsil2
-
-  -- all semchecker and coge tests are parer legal
-  hiddenSemLegals <- readTests (addPath "semi-legal" $ makeLegals 1 18) True parser_
-  hiddenSemIllegals <- readTests (addPath "semi-illegal" $ makeIllegals 1 52) True parser_
-  tests2 <- readTests (addPath "semi-legal2" $ makeLegals 1 11) True parser_
-  testsillegal2 <- readTests (addPath "semi-illegal2" $ makeIllegals 1 56) True parser_
-  runTestTT hiddenSemLegals
-  runTestTT hiddenSemIllegals
-  runTestTT tests2
-  runTestTT testsillegal2
-
-  cil2 <- readTests (addPath "coge-illegal2" $ makeIllegals 1 4) True parser_
-  l <- readTList "coge/l"  
-  cc <- readTests (addExt "dcf" $ addPath "coge" l) True parser_
-  l <- readTList "coge2/l"  
-  cc2 <- readTests (addExt "dcf" $ addPath "coge2" l) True parser_
-  l <- readTList "coge3/l"  
-  cc3 <- readTests (addExt "dcf" $ addPath "coge3" l) True parser_
-  runTestTT cil2
-  runTestTT cc
-  runTestTT cc2
-  runTestTT cc3
-
-
-
-  putStrLn "\nSemchecker Tests..."
-  hiddenSemLegals <- readTests (addPath "semi-legal" $ makeLegals 1 18) True semchecker_
-  hiddenSemIllegals <- readTests (addPath "semi-illegal" $ makeIllegals 1 52) False semchecker_
-  tests2 <- readTests (addPath "semi-legal2" $ makeLegals 1 11) True semchecker_
-  testsillegal2 <- readTests (addPath "semi-illegal2" $ makeIllegals 1 56) False semchecker_
-  runTestTT hiddenSemLegals
-  runTestTT hiddenSemIllegals
-  runTestTT tests2
-  --runTestTT testsillegal2
-
-  cil2 <- readTests (addPath "coge-illegal2" $ makeIllegals 1 4) True semchecker_
-  l <- readTList "coge/l"  
-  cc <- readTests (addExt "dcf" $ addPath "coge" l) True semchecker_
-  l <- readTList "coge2/l"  
-  cc2 <- readTests (addExt "dcf" $ addPath "coge2" l) True semchecker_
-  l <- readTList "coge3/l"  
-  cc3 <- readTests (addExt "dcf" $ addPath "coge3" l) True semchecker_
-  runTestTT cil2
-  runTestTT cc
-  runTestTT cc2
-  runTestTT cc3
-
-
-
-  putStrLn "\ncodegen Tests..."
-  cil2 <- readTestsRuntimeError (addPath "coge-illegal2" $ makeIllegals 1 4) cogen_ coderun
-  l <- readTList "coge/l"  
-  runTestTT cil2
-
-
-  cc <- readTestsWithOut (addPath "coge" l) cogen_ coderun
-  l <- readTList "coge2/l"  
-  cc2 <- readTestsWithOut (addPath "coge2" l) cogen_ coderun
-  l <- readTList "coge3/l"  
-  cc3 <- readTestsWithOut (addPath "coge3" l) cogen_ coderun
-
-  runTestTT cc
-  runTestTT cc2
-  runTestTT cc3
-
--}

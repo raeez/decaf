@@ -1,4 +1,4 @@
 class Program {
 	  void main() {  }
-	  int test() {} 
+	  int test() { return 1; } 
 }
