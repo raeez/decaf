@@ -1,0 +1,5 @@
+// typed function without return statement
+class Program {
+	  int t() {}
+	  void main()   { t();   }
+}
