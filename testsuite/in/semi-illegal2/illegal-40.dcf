@@ -1,5 +1,5 @@
 class Program {
-	  boolean main() {
-	  	   return "324" > "234";
+	  void main() { 
+	  	   for i = true, 10 {}
 	  }
 }

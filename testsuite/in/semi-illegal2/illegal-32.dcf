@@ -1,5 +1,6 @@
 class Program {
-	  boolean main() {
-	  	   return "324" == "234";
+	  void main() { 
+	  	   break;
 	  }
 }
+
