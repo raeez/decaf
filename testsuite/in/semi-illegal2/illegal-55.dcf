@@ -1,3 +1,0 @@
-class Program {
-	  void main() { if (1) {}  }
-}

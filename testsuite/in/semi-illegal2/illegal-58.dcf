@@ -1,3 +1,0 @@
-class Program {
-	  boolean main() { return !1; }
-}

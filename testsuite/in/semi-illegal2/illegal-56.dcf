@@ -1,3 +1,0 @@
-class Program {
-	  int main() { return true + 1; }
-}

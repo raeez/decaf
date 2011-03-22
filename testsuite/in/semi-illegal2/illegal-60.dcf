@@ -1,5 +1,0 @@
-class Program {
-	  void main() { 
-	  	   for i = 10, true {}
-	  }
-}
