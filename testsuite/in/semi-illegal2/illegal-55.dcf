@@ -1,3 +1,4 @@
+// typed function without return statement
 class Program {
-	  void main() { if (1) {}  }
+	  int main() { }
 }
