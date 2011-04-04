@@ -2,7 +2,8 @@ module Decaf.TransRewrite where
 import Compiler.Hoopl hiding (Top)
 import Data.Map as Map
 import Decaf.IR.LIR
-
+import Control.Monad
+import Compiler.Hoopl.Graph
 
 
 ----------------------------------
@@ -62,7 +63,7 @@ constLattice = DataflowLattice
 
 
 -- Labels 
-data HooplLabel = Hoopl.Label 
+type HooplLabel = Int
 
 
 
@@ -73,6 +74,20 @@ data Node e x where
   LIRJumpLabelNode :: HooplLabel -> Node O C
   LIRLabelNode     :: HooplLabel -> Node C O
   -- add more
+  LIRTempEnterNode :: Int -> Node O O   -- 
+  LIRRegOffAssignNode :: LIRReg -> LIRReg -> LIRSize -> LIROperand -> Node O O
+  LIRStoreNode     :: LIRMemAddr -> LIROperand -> Node O O
+  LIRLoadNode      :: LIRReg -> LIRMemAddr -> Node O O
+  
+  -- these two not sure what they mean
+  -- LIRRegCmpAssignInst LIRReg LIRExpr LIRLabel 
+  -- LIRCondAssignInst LIRReg LIRReg LIROperand    -- ^ Conditional Assign
+
+  -- these three should not be in hoopl graph
+  -- LIRJumpRegInst LIRReg LIROffset
+  -- LIRCallInst LIRProc
+  -- LIRRetInst
+
 
 
 
@@ -82,11 +97,16 @@ varHasLit = mkFTransfer ft
   where
     ft :: Node e x -> Lattice -> Fact x Lattice
     ft (LIRLabelNode _) f = f
-    ft (LIRRegAssignNode x (LIROperExpr (LIRIntOperand (LIRInt k)))) f = Map.insert x (I k) f      -- x = 5 --> (x, 5)   (?) 
+    ft (LIRRegAssignNode x (LIROperExpr (LIRIntOperand (LIRInt k)))) f = Map.insert x (I k) f    -- x = 5 --> (x, 5)   
     ft (LIRRegAssignNode x _) f = f                                                              -- x = _, no change
-    ft (LIRJumpLabelNode l) f = mkFactBase [(l, f)]
-    ft (LIRIfNode expr tl fl) f = mkFactBase [(tl, f), (fl, f)] 
-    -- add more
+    ft (LIRJumpLabelNode l) f = mkFactBase [(l, f)]                    -- jmp l --> associate f with l 
+    ft (LIRIfNode expr tl fl) f = mkFactBase [(tl, f), (fl, f)]        -- if expr the jmp tl else jmp fl
+    
+    ft (LIRTempEnterNode _) f = f
+    ft (LIRRegOffAssignNode _ _ _ _) f = f 
+    ft (LIRStoreNode _ _) f = f
+    ft (LIRLoadNode x _) f = Map.insert x Top f     -- loaded value are uncertain
+    -- may need add more
 
 
 -- xor
@@ -104,6 +124,14 @@ not x = if x == 0 then 1 else 0
 
 
 
+
+-- node to G
+nodeToG :: Node e x -> Graph Node e x
+nodeToG n = Graph n 
+
+
+
+
 -- define constant folding rewrites
 simplify :: Monad m => FwdRewrite m Node f
 simplify = deepFwdRw simp
@@ -112,43 +140,49 @@ simplify = deepFwdRw simp
     simp node _ = return $ liftM nodeToG $ s_node node
   
     s_node :: Node e x -> Maybe (Node e x)
-    -- x = lit op lit 
-    s_node (LIRRefAssignNode x (LIRBinExpr (LIRIntOperand $ LIRInt i1) op (LIRIntOperand $ LIRInt i2))) = 
+    -- x = lit op lit     
+    s_node (LIRRegAssignNode x (LIRBinExpr (LIRIntOperand (LIRInt i1)) op (LIRIntOperand (LIRInt i2)))) = 
       case op of 
-        LADD -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 + i2)
-        LSUB -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 - i2)
-        LMUL -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 * i2)
-        LDIV -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 `div` i2)
-        LMOD -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 `mod` i2)
-        LAND -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 `and` i2)
-        LOR  -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 `or` i2)
-        LXOR -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 `xor` i2)
-        -- add more
+        LADD -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 + i2))
+        LSUB -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 - i2))
+        LMUL -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 * i2))
+        LDIV -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 `div` i2))
+        LMOD -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 `mod` i2))
+        LAND -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 `Decaf.TransRewrite.and` i2))
+        LOR  -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 `Decaf.TransRewrite.or` i2))
+        LXOR -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 `xor` i2))
+        -- not understand what these three do
+        --LSHL
+        --LSHR
+        --LSHRA
+
     -- x = op lit
-    s_node (LIRRefAssignNode x (LIRUnExpr op $ LIRInt i) = 
+    s_node (LIRRegAssignNode x (LIRUnExpr op (LIRInt i))) = 
       case op of
-        LNEG -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (-i)
-        LNOT -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt $ not i
+        LNEG -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (-i))
+        LNOT -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt $ Decaf.TransRewrite.not i)
 
     -- if lit op lit then jmp tl else jmp fl 
-    s_node (LIRIfNode (LIRBinRelExpr (LIRIntOperand $ LIRInt i1) op (LIRIntOperand $ LIRInt i2)) tl fl) = 
+    s_node (LIRIfNode (LIRBinRelExpr (LIRIntOperand (LIRInt i1)) op (LIRIntOperand  LIRInt i2)) tl fl) = 
         if eval i1 op i2 then Just $ LIRJumpLabelNode tl
                        else Just $ LIRJumpLabelNode fl
-        where eval i1 op i2 = case op of 
-          LEQ  -> i1 == i2
-          LNEQ -> i1 /= i2
-          LGT  -> i1 >  i2
-          LGTE -> i1 >= i2
-          LLT  -> i1 <  i2
-          LLTE -> i1 <= i2
+        where 
+          eval i1 op i2 = 
+            case op of 
+              LEQ  -> (i1 == i2)
+              LNEQ -> (i1 /= i2)
+              LGT  -> i1 >  i2
+              LGTE -> i1 >= i2
+              LLT  -> i1 <  i2
+              LLTE -> i1 <= i2
 
     -- if not lit then jmp tl else jmp fl
-    s_node (LIRIfNode (LIRNotRelExpr $LIRIntOperand $ LIRInt i) tl fl) = 
+    s_node (LIRIfNode (LIRNotRelExpr (LIRIntOperand (LIRInt i))) tl fl) = 
         if i == 0 then Just $ LIRJumpLabelNode tl    -- if not i
                   else Just $ LIRJumpLabelNode fl
 
     -- if lit then jmp tl else jmp fl
-    s_node (LIRIfNode (LIROperRelExpr $LIRIntOperand $ LIRInt i) tl fl) = 
+    s_node (LIRIfNode (LIROperRelExpr (LIRIntOperand (LIRInt i))) tl fl) = 
         if i == 1 then Just $ LIRJumpLabelNode tl
                   else Just $ LIRJumpLabelNode fl
 
@@ -164,32 +198,41 @@ simplify = deepFwdRw simp
 
 -- define constant prop rewrites, replace operand x with lit if Map.lookup x f == lit
 constProp :: Monad m => FwdRewrite m Node Lattice
-constProp = shallowFwdRw cp
+constProp = deepFwdRw cp   -- shallowFwdRw is not defined
   where
     cp :: Node -> Fact x Lattice -> m (Maybe (Graph n e x))    
     cp node f  = return $ liftM nodeToG $ map_node node
-    where 
-      map_node :: Node -> Node
-      -- operand in assignment expr
-      map_node (LIRRegAssignNode x (LIRBinExpr opr1 op opr2)) = 
-                LIRRegAssignNode x (LIRBinExpr (propOperand opr1) op (propOperand opr2))  -- always rewrite
-      map_node (LIRRegAssignNode x (LIRUnExpr op opr)) = 
-                LIRRegAssignNode x (LIRUnExpr op $ propOperand opr)                       -- always rewrite
-      map_node (LIRRegAssignNode x (LIROperExpr opr)) = 
-                LIRRegAssignNode x (LIROperExpr $ propOperand opr)                        -- always rewrite
-        
-      -- operand in if relexpr
-      map_node (LIRIfNode (LIRBinRelExpr opr1 op opr2) tl fl) =
-                LIRIfNode (LIRBinRelExpr (propOperand opr1) op (propOperand opr2)) tl fl)
-      map_node (LIRIfNode (LIRNotRelExpr opr) tl fl) =
-                LIRIfNode (LIRNotRelExpr $ propOperand opr) tl fl) 
-      map_node (LIRIfNode (LIROperRelExpr opr) tl fl) =
-                LIRIfNode (LIROperRelExpr $ propOperand opr) tl fl) 
-
-      -- others do not need const prop
-      map_node n = n
-
       where 
+        map_node :: Node -> Node
+        -- operand in assignment expr
+        map_node (LIRRegAssignNode x (LIRBinExpr opr1 op opr2)) = 
+                  LIRRegAssignNode x (LIRBinExpr (propOperand opr1) op (propOperand opr2))  -- always rewrite
+        map_node (LIRRegAssignNode x (LIRUnExpr op opr)) = 
+                  LIRRegAssignNode x (LIRUnExpr op $ propOperand opr)                       -- always rewrite
+        map_node (LIRRegAssignNode x (LIROperExpr opr)) = 
+                  LIRRegAssignNode x (LIROperExpr $ propOperand opr)                        -- always rewrite
+      
+        -- operand in offset assignment 
+        map_node (LIRRegOffAssignNode x y s opr) = 
+                  LIRRegOffAssignNode x y s $ propOperand opr
+
+        -- operand in store 
+        map_node (LIRStoreNode a opr) = 
+                  LIRStoreNode a $ propOperand
+
+        -- operand in if relexpr
+        map_node (LIRIfNode (LIRBinRelExpr opr1 op opr2) tl fl) =
+                  LIRIfNode (LIRBinRelExpr (propOperand opr1) op (propOperand opr2) tl fl)
+        map_node (LIRIfNode (LIRNotRelExpr opr) tl fl) =
+                  LIRIfNode (LIRNotRelExpr $ propOperand opr) tl fl 
+        map_node (LIRIfNode (LIROperRelExpr opr) tl fl) =
+                  LIRIfNode (LIROperRelExpr $ propOperand opr) tl fl
+
+        -- others do not need const prop
+        map_node n = n
+
+        -- prop constant in a LIROperand 
+        propOperand :: LIROperand -> LIROperand
         propOperand (LIRRegOperand x) = 
           case Map.lookup x f of 
             Top   -> LIRRegOperand x
@@ -206,7 +249,7 @@ constProp = shallowFwdRw cp
 constPropPass = FwdPass
   { fp_lattice = constLattice
   , fp_transfer = varHasLit
-  , fp_rewrite = constProp ‘thenFwdRw‘ simplify }
+  , fp_rewrite = constProp `thenFwdRw` simplify }
 
 
 
