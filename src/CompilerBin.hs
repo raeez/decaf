@@ -23,14 +23,18 @@ compile debug source filename =
       RSuccess (e, p, t, formattedTree, formattedErrors) ->
           do if length e > 0
                then putStrLn formattedErrors >> exitFailure
-               else do let (numberedTable, CounterState (LabelCounter rc _ _ _)) = runRegisterCounter (numberTree $ tree t) (CounterState mkCounter)
+               else do let (numberedTable, 
+                            CounterState (LabelCounter rc _ _ _)) =
+                                runRegisterCounter (numberTree $ tree t) (CounterState mkCounter)
                            (lir, _) = runTranslator (translateProgram (top numberedTable) p) (mkNamespace rc)
                        if debug
                          then (putStrLn $ pp $ translateCFG . convertProgram $ lir)
                          else putStrLn ""
                        let prog = (translateCFG . convertProgram) lir
                            (prog', c, results) = allocateRegisters t prog 
-                           asm =  ((intelasm . content) numberedTable) ++ (intelasm prog')
-                       writeFile ((fst $ break (=='.') filename) ++ ".asm") asm
-                       putStrLn asm
+                           assembler = programAssembler (content numberedTable) prog'
+                           (prog'', state') = runAssembler assembler mkAssemblerState
+                           asmout = intelasm prog''
+                       writeFile ((fst $ break (=='.') filename) ++ ".asm") asmout
+                       putStrLn asmout
                        exitSuccess

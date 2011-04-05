@@ -11,7 +11,7 @@ import Decaf.Data.Zipper
 
 data Namespace = Namespace
     { temp :: Int
-    , label :: Int
+    , labels :: Int
     , scope :: [Int]
     , blockindex :: [Int]
     }
@@ -25,22 +25,17 @@ newtype Translator a = Translator
 instance Monad Translator where
     return a = Translator (\s -> (a, s))
     m >>= f = Translator (\s ->
-                let (a, ns) = runTranslator m s
-                in runTranslator (f a) ns)
+        let (a, s') = runTranslator m s
+        in runTranslator (f a) s')
 
+translate :: Translator a -> Namespace -> a
 translate comp ns = fst $ runTranslator comp ns
 
 incTemp :: Translator Int
 incTemp = Translator (\(Namespace t l s b) -> (t, Namespace (t+1) l s b))
 
-getTemp :: Translator Int
-getTemp = Translator (\ns@(Namespace t _ _ _) -> (t, ns))
-
 incLabel :: Translator Int
 incLabel = Translator (\(Namespace t l s b) -> (l, Namespace t (l+1) s b))
-
-getLabel :: Translator Int
-getLabel = Translator (\ns@(Namespace _ l _ _) -> (l, ns))
 
 getScope :: Translator Int
 getScope = Translator (\ns@(Namespace _ _ s _) -> (last s, ns))
@@ -63,29 +58,22 @@ withBlock m = Translator (\(Namespace t l s b) ->
     in (a, Namespace t' l' s' b'))
 
 -- | Given a SymbolTree, Translate a DecafProgram into an LIRProgram
-translateProgram ::  SymbolTree -> DecafProgram -> Translator CFGProgram
+translateProgram :: SymbolTree -> DecafProgram -> Translator CFGProgram
 translateProgram st program =
-    do declarations <- mapM translateField (fields program)
-       units <- mapM (translateMethod st (concat declarations)) (methods program)
-       eUnits <- mapM ($st) exceptionHandlers
-       return $ CFGProgram (LIRLabel $ "START") ( units
+  do units <- mapM (translateMethod st) (methods program)
+     eUnits <- mapM ($st) exceptionHandlers
+     return $ CFGProgram (LIRLabel $ "START") ( units
                                                 ++ [CFGUnit exceptionHeader (concat eUnits)])
-  where
-    translateField (DecafVarField var _) = return [] -- translateVarDeclaration st var
-    translateField (DecafArrField arr _) = return [] -- translateArrDeclaration st arr
 
 -- | Given a SymbolTree, Translate a DecafMethod into an LIRUnit
-translateMethod :: SymbolTree -> [CFGInst] -> DecafMethod -> Translator CFGUnit
-translateMethod st declarations method =
+translateMethod :: SymbolTree -> DecafMethod -> Translator CFGUnit
+translateMethod st method =
     do (case symLookup (methodID method) (table st) of
         Just (index, MethodRec _ (label, count)) ->
             do body <- translateBlock (st) (methodBody method)
                prologue <- translateMethodPrologue (st' index) method
                postcall <- translateMethodPostcall st method
-               let decs = if (methodID method) == "main" then declarations else []
-               return $ CFGUnit (methodlabel count) ({-[CFGLIRInst $ LIRTempEnterInst 0]
-                                                  ++ -}prologue
-                                                  ++ decs
+               return $ CFGUnit (methodlabel count) (prologue
                                                   ++ body
                                                   ++ postcall)
         _ -> return $ CFGUnit (LIRLabel ("Translator.hs:translateMethod Invalid SymbolTable; could not find '" ++ methodID method ++ "' symbol")) [])
@@ -105,12 +93,12 @@ translateMethod st declarations method =
 translateMethodPrologue :: SymbolTree -> DecafMethod -> Translator [CFGInst]
 translateMethodPrologue st (DecafMethod _ ident args _ _) =
     do let numRegVars = min (length args) 6
-           regvars = map genRegVar (zip [RDI, RSI, RDX, RCX, R8, R9] args)
+           regvars = map genRegVar (zip [LRDI, LRSI, LRDX, LRCX, LR8, LR9] args)
        stackvars <- mapM genStackVar (zip [1..] (drop numRegVars args))
        return (regvars ++ stackvars)
   where
     genRegVar (reg, arg) = CFGLIRInst $ LIRRegAssignInst (symVar arg st) (LIROperExpr $ LIRRegOperand reg)
-    genStackVar (index, arg) = do let mem = LIRRegOffMemAddr RBP (LIRInt ((index + 1) * 8)) qword -- ^ [rbp] = old rbp; [rbp + 8] = ret address; [rbp + 16] = first stack param
+    genStackVar (index, arg) = do let mem = LIRMemAddr LRBP Nothing (LIRInt ((index + 1) * 8)) qword -- ^ [rbp] = old rbp; [rbp + 8] = ret address; [rbp + 16] = first stack param
                                   return $ CFGLIRInst $ LIRLoadInst (symVar arg st) mem
 
 -- | Given a SymbolTree, Translate a single DecafStatement into [CFGInst]
@@ -129,9 +117,9 @@ translateStm st (DecafAssignStm loc op expr _) =
     genArrayStore [] _ = []
     genArrayStore instructions (DecafArrLoc{arrLocIdent=id})
         = case last instructions of
-            CFGLIRInst (LIRLoadInst s (LIRRegPlusMemAddr reg off (LIRInt l))) -> 
-                [CFGLIRInst $ LIRRegOffAssignInst reg (off) (LIRInt 0) (LIRRegOperand s)]
-            CFGLIRInst (LIRLoadInst s (LIRRegOffMemAddr reg (LIRInt off) _)) -> 
+            CFGLIRInst (LIRLoadInst s (LIRMemAddr reg (Just reg') (LIRInt 0) size)) -> 
+                [CFGLIRInst $ LIRRegOffAssignInst reg reg' size (LIRRegOperand s)]
+            CFGLIRInst (LIRLoadInst s (LIRMemAddr reg Nothing (LIRInt off) _)) -> 
                 [CFGLIRInst $ LIRRegOffAssignInst reg (MEM $ show off) (LIRInt 0) (LIRRegOperand s)]
             _ -> []
 
@@ -191,10 +179,10 @@ translateStm st (DecafRetStm (Just expr) _) =
     do (instructions, operand) <- translateExpr st expr
        (case operand of
           LIRIntOperand int -> return (instructions
-                                   ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr $ LIRIntOperand int) ]
+                                   ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr $ LIRIntOperand int) ]
                                    ++ [CFGLIRInst $ LIRRetInst])
           LIRRegOperand reg -> return (instructions
-                                   ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr $ LIRRegOperand reg)]
+                                   ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr $ LIRRegOperand reg)]
                                    ++ [CFGLIRInst $ LIRRetInst]))
 
 translateStm st (DecafRetStm Nothing _) =
@@ -249,7 +237,7 @@ translateRelExpr st expr =
                                      CFGExprInst {} -> 
                                          return (instructions, LIROperRelExpr oper)
      
-                                     _ -> return ([CFGLIRInst $ LIRLabelInst $ LIRLabel $ "Translator.hs:translateRelExpr Invalid Expression tree; not of type relExpr"], LIROperRelExpr $ LIRRegOperand RAX))
+                                     _ -> return ([CFGLIRInst $ LIRLabelInst $ LIRLabel $ "Translator.hs:translateRelExpr Invalid Expression tree; not of type relExpr"], LIROperRelExpr $ LIRRegOperand LRAX))
 
 translateExpr :: SymbolTree -> DecafExpr -> Translator ([CFGInst], LIROperand)
 translateExpr st (DecafLocExpr loc _) =
@@ -346,7 +334,7 @@ translateMethodPostcall st (DecafMethod ty ident _ _ _) =
 translateMethodPrecall :: SymbolTree -> DecafMethodCall -> Translator ([CFGInst], [CFGInst])
 translateMethodPrecall st (DecafPureMethodCall ident exprs _) =
     do let numRegArgs = min 6 (length exprs)
-       regargtuples <- mapM handleRegArg (zip [RDI, RSI, RDX, RCX, R8, R9] exprs)
+       regargtuples <- mapM handleRegArg (zip [LRDI, LRSI, LRDX, LRCX, LR8, LR9] exprs)
        stackargtuples <- mapM handleStackArg (reverse $ drop numRegArgs exprs)
        let (tails, heads) = unzip (regargtuples ++ stackargtuples)
        return (concat tails, concat heads)
@@ -357,12 +345,12 @@ translateMethodPrecall st (DecafPureMethodCall ident exprs _) =
 
     handleStackArg expr = do (instructions, operand) <- translateExpr st expr
                              return $ (instructions,
-                                      [CFGLIRInst $ LIRRegAssignInst RSP $ LIRBinExpr (LIRRegOperand RSP) LSUB (LIRIntOperand qword)] -- ^ the next two instructions form a push
-                                   ++ [CFGLIRInst $ LIRRegAssignInst RSP (LIROperExpr operand)])
+                                      [CFGLIRInst $ LIRRegAssignInst LRSP $ LIRBinExpr (LIRRegOperand LRSP) LSUB (LIRIntOperand qword)] -- ^ the next two instructions form a push
+                                   ++ [CFGLIRInst $ LIRRegAssignInst LRSP (LIROperExpr operand)])
 
 translateMethodPrecall st (DecafMethodCallout ident exprs _) =
     do let numRegArgs = min 6 (length exprs)
-       regargtuples <- mapM handleRegArg (zip [RDI, RSI, RDX, RCX, R8, R9] exprs)
+       regargtuples <- mapM handleRegArg (zip [LRDI, LRSI, LRDX, LRCX, LR8, LR9] exprs)
        stackargtuples <- mapM handleStackArg (reverse $ drop numRegArgs exprs)
        let (tails, heads) = unzip (regargtuples ++ stackargtuples)
        return (concat tails, concat heads)
@@ -375,8 +363,8 @@ translateMethodPrecall st (DecafMethodCallout ident exprs _) =
 
     handleStackArg expr = do (instructions, operand) <- translateCalloutArg expr
                              return $ (instructions,
-                                      [CFGLIRInst $ LIRRegAssignInst RSP (LIRBinExpr (LIRRegOperand RSP) LSUB (LIRIntOperand qword))] -- ^ the next two instructions form a push
-                                   ++ [CFGLIRInst $ LIRRegAssignInst RSP (LIROperExpr operand)])
+                                      [CFGLIRInst $ LIRRegAssignInst LRSP (LIRBinExpr (LIRRegOperand LRSP) LSUB (LIRIntOperand qword))] -- ^ the next two instructions form a push
+                                   ++ [CFGLIRInst $ LIRRegAssignInst LRSP (LIROperExpr operand)])
 
 
 translateMethodCall :: SymbolTree -> DecafMethodCall -> Translator ([CFGInst], LIROperand)
@@ -385,9 +373,9 @@ translateMethodCall st mc =
        t <- incTemp
        return (preinstructions
             ++ precall
-            ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr $ LIRIntOperand $ LIRInt 0)]
+            ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr $ LIRIntOperand $ LIRInt 0)]
             ++ [CFGLIRInst $ LIRCallInst func]
-            ++ [CFGLIRInst $ LIRRegAssignInst (SREG t) (LIROperExpr $ LIRRegOperand $ RAX)]
+            ++ [CFGLIRInst $ LIRRegAssignInst (SREG t) (LIROperExpr $ LIRRegOperand $ LRAX)]
             , LIRRegOperand $ SREG $ t)
   where
     func = case mc of
@@ -402,7 +390,7 @@ translateString st string =
          Just (StringRec _ label) ->
              do t <- incTemp
                 return ([CFGLIRInst $ LIRRegAssignInst (SREG t) (LIROperExpr $ LIRStringOperand $ stringLabel label)], LIRRegOperand $ SREG t)
-         _ -> return ([CFGLIRInst $ LIRLabelInst $ LIRLabel $ "Translator.hs:translateString Invalid SymbolTable; could not find '" ++ string ++ "' symbol"], LIRRegOperand RBP))
+         _ -> return ([CFGLIRInst $ LIRLabelInst $ LIRLabel $ "Translator.hs:translateString Invalid SymbolTable; could not find '" ++ string ++ "' symbol"], LIRRegOperand LRBP))
 
 translateLocation :: SymbolTree -> DecafLoc -> Translator ([CFGInst], LIROperand)
 translateLocation st loc =
@@ -440,13 +428,13 @@ arrayMemaddr :: DecafArr -> SymbolRecord -> (LIROperand) -> Translator ([LIRInst
 arrayMemaddr (DecafArr ty _ len _) (ArrayRec _ l) operand =
     case operand of
         (LIRIntOperand (LIRInt index))->
-            return ([], LIRRegOffMemAddr (MEM $ arrayLabel l) (LIRInt (size*index)) (LIRInt size))
+            return ([], LIRMemAddr (MEM $ arrayLabel l) Nothing (LIRInt (size*index)) (LIRInt size))
         _ -> do t1 <- incTemp
                 t2 <- incTemp
                 let sr1 = SREG t1
                     sr2 = SREG t2
                 return ([LIRRegAssignInst sr1 (LIRBinExpr operand LMUL (LIRIntOperand (LIRInt size)))]
-                    , LIRRegPlusMemAddr (MEM $ arrayLabel l) sr1 (LIRInt size))
+                    , LIRMemAddr (MEM $ arrayLabel l) (Just sr1) (LIRInt 0) (LIRInt size))
   where
     arrlen = readDecafInteger len
     size = (case ty of
@@ -467,8 +455,8 @@ missingRetHandler st =
                       Just (StringRec _ l) ->  l
                       _ -> error $ "Translate.hs:missingRetHandler could not find symbol for :" ++ missingRetMessage
           return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel st missingRetMessage]
-                ++ [CFGLIRInst $ LIRRegAssignInst RDI (LIROperExpr (LIRRegOperand $ MEM $ exceptionString st missingRetMessage))]
-                ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr (LIRIntOperand $ LIRInt 0))]
+                ++ [CFGLIRInst $ LIRRegAssignInst LRDI (LIROperExpr (LIRRegOperand $ MEM $ exceptionString st missingRetMessage))]
+                ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr (LIRIntOperand $ LIRInt 0))]
                 ++ [CFGLIRInst $ LIRCallInst (LIRProcLabel "printf")]
                 ++ [CFGLIRInst LIRRetInst]
 
@@ -478,7 +466,7 @@ outOfBoundsHandler st =
                       Just (StringRec _ l) -> l
                       _ -> error $ "Translate.hs:outOfBoundsHandler could not find symbol for :" ++ outOfBoundsMessage
           return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel st outOfBoundsMessage]
-               ++ [CFGLIRInst $ LIRRegAssignInst RDI (LIROperExpr (LIRRegOperand $ MEM $ exceptionString st outOfBoundsMessage))]
-               ++ [CFGLIRInst $ LIRRegAssignInst RAX (LIROperExpr (LIRIntOperand $ LIRInt 0))]
+               ++ [CFGLIRInst $ LIRRegAssignInst LRDI (LIROperExpr (LIRRegOperand $ MEM $ exceptionString st outOfBoundsMessage))]
+               ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr (LIRIntOperand $ LIRInt 0))]
                ++ [CFGLIRInst $ LIRCallInst (LIRProcLabel "printf")]
                ++ [CFGLIRInst LIRRetInst]

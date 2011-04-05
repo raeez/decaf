@@ -48,23 +48,13 @@ instance Data LIRExpr where
      return (LIROperExpr a'1)
 
 instance Data LIRMemAddr where
- gmapM f (LIRRegMemAddr a1 a2) =
-  do 
-     a'1 <- f a1
-     a'2 <- f a2
-     return (LIRRegMemAddr a'1 a'2)
- gmapM f (LIRRegPlusMemAddr a1 a2 a3) =
+ gmapM f (LIRMemAddr a1 a2 a3 a4) =
   do 
      a'1 <- f a1
      a'2 <- f a2
      a'3 <- f a3
-     return (LIRRegPlusMemAddr a'1 a'2 a'3)
- gmapM f (LIRRegOffMemAddr a1 a2 a3) =
-  do 
-     a'1 <- f a1
-     a'2 <- f a2
-     a'3 <- f a3
-     return (LIRRegOffMemAddr a'1 a'2 a'3)
+     a'4 <- f a4
+     return (LIRMemAddr a'1 a'2 a'3 a'4)
 
 instance Data LIRInt where
  gmapM f (LIRInt a1) =
@@ -243,54 +233,54 @@ instance Data LIRProc where
      a'1 <- f a1
      return (LIRProcReg a'1)
 instance Data LIRReg where
- gmapM f (RAX) =
+ gmapM f (LRAX) =
   do 
-     return (RAX)
- gmapM f (RBX) =
+     return (LRAX)
+ gmapM f (LRBX) =
   do 
-     return (RBX)
- gmapM f (RCX) =
+     return (LRBX)
+ gmapM f (LRCX) =
   do 
-     return (RCX)
- gmapM f (RDX) =
+     return (LRCX)
+ gmapM f (LRDX) =
   do 
-     return (RDX)
- gmapM f (RBP) =
+     return (LRDX)
+ gmapM f (LRBP) =
   do 
-     return (RBP)
- gmapM f (RSP) =
+     return (LRBP)
+ gmapM f (LRSP) =
   do 
-     return (RSP)
- gmapM f (RSI) =
+     return (LRSP)
+ gmapM f (LRSI) =
   do 
-     return (RSI)
- gmapM f (RDI) =
+     return (LRSI)
+ gmapM f (LRDI) =
   do 
-     return (RDI)
- gmapM f (R8) =
+     return (LRDI)
+ gmapM f (LR8) =
   do 
-     return (R8)
- gmapM f (R9) =
+     return (LR8)
+ gmapM f (LR9) =
   do 
-     return (R9)
- gmapM f (R10) =
+     return (LR9)
+ gmapM f (LR10) =
   do 
-     return (R10)
- gmapM f (R11) =
+     return (LR10)
+ gmapM f (LR11) =
   do 
-     return (R11)
- gmapM f (R12) =
+     return (LR11)
+ gmapM f (LR12) =
   do 
-     return (R12)
- gmapM f (R13) =
+     return (LR12)
+ gmapM f (LR13) =
   do 
-     return (R13)
- gmapM f (R14) =
+     return (LR13)
+ gmapM f (LR14) =
   do 
-     return (R14)
- gmapM f (R15) =
+     return (LR14)
+ gmapM f (LR15) =
   do 
-     return (R15)
+     return (LR15)
  gmapM f (GI a1) =
   do 
      a'1 <- f a1
