@@ -34,7 +34,7 @@ withFuel (Just a) = do { f <- getFuel
                          else setFuel (f-1) >> return (Just a) }
 
 
-data PassDirection = Fwd | Bwd
+data PassDirection = Fwd | Bwd deriving (Show, Eq)
 
 data FwdPass m n f 
   = FwdPass { fpLattice :: DataflowLattice f
@@ -44,7 +44,7 @@ data FwdPass m n f
 
 data DataflowLattice f = DataflowLattice
   { factBottom :: f -- necessary?
-  , factJoin :: f -> f -> (Bool, f)
+  , factJoin :: f -> f -> (ChangeFlag, f)
   }
 
 -- are these foralls needed?
@@ -87,20 +87,23 @@ analyzeAndFwdRewrite pass entryLabels g fb =
             otherwise -> JustC entryLabels
                     
 
-normalizeGraph :: NonLocal n => DG f n e x -> (Graph n e x, FactBase f)
+normalizeGraph :: forall n f e x . NonLocal n => DG f n e x -> (Graph n e x, FactBase f)
 normalizeGraph g = (dropFacts g, facts g)
   where
+    dropFacts :: DG f n e x -> Graph n e x
     dropFacts GNil = GNil
-    dropFacts (GUnit (DBlock f b)) = b
+    dropFacts (GUnit (DBlock f b)) = GUnit b
     dropFacts (GMany e b x) = GMany (fmap dropFact e) (mapMap dropFact b) (fmap dropFact x)
       where dropFact (DBlock _ b) = b
 
-    facts :: DG f n e x -> Graph n e x
+    facts :: DG f n e x -> FactBase f
     facts GNil = mapEmpty
     facts (GUnit _) = mapEmpty -- not sure why this should be empty
     facts (GMany _ body exit) = bodyFacts body `mapUnion` exitFacts exit
+    bodyFacts :: LabelMap (DBlock f n C C) -> FactBase f
     bodyFacts body = mapFold pullFact mapEmpty body
-      where pullFact (DBlock f b) fb = mapInsert (entryLabel b) f fb
+      where pullFact :: forall n f x . (NonLocal n) => DBlock f n C x -> FactBase f ->  FactBase f -- sig necessary
+            pullFact (DBlock f b) fb = mapInsert (entryLabel b) f fb
     exitFacts :: MaybeO x (DBlock f n C O) -> FactBase f
     exitFacts NothingO = mapEmpty
     exitFacts (JustO (DBlock f b)) = mapSingleton (entryLabel b) f
@@ -119,7 +122,7 @@ afrGraph pass entries = graph
          ->  f -> m (DG f n e x, Fact x f)
 
     node n f = 
-        do mrev <- frewrite pass n f >> withFuel
+        do mrev <- frewrite pass n f >>= withFuel
            case mrev of 
              Nothing -> return (singletonDG f n, ftransfer pass n f)
              Just (FwdRev g rw) ->
@@ -138,13 +141,10 @@ afrGraph pass entries = graph
     block (BHead h n)  = block h  `cat` node n
     block (BTail n t)  = node  n  `cat` block t
     block (BClosed h t)= block h  `cat` block t
-      where
-        cat t1 t2 f = do { (g1, f1) <- t1 f
-                         ; (g2, f2) <- t2 f1
-                         ; return (g1 `dgSplice` g2, f2) }
+
 
     body :: [Label] -> LabelMap (Block n C C) 
-         -> Fact C f  -> m (DG f n e x, Fact C f) 
+         -> Fact C f  -> m (DG f n C C, Fact C f) 
 
     body entries blockmap initFBase
         = fixpoint Fwd lattice doBlock blocks initFBase
@@ -171,6 +171,16 @@ afrGraph pass entries = graph
              c NothingC (JustO entry)   = block entry `cat` body (successors entry) bdy
              c (JustC entries) NothingO = body entries bdy
              c _ _ = error "bogus GADT pattern match failure"
+
+    -- this glues all the subgraphs together; afrGraph sort of
+    -- operates in a monad like thing, for which this is bind
+    cat :: forall e a x f1 f2 f3.
+         (f1 -> m (DG f n e a, f2))
+        -> (f2 -> m (DG f n a x, f3))
+        -> (f1 -> m (DG f n e x, f3))
+    cat t1 t2 f1 = do { (g1, f2) <- t1 f1
+                      ; (g2, f3) <- t2 f2
+                      ; return (g1 `dgSplice` g2, f3) }
 
     arfx :: forall thing x . NonLocal thing
          => (thing C x ->        f -> m (DG f n C x, Fact x f))
@@ -204,14 +214,15 @@ updateFact lat labels label newFact (ch, fbase)
            Nothing -> (SomeChange, new_fact_debug)
            Just oldFact -> join oldFact
          where join oldFact = 
-                 factJoin lat label oldFact newFact
+                 factJoin lat {-label-} oldFact newFact
                (_, new_fact_debug) = join (factBottom lat)
     newFBase = mapInsert label resFact fbase
   
 
-fixpoint :: PassDirection -> DataflowLattice f
-         -> (Block n e x -> FactBase f -> m (DG f n e x, Fact x f)) -- might need forall as in block
-         -> [Block n e x] -> FactBase f ->  m (DG f n e x, Fact C f)
+fixpoint :: forall m n f. (FuelMonad m, NonLocal n) 
+         => PassDirection -> DataflowLattice f
+         -> (Block n C C -> FactBase f -> m (DG f n C C, Fact C f))
+         -> [Block n C C] -> FactBase f ->  m (DG f n C C, Fact C f)
 
 fixpoint dir lattice doBlock blocks initFBase
   = do { fs <- loop initFBase
@@ -263,17 +274,19 @@ fixpoint dir lattice doBlock blocks initFBase
 
 -- | Orders the blocks in a graph for data flow analysis.
 -- | Could make this faster using folds
-forwardBlockList :: [Label] -> LabelMap (Block n C C) -> [Block n C C]
+forwardBlockList :: NonLocal n => [Label] -> LabelMap (Block n C C) -> [Block n C C]
 forwardBlockList entries body
   = concatMap traverse entries -- only takes blocks reachable from entries
   where traverse label = block : concatMap traverse (successors block)
-          where block = (mapLookup label body)                                                     
+          where block = case (mapLookup label body) of 
+                          Just b -> b
+                          Nothing -> error "successors returned label not in graph body"
 
                                                    
 joinInFacts :: DataflowLattice f -> FactBase f -> FactBase f
 joinInFacts (lattice @ DataflowLattice {factBottom = bot, factJoin = fj}) fb =
   mkFactBase lattice $ map botJoin $ mapToList fb
-    where botJoin (l, f) = (l, snd $ fj l bot f)
+    where botJoin (l, f) = (l, snd $ fj {-l-} bot f) -- hoopl uses an extra label param in join functions for debugging purposes
                         
 
 
@@ -324,14 +337,11 @@ getFact  :: DataflowLattice f -> Label -> FactBase f -> f
 getFact lat l fb = case mapLookup l fb of Just  f -> f
                                           Nothing -> factBottom lat
 
-mkFactBase :: DataflowLattice f -> [(Label, f)] -> FactBase f
+mkFactBase :: forall f . DataflowLattice f -> [(Label, f)] -> FactBase f
 mkFactBase lattice = foldl add mapEmpty
   where add :: FactBase f -> (Label, f) -> FactBase f
         add map (label, f) = mapInsert label newFact map
           where newFact = case mapLookup label map of
                             Nothing -> f
-                            Just f' -> snd $ join label f' f
+                            Just f' -> snd $ join {-label-} f' f
                 join = factJoin lattice
-
-
-main = putStrLn "1"

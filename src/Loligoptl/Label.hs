@@ -25,7 +25,7 @@ allLabels :: [Label]
 allLabels = map Label [1..]
 
 newtype LabelMap a = LM (M.IntMap a)
-type FactBase a = M.IntMap a
+type FactBase a = LabelMap a
 newtype LabelSet = LS (S.IntSet)
 
 class IsMap map where

@@ -9,7 +9,7 @@ module Loligoptl.Graph
     , addBlock --, bodyList
     , DG, DBlock(..)
     , gUnitOO, gUnitCO, gUnitOC, gUnitCC
-    , dgSplice, gSplice, cat
+    , dgSplice, gSplice , cat
     , dgNil, dgNilC
     )
 where
@@ -52,7 +52,7 @@ data Block n e x where
 
 
 type Body n = LabelMap (Block n C C)
-emptyBody :: Body n
+emptyBody :: LabelMap (thing C C)
 emptyBody = mapEmpty
 
 
@@ -95,6 +95,7 @@ instance NonLocal n => NonLocal (DBlock f n) where
   successors (DBlock _ b) = successors b
 
 dgNil  = GNil
+dgNilC :: DG f n C C
 dgNilC = GMany NothingO emptyBody NothingO
 
 gUnitOO b = GUnit b
