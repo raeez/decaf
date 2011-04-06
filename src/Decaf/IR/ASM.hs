@@ -107,8 +107,7 @@ data ASMMemBase = ASMRegBase ASMReg
 
 data ASMOperand a where
     ASMMemOperand :: ASMMemBase -> Maybe ASMMemBase -> Int64 -> Int64 -> ASMOperand Mem
-    ASMSymOperand :: ASMSym -> Int64 -> Int64 -> ASMOperand Mem
-    ASMPntOperand :: ASMSym -> ASMOperand Mem
+    ASMSymOperand :: ASMSym -> ASMOperand Mem
     ASMRegOperand :: ASMReg -> Int64 -> ASMOperand Reg
     ASMLitOperand :: Int64 -> ASMOperand Lit
 
@@ -218,7 +217,7 @@ instance SymbolicAssembler ASMList where
 
 instance SymbolicAssembler ASMSection where
     intelasm (ASMDataSection decls) =
-        "section .data\n"
+        "section .data:\n"
      ++ unlines (indentLabels intelasm decls)
 
     intelasm (ASMTextSection text) =
@@ -341,11 +340,8 @@ instance SymbolicAssembler (ASMOperand a) where
     intelasm (ASMRegOperand reg size) =
         intelasm reg
 
-    intelasm (ASMSymOperand base offset size) =
-        intelMemAddr base Nothing offset size
-
-    intelasm (ASMPntOperand base) =
-        intelasm base
+    intelasm (ASMSymOperand sym) =
+        intelasm sym
 
     intelasm (ASMLitOperand l) =
         literalDisplay l

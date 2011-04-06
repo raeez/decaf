@@ -313,10 +313,9 @@ mapInst (LIRCallInst (LIRProcLabel proc)) =
        call (ASMSym proc)
 
 mapInst (LIREnterInst s) =
-    -- enter (s * 8)
     do push rbp
        mov rbp rsp
-       sub rsp (lit s)
+       sub rsp (lit $ s * 8)
 
 mapInst LIRRetInst =
     do leave
@@ -335,7 +334,7 @@ loadstore addr1@(ASMGenOperand ASMMemOperand {}) addr2@(ASMGenOperand ASMMemOper
     do mov r10 addr2
        mov addr1 r10
 
-loadstore addr@(ASMGenOperand ASMMemOperand {}) pntr@(ASMGenOperand ASMPntOperand {}) =
+loadstore addr@(ASMGenOperand ASMMemOperand {}) pntr@(ASMGenOperand ASMSymOperand {}) =
     do mov r10 pntr
        mov addr r10
 
@@ -455,14 +454,14 @@ genExpr reg expr =
            jumpType binop l
 
            op1 <- asm reg
-           mov' op1 (lit litTrue)
+           mov' op1 (lit litFalse)
 
            jmp endl
 
            label (ASMLabel l)
 
            op1 <- asm reg
-           mov' op1 (lit litFalse)
+           mov' op1 (lit litTrue)
 
            label endl
         where
@@ -478,7 +477,7 @@ instance ASMOper LIROperand where
       where
         genOperand reg =
             case reg of
-                MEM s  -> ASMGenOperand $ ASMPntOperand (ASMSym s)
+                MEM s  -> ASMGenOperand $ ASMSymOperand (ASMSym s)
                 GI s   ->  ASMGenOperand $ ASMMemOperand (ASMSymBase $ ASMSym $ "g" ++ show s) Nothing 0 8
                 SREG s -> ASMGenOperand $ ASMMemOperand (ASMRegBase RBP) Nothing address 8
                   where
@@ -486,7 +485,7 @@ instance ASMOper LIROperand where
                 other  -> ASMGenOperand $ ASMRegOperand (mapRegister reg) 8
       
     asm (LIRIntOperand i)    = return $ ASMGenOperand $ ASMLitOperand i
-    asm (LIRStringOperand s) = return $ ASMGenOperand $ ASMSymOperand (ASMSym s) 0 8
+    asm (LIRStringOperand s) = return $ ASMGenOperand $ ASMSymOperand (ASMSym s)
 
 instance ASMOper LIRMemAddr where
     asm (LIRMemAddr (SREG s) reg offset size) =
@@ -503,11 +502,10 @@ instance ASMOper ASMGenOperand where
 instance ASMOper LIRReg where
     asm reg = case reg of
         SREG s -> return $ ASMGenOperand $ ASMMemOperand (ASMRegBase RBP) Nothing (stackAddress s) 8
-        MEM s -> do r <- mapMemBase reg
-                    return $ ASMGenOperand $ ASMMemOperand r Nothing 0 8
-        GI s  -> do r <- mapMemBase reg
-                    return $ ASMGenOperand $ ASMMemOperand r Nothing 0 8
-        other -> return $ ASMGenOperand $ ASMRegOperand (mapRegister reg) 8
+        MEM s  -> return $ ASMGenOperand $ ASMSymOperand (ASMSym s)
+        GI s   -> do r <- mapMemBase reg
+                     return $ ASMGenOperand $ ASMMemOperand r Nothing 0 8
+        other  -> return $ ASMGenOperand $ ASMRegOperand (mapRegister reg) 8
 
 mapMemBase reg =
     case reg of
