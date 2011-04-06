@@ -30,16 +30,16 @@ litTrue = -1
 litFalse = 0
 
 missingRetMessage :: String
-missingRetMessage = "EXCEPTION: ARRAY OUT OF BOUNDS\n"
+missingRetMessage = "*** RUNTIME ERROR ***: Missing return statement in method \"%s\"\n"
 
 missingRet :: Int
-missingRet = 1
+missingRet = 0
 
 outOfBoundsMessage :: String
-outOfBoundsMessage = "EXCEPTION: MISSING RETURN STATEMENT\n"
+outOfBoundsMessage = "*** RUNTIME ERROR ***: Array out of Bounds access in method \"%s\"\n"
 
 outOfBounds :: Int
-outOfBounds = 0
+outOfBounds = 1
 
 exception code
       | code == 1 = outOfBoundsMessage
@@ -153,7 +153,7 @@ data LIRMemAddr = LIRMemAddr LIRReg (Maybe LIRReg) LIROffset LIRSize
 
 data LIROperand = LIRRegOperand LIRReg
                 | LIRIntOperand LIRInt
-                | LIRStringOperand String
+                | LIRStrOperand String
                 deriving (Show, Eq, Typeable)
 
 data LIRReg = LRAX
@@ -306,7 +306,7 @@ instance IRNode LIRMemAddr where
 instance IRNode LIROperand where
     pp (LIRRegOperand reg) = pp reg
     pp (LIRIntOperand i) = pp i
-    pp (LIRStringOperand s) = s
+    pp (LIRStrOperand s) = s
     treeify a = Node (pp a) []
     pos _     = error "LIR has no associated position"
 

@@ -325,11 +325,11 @@ intelMemAddr base reg offset size =
     intelPrefix size ++ " [" ++ intelasm base ++ b' ++ off ++ "]"
   where
       off
-        | offset /= 0 = literalDisplay offset
+        | offset /= 0 = "+" ++ literalDisplay offset
         | otherwise  = ""
 
       b' = case reg of
-              Just r -> " + " ++ intelasm r
+              Just r -> "+" ++ intelasm r
               Nothing  -> ""
 
 literalDisplay :: Int64 -> String

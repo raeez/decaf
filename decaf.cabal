@@ -24,7 +24,7 @@ flag testing
 Library
     hs-source-dirs: src/	
 
-    Build-Depends:  HUnit, graphviz, parsec, base > 4, regex-posix, fgl, mtl, process, QuickCheck
+    Build-Depends:  HUnit, graphviz, parsec, base > 4, regex-posix, fgl, mtl, process, QuickCheck, containers
     Exposed-Modules:  Decaf, Decaf.Tokens, Decaf.IR.AST, Decaf.IR.LIR, Decaf.Scanner, Decaf.Parser, Decaf.Checker, Decaf.Data.Zipper, Decaf.IR.SymbolTable, Decaf.Data.Tree, Decaf.Data.GraphTree, Decaf.Util.Prelude, Decaf.Util.InteractiveGrapher, Decaf.Util.Report, Decaf.IR.Class, Decaf.IR.ControlFlowGraph, Decaf.Translator
 
     Other-Modules: Decaf.Data.ContextTree

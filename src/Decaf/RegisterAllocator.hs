@@ -284,10 +284,10 @@ instance Data LIROperand where
   do 
      a'1 <- f a1
      return (LIRIntOperand a'1)
- gmapM f (LIRStringOperand a1) =
+ gmapM f (LIRStrOperand a1) =
   do 
      a'1 <- f a1
-     return (LIRStringOperand a'1)
+     return (LIRStrOperand a'1)
 
 
 {- END DECLARATIONS -}

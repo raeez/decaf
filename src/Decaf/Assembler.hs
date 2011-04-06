@@ -330,6 +330,9 @@ loadstore :: ASMGenOperand -> ASMGenOperand -> Assembler ()
 loadstore reg@(ASMGenOperand ASMRegOperand {}) addr@(ASMGenOperand ASMMemOperand {}) =
     mov reg addr
 
+loadstore addr@(ASMGenOperand ASMMemOperand {}) reg@(ASMGenOperand ASMRegOperand {}) =
+    mov addr reg
+
 loadstore addr1@(ASMGenOperand ASMMemOperand {}) addr2@(ASMGenOperand ASMMemOperand {}) =
     do mov r10 addr2
        mov addr1 r10
@@ -338,6 +341,11 @@ loadstore addr@(ASMGenOperand ASMMemOperand {}) pntr@(ASMGenOperand ASMSymOperan
     do mov r10 pntr
        mov addr r10
 
+loadstore reg@(ASMGenOperand ASMRegOperand {}) pntr@(ASMGenOperand ASMSymOperand {}) =
+    mov reg pntr
+
+loadstore op1 op2 =
+    mov op1 op2
 --twoop :: Assembler m -> LIROperand -> LIROperand -> Assembler ()
 --twoop opcode op1@(ASMGenOperand ASMMemOperand {}) op2@(ASMGenOperand ASMMemOperand {}) =
     --do o2 <- asm op2
@@ -388,7 +396,7 @@ jumpType binop l' = opcode >> return ()
                   LGT -> jg l
                   LGTE -> jge l
                   LLT -> jl l
-                  LLTE -> jl l
+                  LLTE -> jle l
 
 genExpr :: LIRReg -> LIRExpr -> Assembler ()
 genExpr reg expr =
@@ -485,7 +493,7 @@ instance ASMOper LIROperand where
                 other  -> ASMGenOperand $ ASMRegOperand (mapRegister reg) 8
       
     asm (LIRIntOperand i)    = return $ ASMGenOperand $ ASMLitOperand i
-    asm (LIRStringOperand s) = return $ ASMGenOperand $ ASMSymOperand (ASMSym s)
+    asm (LIRStrOperand s) = return $ ASMGenOperand $ ASMSymOperand (ASMSym s)
 
 instance ASMOper LIRMemAddr where
     asm (LIRMemAddr (SREG s) reg offset size) =

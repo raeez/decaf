@@ -14,11 +14,12 @@ data Namespace = Namespace
     { temp       :: Int
     , labels     :: Int
     , scope      :: [Int]
+    , encMethod  :: String
     , blockindex :: [Int]
     }
 
 mkNamespace :: Int -> Namespace
-mkNamespace lastTemp= Namespace lastTemp 0 [] [0]
+mkNamespace lastTemp= Namespace lastTemp 0 [] "null" [0]
 
 newtype Translator a = Translator
     { runTranslator :: Namespace -> (a, Namespace) }
@@ -33,30 +34,36 @@ translate :: Translator a -> Namespace -> a
 translate comp ns = fst $ runTranslator comp ns
 
 incTemp :: Translator Int
-incTemp = Translator (\(Namespace t l s b) -> (t, Namespace (t+1) l s b))
+incTemp = Translator (\(Namespace t l s m b) -> (t, Namespace (t+1) l s m b))
 
 incLabel :: Translator Int
-incLabel = Translator (\(Namespace t l s b) -> (l, Namespace t (l+1) s b))
+incLabel = Translator (\(Namespace t l s m b) -> (l, Namespace t (l+1) s m b))
 
 getScope :: Translator Int
-getScope = Translator (\ns@(Namespace _ _ s _) -> (last s, ns))
+getScope = Translator (\ns@(Namespace _ _ s _ _) -> (last s, ns))
 
 getBlock :: Translator Int
-getBlock = Translator (\ns@(Namespace _ _ _ b) -> ((last . init) b, ns))
+getBlock = Translator (\ns@(Namespace _ _ _ _ b) -> ((last . init) b, ns))
+
+getMethod :: Translator String
+getMethod = Translator (\ns -> (encMethod ns, ns))
+
+setMethod :: String -> Translator ()
+setMethod newMethod = Translator (\ns -> ((), ns{ encMethod = newMethod }))
 
 getNesting :: Translator [Int]
-getNesting = Translator (\ns@(Namespace _ _ _ b) -> (b, ns))
+getNesting = Translator (\ns@(Namespace _ _ _ _ b) -> (b, ns))
 
 withScope :: Int -> Translator a -> Translator a
-withScope label m = Translator (\(Namespace t l s b) ->
-    let (a, Namespace t' l' _ b') = runTranslator m (Namespace t l (s ++ [label]) b)
-    in (a, Namespace t' l' s b'))
+withScope label m = Translator (\(Namespace t l s me b) ->
+    let (a, Namespace t' l' _ me' b') = runTranslator m (Namespace t l (s ++ [label]) me b)
+    in (a, Namespace t' l' s me' b'))
 
 withBlock :: Translator a -> Translator a
-withBlock m = Translator (\(Namespace t l s b) ->
+withBlock m = Translator (\(Namespace t l s me b) ->
     let b' = init b ++ [last b + 1]
-        (a, Namespace t' l' s' _) = runTranslator m (Namespace t l s (b ++ [0]))
-    in (a, Namespace t' l' s' b'))
+        (a, Namespace t' l' s' me' _) = runTranslator m (Namespace t l s me (b ++ [0]))
+    in (a, Namespace t' l' s' me' b'))
 
 -- | Given a SymbolTree, Translate a DecafProgram into an LIRProgram
 translateProgram :: SymbolTree -> DecafProgram -> Translator CFGProgram
@@ -71,9 +78,12 @@ translateMethod :: SymbolTree -> DecafMethod -> Translator CFGUnit
 translateMethod st method =
     do (case symLookup (methodID method) (table st) of
         Just (index, MethodRec _ (label, count)) ->
-            do body <- translateBlock (st) (methodBody method)
+            do oldMethod <- getMethod
+               setMethod (methodID method)
+               body <- translateBlock (st) (methodBody method)
                prologue <- translateMethodPrologue (st' index) method
                postcall <- translateMethodPostcall st method
+               setMethod oldMethod
                return $ CFGUnit (methodlabel count) (prologue
                                                   ++ body
                                                   ++ postcall)
@@ -327,9 +337,10 @@ translateLiteral _ (DecafCharLit c _) = return $ LIRIntOperand (fromIntegral $ o
 
 translateMethodPostcall :: SymbolTree -> DecafMethod -> Translator [CFGInst]
 translateMethodPostcall st (DecafMethod ty ident _ _ _) =
-    if mustRet
-      then return $ throwException missingRet st
-      else return [CFGLIRInst $ LIRRetInst]
+    do method <- getMethod
+       return (if mustRet
+                then throwException missingRet st method
+                else [CFGLIRInst $ LIRRetInst])
   where
     mustRet = case ty of
                   DecafVoid -> False
@@ -393,7 +404,7 @@ translateString st string =
     (case globalSymLookup ('.':string) st of
          Just (StringRec _ label) ->
              do t <- incTemp
-                return ([CFGLIRInst $ LIRRegAssignInst (SREG t) (LIROperExpr $ LIRStringOperand $ stringLabel label)], LIRRegOperand $ SREG t)
+                return ([CFGLIRInst $ LIRRegAssignInst (SREG t) (LIROperExpr $ LIRStrOperand $ stringLabel label)], LIRRegOperand $ SREG t)
          _ -> return ([CFGLIRInst $ LIRLabelInst $ LIRLabel $ "Translator.hs:translateString Invalid SymbolTable; could not find '" ++ string ++ "' symbol"], LIRRegOperand LRBP))
 
 translateLocation :: SymbolTree -> DecafLoc -> Translator ([CFGInst], LIROperand)
@@ -414,12 +425,13 @@ translateLocation st loc =
 
 arrayBoundsCheck :: SymbolTree -> DecafArr -> LIROperand -> Translator [CFGInst]
 arrayBoundsCheck st (DecafArr _ _ len _) indexOperand =
-    do l <- incTemp
+    do method <- getMethod
+       l <- incTemp
        return ([CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LLT (LIRIntOperand $ readDecafInteger len)) ((boundsLabel False l))] -- TODO check this
-           ++ (throwException outOfBounds st)
+           ++ (throwException outOfBounds st method)
            ++ [CFGLIRInst $ LIRLabelInst $ (boundsLabel False l)]
            ++ [CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LGTE (LIRIntOperand 0)) (boundsLabel True l)] -- TODO check this
-           ++ (throwException outOfBounds st)
+           ++ (throwException outOfBounds st method)
            ++ [CFGLIRInst $ LIRLabelInst $ boundsLabel True l])
 
 symVar :: DecafVar -> SymbolTree -> LIRReg
@@ -447,9 +459,13 @@ arrayMemaddr (DecafArr ty _ len _) (ArrayRec _ l) operand =
                 _ -> error "Translate.hs:arrayMemaddr Array cannot have type void")
 
 -- |'throwException' generates code for throwing an exception (our convention is to jump to the label __exception 
-throwException :: Int -> SymbolTree -> [CFGInst]
-throwException code st = 
-    [CFGLIRInst $ LIRJumpLabelInst $ exceptionLabel st (exception code)]
+throwException :: Int -> SymbolTree -> String -> [CFGInst]
+throwException code st method = 
+    case globalSymLookup ('.':method) st of
+            Just (StringRec _ label) ->
+                [CFGLIRInst $ LIRRegAssignInst LRSI (LIROperExpr (LIRStrOperand $ stringLabel label))]
+             ++ [CFGLIRInst $ LIRJumpLabelInst $ exceptionLabel st (exception code)]
+            other -> error $ "Translate.hs:throwException could not find symbol for :" ++ method
 
 exceptionHandlers = [missingRetHandler, outOfBoundsHandler]
 
