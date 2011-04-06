@@ -1,12 +1,15 @@
 {-# LANGUAGE RankNTypes
   , MultiParamTypeClasses
   , FlexibleInstances
-  , ImpredicativeTypes #-}
+  , ImpredicativeTypes
+  , GADTs #-}
 
 module Decaf.Assembler where
-import Prelude hiding (not, div)
+import Prelude hiding (not, div, mapM)
 import Data.Int
 import Data.Char
+import Data.Set hiding (map)
+import Data.Traversable
 import Decaf.IR.SymbolTable
 import Decaf.IR.LIR
 import Decaf.IR.AST
@@ -15,11 +18,10 @@ import Decaf.IR.ASM
 ------------------- MONAD -----------------------------
 data AssemblerState = AssemblerState
     { assembler       :: ASMList
-    , declaredSymbols :: [String]
-    , utilizedSymbols :: [String]
+    , declaredSymbols :: Set ASMExternDecl
+    , utilizedSymbols :: Set ASMExternDecl
     , machine         :: MachineState
     }
-
 data MachineState = MachineState
     { state :: [Int] }
 
@@ -33,7 +35,7 @@ instance Monad Assembler where
         in runAssembler (f a) s')
 
 mkAssemblerState :: AssemblerState
-mkAssemblerState = AssemblerState ASMNil [] [] mkMachine
+mkAssemblerState = AssemblerState ASMNil empty empty mkMachine
 
 mkMachine :: MachineState
 mkMachine = MachineState []
@@ -43,16 +45,24 @@ appendAssembler item = Assembler (\s ->
     let updatedData = ASMCons item (assembler s)
     in ((), s { assembler = updatedData }))
 
-appendSymbol :: String -> Assembler ()
-appendSymbol item = Assembler (\s ->
-    let updatedData = [item] ++ declaredSymbols s
-    in ((), s { declaredSymbols = updatedData }))
 
 declareSymbol :: String -> Assembler ()
-declareSymbol id = appendSymbol id
+declareSymbol sym = Assembler (\s ->
+    let updatedData = insert (ASMExternDecl sym) (declaredSymbols s)
+    in ((), s { declaredSymbols = updatedData }))
+
+useSymbol :: String -> Assembler ()
+useSymbol sym = Assembler (\s ->
+    let updatedData = insert (ASMExternDecl sym) (utilizedSymbols s)
+    in ((), s { utilizedSymbols = updatedData }))
 
 getAsmList :: Assembler ASMList
 getAsmList = Assembler (\s -> (assembler s, s))
+
+getExterns :: Assembler (Set ASMExternDecl)
+getExterns = Assembler (\s -> (externs s, s))
+  where
+    externs s = difference (utilizedSymbols s) (declaredSymbols s) 
 
 mov :: ASMGenOperand -> ASMGenOperand -> Assembler ()
 mov (ASMGenOperand op1) (ASMGenOperand op2) = appendAssembler (ASMMovInst op1 op2)
@@ -108,36 +118,46 @@ not (ASMGenOperand o) = appendAssembler (ASMNotInst o)
 cmp :: ASMGenOperand -> ASMGenOperand -> Assembler ()
 cmp (ASMGenOperand op1) (ASMGenOperand op2) = appendAssembler (ASMCmpInst op1 op2)
 
-enter :: Int -> Assembler ()
+enter :: Int64 -> Assembler ()
 enter offset = appendAssembler (ASMEnterInst offset)
 
 label :: ASMLabel -> Assembler ()
 label l = appendAssembler (ASMLabelInst l)
 
-call :: ASMSymbol -> Assembler ()
+call :: ASMSym -> Assembler ()
 call symbol = appendAssembler (ASMCallInst symbol)
 
 ret :: Assembler ()
 ret = appendAssembler (ASMRetInst)
 
 ------------------- ASSEMBLER --------------------------
-defaultFlags :: [ASMFlag]
+defaultFlags :: Set ASMFlag
 defaultFlags =
-    [ ASMFlag "USE64"
-    ]
+    fromList flags
+  where
+    flags =
+        [ ASMFlag "USE64"
+        ]
 
-defaultExterns :: [ASMExternDecl]
+defaultExterns :: Set ASMExternDecl
 defaultExterns =
-    [ ASMExternDecl "printf"
-    , ASMExternDecl "get_int_035"
-    ]
+    fromList externs
+  where
+    externs =
+        [ ASMExternDecl "printf"
+        , ASMExternDecl "get_int_035"
+        ]
 
 programAssembler :: SymbolTable -> LIRProgram -> Assembler ASMProgram
 programAssembler st prog =
-    do dataSection <- mapDataSection st
+    do -- generate data section
+       dataSection <- mapDataSection st
+       -- generate text section
        mapTextSection prog
        text <- getAsmList
-       return (ASMProgram defaultFlags defaultExterns [dataSection, ASMTextSection text])
+       -- generate externs
+       externs <- getExterns
+       return (ASMProgram defaultFlags (union defaultExterns externs) [dataSection, ASMTextSection text])
 
 ------------------- DATA --------------------------------
 
@@ -155,27 +175,29 @@ mapDataSection (SymbolTable records _) =
 
 mapDataDecl :: SymbolRecord -> Assembler (Maybe ASMDataDecl)
 mapDataDecl (VarRec (DecafVar ty ident _) num) =
-    do declareSymbol id
-       return $ Just (ASMCommonSegment (ASMLabel id) size)
+    do declareSymbol sym
+       return $ Just (ASMCommonSegment (ASMLabel sym) size)
   where
-    id = "g" ++ show (-num - 1)
+    sym = "g" ++ show (-num - 1)
     size = 1
 
 mapDataDecl (ArrayRec (DecafArr ty ident len _) go) =
-    do declareSymbol id
-       return $ Just (ASMCommonSegment (ASMLabel id) size)
+    do declareSymbol sym
+       return $ Just (ASMCommonSegment (ASMLabel sym) size)
   where
-    id = arrayLabel go
+    sym = arrayLabel go
     size = readDecafInteger len
 
 mapDataDecl (StringRec str sl) = 
-    do declareSymbol id
-       return $ Just (ASMDataSegment (ASMLabel id) byteString)
+    do declareSymbol sym
+       return $ Just (ASMDataSegment (ASMLabel sym) byteString)
   where
-    id = stringLabel sl
-    byteString = (map (ASMByte . ord) (str ++ ['\0']))
+    sym = stringLabel sl
+    byteString = (map (ASMByte . fromIntegral . ord) (str ++ ['\0']))
 
-mapDataDecl other = return Nothing
+mapDataDecl (MethodRec m (_, i)) =
+    do declareSymbol $ methodLabel (methodID m) i
+       return Nothing
 
 ------------------- TEXT --------------------------------
 
@@ -209,9 +231,11 @@ mapInst (LIRRegAssignInst reg e@(LIRBinExpr (LIRRegOperand reg') binop op2)) =
         if reg == reg'
           then if reg == LRSP
                 then case binop of
-                    LSUB      -> do operOpen op2 1
+                    LSUB      -> do o2 <- asm op2
+                                    mov r11 o2
                                     sub rsp r11
-                    LADD      -> do operOpen op2 1
+                    LADD      -> do o2 <- asm op2
+                                    mov r11 o2
                                     add rsp r11 
                     otherwise -> genExpr reg e
                 else genExpr reg e
@@ -221,117 +245,142 @@ mapInst (LIRRegAssignInst reg expr@(LIRBinExpr op1 binop op2)) =
         genExpr reg expr
 
 mapInst (LIRRegAssignInst reg (LIRUnExpr LNEG operand)) =
-    do mov' reg operand
-       neg (asm (LIRRegOperand reg))
+    do r <- asm reg
+       o <- asm operand
+       mov' r o
+
+       r <- asm $ LIRRegOperand reg
+       neg r
 
 mapInst (LIRRegAssignInst reg (LIRUnExpr LNOT operand)) =
-    do mov' reg operand
-       not (asm (LIRRegOperand reg))
+    do r <- asm reg
+       o <- asm operand
+       mov' r o
+
+       r <- asm $ LIRRegOperand reg
+       not r
 
 mapInst (LIRRegAssignInst reg (LIROperExpr operand)) =
     case reg of
-        LRSP      -> movaddr mem operand
-        otherwise -> mov' reg operand
+        LRSP      -> do m <- asm mem
+                        o <- asm operand
+                        loadstore m o
+        otherwise -> do r <- asm reg
+                        o <- asm operand
+                        mov' r o
   where
-    mem = LIRMemAddr LRSP Nothing (LIRInt 0) (LIRInt 8)
+    mem = LIRMemAddr LRSP Nothing 0 8
 
 mapInst (LIRRegOffAssignInst reg reg' size operand) = 
-    do operOpen operand 1
-       mov mem r11
+    do mov' mem operand
   where
-    mem = asm (LIRMemAddr reg (Just reg') (LIRInt 0) size)
+    mem = LIRMemAddr reg (Just reg') 0 size
 
 mapInst (LIRStoreInst mem operand) =
-        movaddr mem operand 
+    do m <- asm mem
+       o <- asm operand
+       loadstore m o
 
---mapInst (LIRLoadInst reg mem@(LIRRegPlusMemAddr arr offset (LIRInt size))) = 
---        do operOpen offset 1
---           mov r10 (asm mem)
---           regSave reg
-        
 mapInst (LIRLoadInst reg mem) =
-        mov' reg mem
+    do r <- asm reg
+       m <- asm mem
+       loadstore r m
 
 mapInst (LIRJumpLabelInst (LIRLabel l)) =
         jmp (ASMLabel l)
 
 mapInst (LIRIfInst (LIRBinRelExpr op1 binop op2) (LIRLabel l)) =
-    do cmp' op1 op2
-       jtype binop l
+    do o1 <- asm op1
+       o2 <- asm op2
+       cmp' o1 o2
+
+       jumpType binop l
 
 mapInst (LIRIfInst (LIRNotRelExpr operand) (LIRLabel l)) =
-    do cmp' operand (LIRIntOperand asmFalse)
+    do o <- asm operand
+       cmp' o (lit litFalse)
+
        jl (ASMLabel l)
 
 mapInst (LIRIfInst (LIROperRelExpr operand) (LIRLabel l)) =
-    do cmp' operand (LIRIntOperand $ asmFalse)
+    do o <- asm operand
+       cmp' o (lit litFalse)
+
        jl (ASMLabel l)
 
-mapInst (LIRCallInst (LIRProcLabel  proc)) =
-    call (ASMSymbol proc)
+mapInst (LIRCallInst (LIRProcLabel proc)) =
+    do useSymbol proc
+       call (ASMSym proc)
 
-mapInst (LIRTempEnterInst s) =
-    enter (s * 8)
+mapInst (LIREnterInst s) =
+    -- enter (s * 8)
+    do push rbp
+       mov rbp rsp
+       sub rsp (lit s)
 
 mapInst LIRRetInst =
-    do mov rsp rbp
-       pop rbp
+    do leave
        ret
-
 mapInst (LIRLabelInst (LIRLabel l)) = label (ASMLabel l)
 
-regOpen :: LIRReg -> Assembler ()
-regOpen r = 
-    mov r10 (asm r)
+leave :: Assembler ()
+leave = do mov rsp rbp
+           pop rbp
 
-regSave :: LIRReg -> Assembler ()
-regSave r = mov (asm r) r10
+loadstore :: ASMGenOperand -> ASMGenOperand -> Assembler ()
+loadstore reg@(ASMGenOperand ASMRegOperand {}) addr@(ASMGenOperand ASMMemOperand {}) =
+    mov reg addr
 
-operOpen :: ASMOper a => a -> Int -> Assembler ()
-operOpen op num =
-    mov reg (asm op)
-  where
-    reg = case num of
-              0 -> r10
-              1 -> r11
+loadstore addr1@(ASMGenOperand ASMMemOperand {}) addr2@(ASMGenOperand ASMMemOperand {}) =
+    do mov r10 addr2
+       mov addr1 r10
 
-movaddr :: ASMOper a => LIRMemAddr -> a -> Assembler ()
-movaddr addr op2 =
-  do operOpen op2 1
-     mov (asm addr) r11
+loadstore addr@(ASMGenOperand ASMMemOperand {}) pntr@(ASMGenOperand ASMPntOperand {}) =
+    do mov r10 pntr
+       mov addr r10
 
 --twoop :: Assembler m -> LIROperand -> LIROperand -> Assembler ()
-twoop opcode o1@(SREG {}) o2 =
-    do operOpen o2 1
-       opcode r10 r11
-       regSave o1
+--twoop opcode op1@(ASMGenOperand ASMMemOperand {}) op2@(ASMGenOperand ASMMemOperand {}) =
+    --do o2 <- asm op2
+       --mov r11 o2
 
-twoop opcode o1 o2 =
-    do operOpen o2 1
-       opcode (asm o1) r11
+       --opcode r10 r11
+
+       --o1 <- asm op1
+       --mov o1 r10
+
+--twoop opcode op1@(ASMGenOperand ASMMemOperand {}) op2@(ASMGenOperand ASMMemOperand {}) =
+    --do o2 <- asm op2
+       
+twoop opcode op1 op2 =
+    do o2 <- asm op2
+       mov r11 o2
+
+       o1 <- asm op1
+       opcode o1 r11
 
 mov' op1 op2 = twoop mov op1 op2
 add' op1 op2 = twoop add op1 op2
 sub' op1 op2 = twoop sub op1 op2
 cmp' op1 op2 =
-    do operOpen op1 0
-       operOpen op2 1
+    do mov r10 op1
+       mov r11 op2
        cmp r10 r11
 
 mul' op =
-    do operOpen op 0
+    do mov r10 op
        mul r10
 
 div' op =
-    do operOpen op 0
+    do mov r10 op
        div r10
 
 mod' op =
-    do operOpen op 0
+    do mov r10 op
        div r10
 
-jtype :: LIRRelOp -> String -> Assembler ()
-jtype binop l' = opcode >> return ()
+jumpType :: LIRRelOp -> String -> Assembler ()
+jumpType binop l' = opcode >> return ()
   where
     l = ASMLabel l'
     opcode = case binop of
@@ -345,79 +394,148 @@ jtype binop l' = opcode >> return ()
 genExpr :: LIRReg -> LIRExpr -> Assembler ()
 genExpr reg expr =
   case expr of
-      LIRBinExpr op1' LSUB op2' -> do mov' LR10 op1' 
-                                      sub' LR10 op2'
-                                      regSave reg
+      LIRBinExpr op1' LSUB op2' -> do o1 <- asm op1'
+                                      mov' r10  o1
 
-      LIRBinExpr op1' LADD op2' -> do mov' LR10 op1'
-                                      add' LR10 op2'
-                                      regSave reg
+                                      o2 <- asm op2'
+                                      sub' r10 o2
 
-      LIRBinExpr op1' LMUL op2' -> do mov' LRAX op1'
-                                      mul' op2'
-                                      mov (asm reg) rax
+                                      r <- asm reg
+                                      mov r r10
 
-      LIRBinExpr op1' LDIV  op2' -> do mov' LR9 LRDX
-                                       mov' LRDX (LIRIntOperand $ LIRInt 0) -- must be 0
-                                       mov' LRAX op1'
-                                       div' op2'
-                                       mov (asm reg) rax
-                                       mov' LRDX r9
+      LIRBinExpr op1' LADD op2' -> do o1 <- asm op1'
+                                      mov' r10 o1
 
-      LIRBinExpr op1' LMOD  op2' -> do mov' LR9 LRDX
-                                       mov' LRDX (LIRIntOperand $ LIRInt 0) --must be 0
-                                       mov' LRAX op1'
-                                       div' op2'
-                                       mov (asm reg) rdx
-                                       mov' LRDX LR9
+                                      o2 <- asm op2'
+                                      add' r10 o2
+                                      r <- asm reg
+                                      mov r r10
+
+      LIRBinExpr op1' LMUL op2' -> do o1 <- asm op1'
+                                      mov' rax o1
+
+                                      o2 <- asm op2'
+                                      mul' o2
+
+                                      r <- asm reg
+                                      mov r rax
+
+      LIRBinExpr op1' LDIV  op2' -> do mov' r9 rdx
+                                       mov' rdx (lit 0) -- must be 0
+
+                                       o1 <- asm op1'
+                                       mov' rax o1
+
+                                       o2 <- asm op2'
+                                       div' o2
+
+                                       r <- asm reg
+                                       mov r rax
+                                       mov' rdx r9
+
+      LIRBinExpr op1' LMOD  op2' -> do mov' r9 rdx
+                                       mov' rdx (lit 0) --must be 0
+
+                                       o1 <- asm op1'
+                                       mov' rax o1
+
+                                       o2 <- asm op2'
+                                       div' o2
+
+                                       o1 <- asm reg
+                                       mov o1 rdx
+
+                                       mov' rdx r9
 
       LIRBinExpr op1' (LIRBinRelOp binop (LIRLabel l)) op2' ->
-            do cmp' op1' op2'
-               jtype binop l
-               mov' reg (LIRIntOperand asmFalse)
-               jmp endl
-               mov' reg (LIRIntOperand asmTrue)
-               label endl
+        do op1 <- asm op1'
+           op2 <- asm op2'
+           cmp' op1 op2
+
+           jumpType binop l
+
+           op1 <- asm reg
+           mov' op1 (lit litTrue)
+
+           jmp endl
+
+           label (ASMLabel l)
+
+           op1 <- asm reg
+           mov' op1 (lit litFalse)
+
+           label endl
         where
           endl = ASMLabel (l ++ "_end")
 
-mapRegister :: LIRReg -> ASMReg
-mapRegister reg =
-    case reg of
-            LRAX -> RAX
-            LRBX -> RBX
-            LRCX -> RCX
-            LRDX -> RDX
-            LRBP -> RBP
-            LRSP -> RSP
-            LRSI -> RSI
-            LRDI -> RDI
-            LR8 -> R8
-            LR9 -> R9
-            LR10 -> R10
-            LR11 -> R11
-            LR12 -> R12
-            LR13 -> R13
-            LR14 -> R14
-            LR15 -> R15
-            MEM s -> R15
-            GI s -> R15
-            SREG s -> R15
 
 class ASMOper a where
-    asm :: a -> ASMGenOperand
+    asm :: a -> Assembler ASMGenOperand
 
 instance ASMOper LIROperand where
-    asm (LIRRegOperand reg)  = ASMGenOperand $ ASMRegOperand (mapRegister reg) 8 -- TODO figure out if it's safe to assume qword
-    asm (LIRIntOperand (LIRInt i)) = ASMGenOperand $ ASMLitOperand i
-    asm (LIRStringOperand s) = ASMGenOperand $ ASMSymbolOperand (ASMSymbol s) 0 0
+    asm (LIRRegOperand reg) =
+        return $ genOperand reg
+      where
+        genOperand reg =
+            case reg of
+                MEM s  -> ASMGenOperand $ ASMPntOperand (ASMSym s)
+                GI s   ->  ASMGenOperand $ ASMMemOperand (ASMSymBase $ ASMSym $ "g" ++ show s) Nothing 0 8
+                SREG s -> ASMGenOperand $ ASMMemOperand (ASMRegBase RBP) Nothing address 8
+                  where
+                    address =  fromIntegral (-8 * (s+1)) :: ASMInt
+                other  -> ASMGenOperand $ ASMRegOperand (mapRegister reg) 8
+      
+    asm (LIRIntOperand i)    = return $ ASMGenOperand $ ASMLitOperand i
+    asm (LIRStringOperand s) = return $ ASMGenOperand $ ASMSymOperand (ASMSym s) 0 8
 
 instance ASMOper LIRMemAddr where
-    asm (LIRMemAddr base reg (LIRInt offset) (LIRInt size)) =
-        ASMGenOperand $ ASMMemAddr (mapRegister base) (fmap mapRegister reg) offset size
+    asm (LIRMemAddr (SREG s) reg offset size) =
+        do r <- Data.Traversable.sequence $ fmap mapMemBase reg
+           return $ ASMGenOperand $ ASMMemOperand (ASMRegBase RBP) r (offset + (stackAddress s)) size
+    asm (LIRMemAddr base reg offset size) =
+        do b <- mapMemBase base
+           r <- Data.Traversable.sequence $ fmap mapMemBase reg
+           return $ ASMGenOperand $ ASMMemOperand b r offset size
 
 instance ASMOper ASMGenOperand where
-    asm = id
+    asm op = return op
 
 instance ASMOper LIRReg where
-    asm r = ASMGenOperand $ ASMRegOperand (mapRegister r) 8
+    asm reg = case reg of
+        SREG s -> return $ ASMGenOperand $ ASMMemOperand (ASMRegBase RBP) Nothing (stackAddress s) 8
+        MEM s -> do r <- mapMemBase reg
+                    return $ ASMGenOperand $ ASMMemOperand r Nothing 0 8
+        GI s  -> do r <- mapMemBase reg
+                    return $ ASMGenOperand $ ASMMemOperand r Nothing 0 8
+        other -> return $ ASMGenOperand $ ASMRegOperand (mapRegister reg) 8
+
+mapMemBase reg =
+    case reg of
+        MEM s   -> return $ ASMSymBase (ASMSym s)
+        GI s    -> return $ ASMSymBase (ASMSym $ "g" ++ show s)
+        SREG s  -> do let stackVar = ASMGenOperand $ ASMMemOperand (ASMRegBase RBP) Nothing (stackAddress s) 8
+                      mov r10 stackVar
+                      return $ ASMRegBase R10
+        other   -> return $ ASMRegBase (mapRegister reg)
+
+stackAddress :: Int -> ASMInt
+stackAddress s = fromIntegral $ -8 * (s + 1) :: ASMInt
+
+mapRegister reg =
+    case reg of
+        LRAX -> RAX
+        LRBX -> RBX
+        LRCX -> RCX
+        LRDX -> RDX
+        LRBP -> RBP
+        LRSP -> RSP
+        LRSI -> RSI
+        LRDI -> RDI
+        LR8 -> R8
+        LR9 -> R9
+        LR10 -> R10
+        LR11 -> R11
+        LR12 -> R12
+        LR13 -> R13
+        LR14 -> R14
+        LR15 -> R15

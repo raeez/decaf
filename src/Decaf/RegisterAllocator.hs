@@ -56,12 +56,6 @@ instance Data LIRMemAddr where
      a'4 <- f a4
      return (LIRMemAddr a'1 a'2 a'3 a'4)
 
-instance Data LIRInt where
- gmapM f (LIRInt a1) =
-  do 
-     a'1 <- f a1
-     return (LIRInt a'1)
-
 instance Data LIRRelExpr where
  gmapM f (LIRBinRelExpr a1 a2 a3) =
   do 
@@ -82,10 +76,8 @@ instance Data LIRRelExpr where
 instance Data LIRInst where
  gmapT f (LIRRegAssignInst a1 a2) = LIRRegAssignInst (f a1) (f a2)
  gmapT f (LIRRegOffAssignInst a1 a2 a3 a4) = LIRRegOffAssignInst (f a1) (f a2) (f a3) (f a4)
- gmapT f (LIRCondAssignInst a1 a2 a3) = LIRCondAssignInst (f a1) (f a2) (f a3)
  gmapT f (LIRStoreInst a1 a2) = LIRStoreInst (f a1) (f a2)
  gmapT f (LIRLoadInst a1 a2) = LIRLoadInst (f a1) (f a2)
- gmapT f (LIRJumpRegInst a1 a2) = LIRJumpRegInst (f a1) (f a2)
  gmapT f (LIRJumpLabelInst a1) = LIRJumpLabelInst (f a1)
  gmapT f (LIRIfInst a1 a2) = LIRIfInst (f a1) (f a2)
  gmapT f (LIRRetInst) = LIRRetInst
@@ -109,12 +101,6 @@ instance Data LIRInst where
      a'3 <- f a3
      a'4 <- f a4
      return (LIRRegOffAssignInst a'1 a'2 a'3 a'4)
- gmapM f (LIRCondAssignInst a1 a2 a3) =
-  do 
-     a'1 <- f a1
-     a'2 <- f a2
-     a'3 <- f a3
-     return (LIRCondAssignInst a'1 a'2 a'3)
  gmapM f (LIRStoreInst a1 a2) =
   do 
      a'1 <- f a1
@@ -125,15 +111,10 @@ instance Data LIRInst where
      a'1 <- f a1
      a'2 <- f a2
      return (LIRLoadInst a'1 a'2)
- gmapM f (LIRTempEnterInst a1) = 
+ gmapM f (LIREnterInst a1) = 
   do 
      a'1 <- f a1
-     return (LIRTempEnterInst a'1)
- gmapM f (LIRJumpRegInst a1 a2) =
-  do 
-     a'1 <- f a1
-     a'2 <- f a2
-     return (LIRJumpRegInst a'1 a'2)
+     return (LIREnterInst a'1)
  gmapM f (LIRJumpLabelInst a1) =
   do 
      a'1 <- f a1
@@ -430,6 +411,17 @@ getMethods st =
     in 
       concatMap pullMethod recs
 
+--genLoadStores :: LIRInst -> [LIRInst]
+--genLoadStores (LIRRegAssignInst (MEM s) LIRExpr) =
+--genLoadStores (LIRRegAssignInst (GI s) LIRExpr) =
+--genLoadStores (LIRRegAssignInst (SREG s) LIRExpr) =
+
+--genLoadStores inst@(LIRRegCmpAssignInst LIRReg LIRExpr LIRLabel) =
+--genLoadStores inst@(LIRRegOffAssignInst LIRReg LIRReg LIRSize LIROperand) =
+--genLoadStores inst@(LIRStoreInst LIRMemAddr LIROperand) =
+--genLoadStores inst@(LIRLoadInst LIRReg LIRMemAddr) =
+--genLoadStores other = other
+
 
 allocateRegisters :: SymbolTree -> LIRProgram -> (LIRProgram, Int, [RegCounterState])
 allocateRegisters st prog = 
@@ -453,7 +445,9 @@ allocateRegisters st prog =
         appendEnter (i, u) = 
             let insts = lirUnitInstructions u
             in
-              u{lirUnitInstructions = (head insts) : ((LIRTempEnterInst i):(tail insts))}
+              u{lirUnitInstructions = (head insts) : ((LIREnterInst lirsize):(tail insts))}
+          where
+            lirsize = fromIntegral i :: LIRInt
 
 
         fixOffset :: (DecafMethod, LIRUnit) -> LIRUnit
@@ -466,7 +460,7 @@ allocateRegisters st prog =
                 help c (rec:rs) = 
                     case rec of 
                       VarRec {} -> help (c+1) rs
-                      ArrayRec r@(DecafArr{}) _ -> help (c+(readDecafInteger $ arrayLength r)) rs
+                      ArrayRec r@(DecafArr{}) _ -> help (c+(fromIntegral $ readDecafInteger $ arrayLength r :: Int)) rs
                       otherwise -> help c rs
                     
 

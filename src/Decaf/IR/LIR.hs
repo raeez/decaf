@@ -1,26 +1,33 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable
+  , TypeSynonymInstances #-}
 
 module Decaf.IR.LIR where
 import Numeric
+import Data.Int
 import Decaf.IR.Class
 import Decaf.Data.Tree
 import Data.Typeable
 import Decaf.IR.SymbolTable
 
 byte :: LIRInt
-byte = LIRInt 1
+byte = 1
 
 word :: LIRInt
-word = LIRInt 2
+word = 2
 
 dword :: LIRInt
-dword = LIRInt 4
+dword = 4
 
 qword :: LIRInt
-qword = LIRInt 8
+qword = 8
 
-asmTrue = LIRInt (-1)
-asmFalse = LIRInt 0
+asmTrue, asmFalse :: LIRInt
+asmTrue = (-1)
+asmFalse = 0
+
+litTrue, litFalse :: LIRInt
+litTrue = -1
+litFalse = 0
 
 missingRetMessage :: String
 missingRetMessage = "EXCEPTION: ARRAY OUT OF BOUNDS\n"
@@ -90,11 +97,9 @@ data LIRUnit = LIRUnit
 data LIRInst = LIRRegAssignInst LIRReg LIRExpr
              | LIRRegCmpAssignInst LIRReg LIRExpr LIRLabel
              | LIRRegOffAssignInst LIRReg LIRReg LIRSize LIROperand
-             | LIRCondAssignInst LIRReg LIRReg LIROperand
              | LIRStoreInst LIRMemAddr LIROperand
              | LIRLoadInst LIRReg LIRMemAddr
-             | LIRTempEnterInst Int
-             | LIRJumpRegInst LIRReg LIROffset
+             | LIREnterInst Int64
              | LIRJumpLabelInst LIRLabel
              | LIRIfInst LIRRelExpr LIRLabel
              | LIRCallInst LIRProc
@@ -176,8 +181,7 @@ type LIRSize = LIRInt
 
 type LIROffset = LIRInt
 
-data LIRInt = LIRInt Int
-            deriving (Show, Eq, Typeable)
+type LIRInt = Int64
 
 data LIRLabel = LIRLabel String
               deriving (Show, Eq, Typeable)
@@ -205,11 +209,9 @@ instance IRNode LIRInst where
     pp (LIRRegAssignInst reg expr) = pp reg ++ " <- " ++ pp expr
     pp (LIRRegCmpAssignInst reg expr label) = pp reg ++ " <- " ++ pp expr ++ " [" ++ pp label ++ "]"
     pp (LIRRegOffAssignInst reg offset size operand) = pp reg ++ "(" ++ pp offset ++ ", " ++ pp size ++ ") <- " ++ pp operand
-    pp (LIRCondAssignInst reg reg' operand) = pp reg ++ " <- (" ++ pp reg' ++ ") " ++ pp operand
     pp (LIRStoreInst mem operand) = "STORE " ++ pp mem ++ ", " ++ pp operand
     pp (LIRLoadInst reg mem) = "LOAD " ++ pp reg ++ ", " ++ pp mem
-    pp (LIRTempEnterInst num) = "ENTER " ++ (show num)
-    pp (LIRJumpRegInst reg offset) = "JMP " ++ pp reg ++ "[" ++ show offset ++ "]"
+    pp (LIREnterInst num) = "ENTER " ++ (show num)
     pp (LIRJumpLabelInst label) = "JMP " ++ pp label
     pp (LIRIfInst expr label) = "IF " ++ pp expr ++ " JMP " ++ pp label
     pp (LIRCallInst proc) = "call " ++ pp proc
@@ -217,10 +219,8 @@ instance IRNode LIRInst where
     pp (LIRLabelInst label) = pp label
     treeify (LIRRegAssignInst reg expr) = Node "ASSIGN" [treeify reg, treeify expr]
     treeify (LIRRegOffAssignInst reg offset size operand) = Node "ASSIGN" [treeify reg, treeify offset, treeify size, treeify operand]
-    treeify (LIRCondAssignInst reg reg' operand) = Node "CONDASSIGN" [treeify reg, treeify reg', treeify operand]
     treeify (LIRStoreInst mem operand) = Node "STR" [treeify mem, treeify operand]
     treeify (LIRLoadInst reg mem) = Node "LD" [treeify reg, treeify mem]
-    treeify (LIRJumpRegInst reg offset) = Node "JMP" [treeify reg, treeify offset]
     treeify (LIRJumpLabelInst label) = Node "JMP" [treeify label]
     treeify (LIRIfInst expr label) = Node "IF" [treeify expr, treeify label]
     treeify (LIRCallInst proc) = Node "CALL" [treeify proc]
@@ -334,7 +334,7 @@ instance IRNode LIRReg where
     pos _     = error "LIR has no associated position"
 
 instance IRNode LIRInt where
-    pp (LIRInt i) = (if i < 0 then "-" else "") ++ "0x" ++ showHex (abs i) ""
+    pp i = (if i < 0 then "-" else "") ++ "0x" ++ showHex (abs i) ""
     treeify i = Node (pp i) []
     pos _     = error "LIR has no associated position"
 

@@ -9,6 +9,9 @@ import Numeric
 import Data.List
 import Data.Char
 import Data.Int
+import Data.Set hiding (map)
+
+type ASMInt = Int64
 
 class SymbolicAssembler a where
     -- | The 'intelasm' function formats its input
@@ -20,14 +23,16 @@ class SymbolicAssembler a where
     gnuasm :: a -> String
 
 data ASMProgram = ASMProgram
-    { progFlags    :: [ASMFlag]
-    , progExterns  :: [ASMExternDecl]
+    { progFlags    :: Set ASMFlag
+    , progExterns  :: Set ASMExternDecl
     , progSections :: [ASMSection]
     }
 
 newtype ASMFlag = ASMFlag String
+                deriving (Ord, Eq)
 
 newtype ASMExternDecl = ASMExternDecl String
+                      deriving (Ord, Eq)
 
 data ASMSection = ASMTextSection
     { sectionInsts :: ASMList }
@@ -35,14 +40,13 @@ data ASMSection = ASMTextSection
     { sectionData  :: [ASMDataDecl] }
 
 data ASMDataDecl = ASMDataSegment ASMLabel [ASMByte]
-                 | ASMCommonSegment ASMLabel Int
+                 | ASMCommonSegment ASMLabel ASMInt
 
-newtype ASMByte = ASMByte Int
+newtype ASMByte = ASMByte Int8
 
 data Reg
 data Mem
 data Lit
-data Sym
 
 data ASMList where
     ASMCons :: forall t. SymbolicAssembler t =>  t ->  ASMList -> ASMList
@@ -86,7 +90,7 @@ data ASMInst a where
     ASMPopInst   :: ASMOperand a -> ASMInst a
     ASMNegInst   :: ASMOperand a -> ASMInst a
     ASMNotInst   :: ASMOperand a -> ASMInst a
-    ASMCallInst  :: ASMSymbol -> ASMInst ()
+    ASMCallInst  :: ASMSym -> ASMInst ()
     ASMJmpInst   :: ASMLabel -> ASMInst ()
     ASMJeInst    :: ASMLabel -> ASMInst ()
     ASMJneInst   :: ASMLabel -> ASMInst ()
@@ -95,20 +99,21 @@ data ASMInst a where
     ASMJlInst    :: ASMLabel -> ASMInst ()
     ASMJleInst   :: ASMLabel -> ASMInst ()
     ASMLabelInst :: ASMLabel -> ASMInst ()
-    ASMEnterInst :: Int -> ASMInst ()
+    ASMEnterInst :: Int64 -> ASMInst ()
     ASMRetInst   :: ASMInst ()
 
+data ASMMemBase = ASMRegBase ASMReg
+                | ASMSymBase ASMSym
+
 data ASMOperand a where
-    ASMMemAddr        :: ASMReg -> Maybe ASMReg -> Int -> Int -> ASMOperand Mem
-    ASMSymbolOperand  :: ASMSymbol -> Int -> Int -> ASMOperand Sym
-    ASMRegOperand     :: ASMReg -> Int -> ASMOperand Reg
-    ASMLitOperand     :: Int -> ASMOperand Lit
+    ASMMemOperand :: ASMMemBase -> Maybe ASMMemBase -> Int64 -> Int64 -> ASMOperand Mem
+    ASMSymOperand :: ASMSym -> Int64 -> Int64 -> ASMOperand Mem
+    ASMPntOperand :: ASMSym -> ASMOperand Mem
+    ASMRegOperand :: ASMReg -> Int64 -> ASMOperand Reg
+    ASMLitOperand :: Int64 -> ASMOperand Lit
 
 data ASMGenOperand where
     ASMGenOperand :: forall t. ASMOperand t -> ASMGenOperand
-
-instance SymbolicAssembler ASMGenOperand where
-    intelasm (ASMGenOperand o) = intelasm o
 
 data ASMReg = RAX
             | RCX
@@ -126,6 +131,9 @@ data ASMReg = RAX
             | R13
             | R14
             | R15
+
+lit :: Int64 -> ASMGenOperand
+lit i = ASMGenOperand $ ASMLitOperand i
 
 rax, rbx, rcx, rdx, rbp, rsp, rdi, r8, r9, r10, r11, r12, r13, r14, r15 ::
    ASMGenOperand
@@ -147,13 +155,13 @@ r13 = ASMGenOperand $ ASMRegOperand R13 8
 r14 = ASMGenOperand $ ASMRegOperand R14 8
 r15 = ASMGenOperand $ ASMRegOperand R15 8
 
-newtype ASMSymbol = ASMSymbol String
+newtype ASMSym = ASMSym String
 
 newtype ASMLabel = ASMLabel String
 
 -- | 'gnuSuffix' calculates the opcode suffix for
 -- x86 instructions.
-gnuSuffix :: Int -> Char
+gnuSuffix :: Int64 -> Char
 gnuSuffix size = case size of
                       1 -> 'b'
                       2 -> 'w'
@@ -162,7 +170,7 @@ gnuSuffix size = case size of
 
 -- | 'intelPrefix' calculates the word-size delimiter for
 -- memory addressing modes.
-intelPrefix :: Int -> String
+intelPrefix :: Int64 -> String
 intelPrefix size = case size of
                       0 -> "" -- undeclared
                       1 -> "byte"
@@ -181,8 +189,8 @@ indentMap [] = []
 indentMap (x:xs) = case x of
     [] -> indentMap xs
     _  -> if (head . reverse) x == ':'
-            then ["\n"] ++ [x] ++ indentMap xs
-            else ["    " ++ x] ++ indentMap xs
+            then ["\n"] ++ ["    " ++ x] ++ indentMap xs
+            else ["        " ++ x] ++ indentMap xs
 
 indent :: String
 indent = "    "
@@ -192,8 +200,8 @@ sep = "\n        "
 
 instance SymbolicAssembler ASMProgram where
     intelasm (ASMProgram flags externs sections) =
-        unlines (map intelasm flags)
-     ++ unlines (map intelasm externs)
+        unlines (map intelasm $ elems flags)
+     ++ unlines (map intelasm $ elems externs)
      ++ unlines (indentLabels intelasm sections)
 
 instance SymbolicAssembler ASMFlag where
@@ -222,13 +230,22 @@ instance SymbolicAssembler ASMDataDecl where
     intelasm (ASMDataSegment label bytes) =
         intelasm label ++ ": db " ++ outputBytes
       where
-        outputBytes = concat $ intersperse "," (map intelasm bytes)
+        outputBytes = concat $ intersperse ", " (map intelasm bytes)
 
     intelasm (ASMCommonSegment label size) =
         "common " ++ intelasm label ++ " " ++ show (size * 8) ++ ":8"
 
 instance SymbolicAssembler ASMByte where
-    intelasm (ASMByte byte) = "0x" ++ show byte
+    intelasm (ASMByte byte) =
+        (if byte < 0 then "-" else "") ++ "0x" ++ showHex (abs byte) ""
+ 
+
+instance SymbolicAssembler ASMGenOperand where
+    intelasm (ASMGenOperand o) = intelasm o
+
+instance SymbolicAssembler ASMMemBase where
+    intelasm (ASMRegBase reg) = intelasm reg
+    intelasm (ASMSymBase sym) = intelasm sym
 
 instance forall a. SymbolicAssembler (ASMInst a) where
     intelasm (ASMMovInst op1 op2) =
@@ -251,7 +268,7 @@ instance forall a. SymbolicAssembler (ASMInst a) where
     --intelasm (ASMShraInstASMOperand a -> ASMOperand b -> ASMInst (a, b)) =
  
     intelasm (ASMMulInst op) =
-        "mul " ++ intelasm op
+        "imul " ++ intelasm op
 
     intelasm (ASMDivInst op) =
         "div " ++ intelasm op
@@ -290,7 +307,7 @@ instance forall a. SymbolicAssembler (ASMInst a) where
         "jle " ++ intelasm label
 
     intelasm (ASMEnterInst offset) =
-        "enter " ++ show offset 
+        "enter " ++ literalDisplay offset 
 
     intelasm (ASMNegInst op) =
         "neg " ++ intelasm op
@@ -304,28 +321,36 @@ instance forall a. SymbolicAssembler (ASMInst a) where
     intelasm (ASMRetInst) =
         "ret"
 
-intelMemAddr :: SymbolicAssembler a => a -> Maybe ASMReg -> Int -> Int -> String
-intelMemAddr base base' offset size = 
+intelMemAddr :: SymbolicAssembler a => a -> Maybe a -> Int64 -> Int64 -> String
+intelMemAddr base reg offset size = 
     intelPrefix size ++ " [" ++ intelasm base ++ b' ++ off ++ "]"
   where
-      off = if offset > 0
-              then " + " ++ show offset ++ " "
-              else ""
-      b' = case base' of
-              Just reg -> " + " ++ intelasm reg
+      off
+        | offset /= 0 = literalDisplay offset
+        | otherwise  = ""
+
+      b' = case reg of
+              Just r -> " + " ++ intelasm r
               Nothing  -> ""
+
+literalDisplay :: Int64 -> String
+literalDisplay literal =
+    (if literal < 0 then "-" else "") ++ "0x" ++ showHex (abs literal) ""
 
 instance SymbolicAssembler (ASMOperand a) where
     intelasm (ASMRegOperand reg size) =
         intelasm reg
 
-    intelasm (ASMSymbolOperand base offset size) =
+    intelasm (ASMSymOperand base offset size) =
         intelMemAddr base Nothing offset size
 
-    intelasm (ASMLitOperand literal) =
-        (if literal < 0 then "-" else "") ++ "0x" ++ showHex (abs literal) ""
+    intelasm (ASMPntOperand base) =
+        intelasm base
 
-    intelasm (ASMMemAddr base reg offset size) =
+    intelasm (ASMLitOperand l) =
+        literalDisplay l
+
+    intelasm (ASMMemOperand base reg offset size) =
         intelMemAddr base reg offset size
 
 instance SymbolicAssembler ASMReg where
@@ -362,8 +387,8 @@ instance SymbolicAssembler ASMReg where
     gnuasm (R14) = "%r14"
     gnuasm (R15) = "%r15"
 
-instance SymbolicAssembler ASMSymbol where
-    intelasm (ASMSymbol sym) = sym
+instance SymbolicAssembler ASMSym where
+    intelasm (ASMSym sym) = sym
 
 instance SymbolicAssembler ASMLabel where
     intelasm (ASMLabel label) = label

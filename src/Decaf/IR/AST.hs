@@ -1,5 +1,6 @@
 module Decaf.IR.AST where
 import Numeric
+import Data.Int
 import Decaf.Data.Tree
 import Decaf.IR.Class
 
@@ -459,11 +460,11 @@ instance IRNode DecafInteger where
   pos _     = error "DecafInteger has no associated position"
 
 -- | 'readDecafInteger' parses a DecafInteger IRNode and returns a Haskell integer
-readDecafInteger :: DecafInteger -> Int
+readDecafInteger :: DecafInteger -> Int64
 readDecafInteger (DecafDec s) =
     if head s == '-'
-      then -(read (tail s) :: Int)
-      else read  s :: Int
+      then -(read (tail s) :: Int64)
+      else read  s :: Int64
 
 readDecafInteger (DecafHex s) =
     if head s == '-'
