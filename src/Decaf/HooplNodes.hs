@@ -1,6 +1,7 @@
 module Decaf.HooplNodes where
 import Compiler.Hoopl hiding (Top)
 import Decaf.IR.LIR
+--import Compiler.Hoopl.Graph
 
 
 -- Labels 
@@ -30,4 +31,15 @@ data Node e x where
   -- LIRRetInst
 
 
+
+-- node to G
+nodeToG :: Node e x -> Graph Node e x
+nodeToG n = Graph n 
+
+
+
+-- join two change flag
+joinChangeFlag :: ChangeFlag -> ChangeFlag -> ChangeFlag 
+joinChangeFlag NoChange NoChange = NoChange
+joinChangeFlag _ _               = SomeChange                             
 

@@ -1,9 +1,10 @@
-module Decaf.TransRewrite where
+module Decaf.TRConst where
 import Compiler.Hoopl hiding (Top)
 import Data.Map as Map
 import Decaf.IR.LIR
 import Control.Monad
-import Compiler.Hoopl.Graph
+import Decaf.HooplNodes
+
 
 
 ----------------------------------
@@ -23,11 +24,6 @@ joinState (I i) (I j) = if i == j then (NoChange, I i)
                                                          
 
 
--- join two change flag
-joinFlag :: ChangeFlag -> ChangeFlag -> ChangeFlag 
-joinFlag NoChange NoChange = NoChange
-joinFlag _ _               = SomeChange                             
-
 
 
 
@@ -46,8 +42,9 @@ joinLattice _ (OldFact m) (NewFact n) =
       -- remove ChangeFlag in value
       mn' = Map.map (\(f, s) -> s) mnjoin
       -- join all the flags
-      cf  = Map.fold (\(f, s) f' -> joinFlag f f') NoChange mnjoin 
-   in (cf, union m' $ union n' mn')
+      cf  = Map.fold (\(f, s) f' -> joinChangeFlag f f') NoChange mnjoin 
+      cf' = cf || (n' /= empty)
+   in (cf', union m' $ union n' mn')
       
 
   
@@ -60,33 +57,6 @@ constLattice = DataflowLattice
   , fact_join   = joinLattice }
 
 
-
-
--- Labels 
-type HooplLabel = Int
-
-
-
--- nodes
-data Node e x where
-  LIRRegAssignNode :: LIRReg -> LIRExpr -> Node O O
-  LIRIfNode        :: LIRRelExpr -> HooplLabel -> HooplLabel -> Node O C 
-  LIRJumpLabelNode :: HooplLabel -> Node O C
-  LIRLabelNode     :: HooplLabel -> Node C O
-  -- add more
-  LIRTempEnterNode :: Int -> Node O O   -- 
-  LIRRegOffAssignNode :: LIRReg -> LIRReg -> LIRSize -> LIROperand -> Node O O
-  LIRStoreNode     :: LIRMemAddr -> LIROperand -> Node O O
-  LIRLoadNode      :: LIRReg -> LIRMemAddr -> Node O O
-  
-  -- these two not sure what they mean
-  -- LIRRegCmpAssignInst LIRReg LIRExpr LIRLabel 
-  -- LIRCondAssignInst LIRReg LIRReg LIROperand    -- ^ Conditional Assign
-
-  -- these three should not be in hoopl graph
-  -- LIRJumpRegInst LIRReg LIROffset
-  -- LIRCallInst LIRProc
-  -- LIRRetInst
 
 
 
@@ -125,9 +95,6 @@ not x = if x == 0 then 1 else 0
 
 
 
--- node to G
-nodeToG :: Node e x -> Graph Node e x
-nodeToG n = Graph n 
 
 
 

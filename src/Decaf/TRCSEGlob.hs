@@ -1,4 +1,4 @@
-module Decaf.TRCSE where
+module Decaf.TRCSEGlob where
 import Compiler.Hoopl hiding (Top)
 import Data.Map as Map
 import Decaf.IR.LIR
@@ -20,19 +20,86 @@ import Decaf.HooplNodes
 
 
 
-data CSEKey = CSEKey LIROperand LIRBinOp LIROperand
-type CSEData = LIRReg
-type CSERecord = (CSEKey, CSEData)
-              deriving (Show, Eq, Typeable)
+data CSEExpr = CSEExpr LIROperand LIRBinOp LIROperand
+type CSEVar = LIRReg
+data CSEVarVal = Top | E CSEExpr 
+type CSELattice = (Map CSEExpr [CSEVar], Map CSEVar CSEVarVal)   -- keeps a bidirectional map
 
-type CSELattice = [CSERecord]
+
+
+-- join varval
+joinVarVal :: CSEVarVal -> CSEVarVal -> (ChangeFlag, CSEVarVal)
+joinVarVal Top _ = (NoChange, Top)
+joinVarVal _ Top = (SomeChange, Top)
+joinVarVal (E a) (E b) = if a == b then (NoChange, E a)
+                                  else (SomeChange, Top)
+
+
 
 
 
 -- join two CSE lattices : fix me!     (right now, the joined results is always empty, CSE is completely local to basic block)
 joinCSELattice :: JoinFun CSELattice
 joinCSELattice _ (OldFact m) (NewFact n) = 
-  (NoChange, []);
+  -- if  a Var is mapped to different expr in different expr in each fact, then it is Top
+  -- remove the expr->var map 
+  -- otherwise, union the expr->var map
+  let evm = fst m  -- expr to var map 1
+      vem = snd m  -- var to expr map 1
+      evn = fst n
+      ven = snd n
+      vm = difference vem ven
+      vn = difference ven vem
+      vmn = intersection vem ven     -- this is the variables in map 1 and 2, if x->a op b in m, and x->a' op' b' in n
+                                     -- then x->a op b stays if (a op b) == (a' op' b')
+                                     -- otherwise x->Top, and (a op b)->x and (a' op' b')->x are removed from evm and evn
+      
+      -- for each variable in vmn, we need to join their state
+      mnjoin = map (\x -> 
+                    let vm = Map.lookup x vem
+                        vn = Map.lookup x ven
+                    in joinVarVal vm vn) $ keys vmn
+      vmn' = map (\(f, s) -> s) mnjoin
+      cf   = Map.fold (\(f, s) f' -> joinChangeFlag f f') NoChange mnjoin 
+      ve   = union vm $ union vn vmn'  -- this is the outgoing var to expr map
+      
+      -- need to find those variables newly become top, and remove the Expr->Var map
+      top  = filter (\(f, s) -> xx f s  
+                                where 
+                                  xx :: ChangeFlag -> CSEVarVal -> Bool
+                                  xx SomeChange Top = True
+                                  xx _ _            = False) mnjoin 
+      topks = keys top
+      topksm = getRelevantKeys vem  -- find all keys in topks, where it maps to a expr in m
+      topksn = getRelevantKeys ven  -- ..                                                 n
+               where 
+                 getRelevantKeys :: Map CSEVar CSEVarVal -> [CSEVar]
+                 getRelevantKeys ve = 
+                   filter (\x -> case Map.lookup x ve of
+                              Top -> False
+                              E _ -> True) topks
+      
+      -- for each x \in topksm, x -> E e is in vem, we need to remove e -> x from evm; the same needs to be done for n
+      evm' = removeMap evm vem topksm
+      evn' = removeMap evn ven topksn
+               where 
+                 removeMap :: Map CSEExpr CSEVar -> Map CSEVar CSEVarVal -> [CSEVar] -> Map CSEExpr CSEVar
+                 removeMap ev ve ks = 
+                   foldr (\x f -> 
+                     let E e   = Map.lookup x ve
+                         vars  = Map.lookup e ev
+                         vars' = delete x vars
+                         mp'   = delete e ev       -- delete record
+                         mp''  = if vars' == [] then mp' else Map.insert e vars' mp' 
+                     in  mp') ev ks
+      
+      -- now need to union evm' evn'
+      ev = unionWith (++) evm' evn'    -- this is the outgoing expr to var map
+      
+      -- now need to get change flag of ev 
+      cf' = cf || (vn /= empty)
+  in (cf', (ev, ve))                                    
+  --(NoChange, (fromList [], fromList []));
         
 
   
