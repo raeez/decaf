@@ -1,7 +1,7 @@
 {-# LANGUAGE GADTs, EmptyDataDecls, TypeFamilies, Rank2Types, ScopedTypeVariables #-}
 
 module Loligoptl.Graph
-    ( O, C, Block(..), Label, LabelMap
+    ( O, C, Block(..)
     , Graph, MaybeO(..), MaybeC(..)
     , Graph'(..)
     , Body, emptyBody

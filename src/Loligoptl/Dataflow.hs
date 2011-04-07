@@ -1,5 +1,5 @@
 {-# LANGUAGE GADTs, EmptyDataDecls, TypeFamilies, RankNTypes, 
- ScopedTypeVariables, MultiParamTypeClasses #-}
+ ScopedTypeVariables, MultiParamTypeClasses, PatternGuards #-}
 
 {-
 TODO:
@@ -13,6 +13,7 @@ where
 
 import Loligoptl.Label
 import Loligoptl.Graph
+import Loligoptl.Fuel
 
 import Data.Maybe
 
@@ -20,18 +21,6 @@ import Data.Maybe
 type family   Fact x f :: *
 type instance Fact O f = f
 type instance Fact C f = FactBase f
-
-type Fuel = Int
-class Monad m => FuelMonad m where
-  getFuel :: m Fuel
-  setFuel :: Fuel -> m()
-
-withFuel :: FuelMonad m => Maybe a -> m (Maybe a)
-withFuel Nothing = return Nothing
-withFuel (Just a) = do { f <- getFuel
-                       ; if f == 0
-                         then return Nothing
-                         else setFuel (f-1) >> return (Just a) }
 
 
 data PassDirection = Fwd | Bwd deriving (Show, Eq)
