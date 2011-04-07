@@ -1,4 +1,5 @@
-{-# LANGUAGE GADTs, RankNTypes #-}
+{-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables #-}
+
 
 module Decaf.TRConst where
 --import Compiler.Hoopl hiding (Top)
@@ -68,7 +69,7 @@ constLattice = DataflowLattice
 
 
 -- generate transfer function
-mkFTransfer :: (Node e x -> Lattice -> Fact x Lattice) -> FwdTransfer Node Lattice
+mkFTransfer :: (forall e x. n e x -> f -> Fact x f) -> FwdTransfer n f
 mkFTransfer t = FwdTransfer3 { getFwdTransfer3 = (t, t, t) }
 
 
@@ -112,10 +113,10 @@ not x = if x == 0 then 1 else 0
 
 
 -- create deep rewrite function
-deepFwdRw :: Monad m => (Node e x -> Fact x Lattice -> m (Maybe (Graph n e x))) -> FwdRewrite m Node f
+deepFwdRw :: forall m e x n f. (Monad m) => (forall e x. n e x -> f -> m (Maybe (Graph n e x))) -> FwdRewrite m n f
 deepFwdRw rw = FwdRewrite3 { getFwdRewrite3 = (rw', rw', rw') }
               where 
-                rw' :: Monad m => Node e x -> Fact x Lattice -> m (Maybe (FwdRev m n f e x))
+                rw' :: forall e x. n e x -> f -> m (Maybe (FwdRev m n f e x))
                 rw' n f = do 
                   x <- rw n f 
                   case x of 
@@ -126,13 +127,13 @@ deepFwdRw rw = FwdRewrite3 { getFwdRewrite3 = (rw', rw', rw') }
 
 
 -- define constant folding rewrites
-simplify :: Monad m => FwdRewrite m Node f
+simplify :: Monad m => FwdRewrite m n f
 simplify = deepFwdRw simp
   where
-    simp :: (Monad m, ShapeLifter e x) => Node e x -> Fact x Lattice -> m (Maybe (Graph Node e x))
+    simp :: forall e x m n f . (Monad m, ShapeLifter e x) => n e x -> f -> m (Maybe (Graph n e x))
     simp node _ = return $ liftM nodeToG $ s_node node
   
-    s_node :: Node e x -> Maybe (Node e x)
+    s_node :: forall e x . Node e x -> Maybe (Node e x)
     -- x = lit op lit     
     s_node (LIRRegAssignNode x (LIRBinExpr (LIRIntOperand (LIRInt i1)) op (LIRIntOperand (LIRInt i2)))) = 
       case op of 
@@ -156,9 +157,9 @@ simplify = deepFwdRw simp
         LNOT -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt $ Decaf.TRConst.not i)
 
     -- if lit op lit then jmp tl else jmp fl 
-    s_node (LIRIfNode (LIRBinRelExpr (LIRIntOperand (LIRInt i1)) op (LIRIntOperand $ LIRInt i2)) tl fl) = 
+    s_node (LIRIfNode (LIRBinRelExpr (LIRIntOperand (LIRInt i1)) op (LIRIntOperand (LIRInt i2))) tl fl) = 
         if eval i1 op i2 then Just $ LIRJumpLabelNode tl
-                       else Just $ LIRJumpLabelNode fl
+                         else Just $ LIRJumpLabelNode fl
         where 
           eval i1 op i2 = 
             case op of 
@@ -193,10 +194,10 @@ simplify = deepFwdRw simp
 constProp :: Monad m => FwdRewrite m Node Lattice
 constProp = deepFwdRw cp   -- shallowFwdRw is not defined
   where
-    cp :: Node e x -> Fact x Lattice -> m (Maybe (Graph n e x))    
+    cp :: forall e x m n f. (ShapeLifter e x, Monad m) => n e x -> Lattice -> m (Maybe (Graph n e x))    
     cp node f  = return $ liftM nodeToG $ map_node node
       where 
-        map_node :: Node e x -> Maybe (Node e x)
+        map_node :: forall e x . Node e x -> Maybe (Node e x)
         -- operand in assignment expr
         map_node (LIRRegAssignNode x (LIRBinExpr opr1 op opr2)) = 
                   Just $ LIRRegAssignNode x (LIRBinExpr (propOperand opr1) op (propOperand opr2))  -- always rewrite
@@ -211,11 +212,11 @@ constProp = deepFwdRw cp   -- shallowFwdRw is not defined
 
         -- operand in store 
         map_node (LIRStoreNode a opr) = 
-                  Just $ LIRStoreNode a $ propOperand
+                  Just $ LIRStoreNode a $ propOperand opr
 
         -- operand in if relexpr
         map_node (LIRIfNode (LIRBinRelExpr opr1 op opr2) tl fl) =
-                  Just $ LIRIfNode (LIRBinRelExpr (propOperand opr1) op (propOperand opr2) tl fl)
+                  Just $ LIRIfNode (LIRBinRelExpr (propOperand opr1) op (propOperand opr2)) tl fl
         map_node (LIRIfNode (LIRNotRelExpr opr) tl fl) =
                   Just $ LIRIfNode (LIRNotRelExpr $ propOperand opr) tl fl 
         map_node (LIRIfNode (LIROperRelExpr opr) tl fl) =
@@ -228,8 +229,9 @@ constProp = deepFwdRw cp   -- shallowFwdRw is not defined
         propOperand :: LIROperand -> LIROperand
         propOperand (LIRRegOperand x) = 
           case Map.lookup x f of 
-            Top   -> LIRRegOperand x
-            I i   -> LIRIntOperand $ LIRInt i
+            Nothing    -> LIRRegOperand x
+            Just Top   -> LIRRegOperand x
+            Just (I i) -> LIRIntOperand $ LIRInt i
         propOperand opr = opr   
 
 
@@ -277,7 +279,7 @@ thenFwdRw rw3 rw3' = wrapFR2 thenrw rw3 rw3'
 
 
 -- | Function inspired by 'add' in the paper                                                                        
-fadd_rw :: Monad m
+fadd_rw :: forall e x m n f . Monad m
            => FwdRewrite m n f
            -> (Graph n e x, FwdRewrite m n f)
            -> (Graph n e x, FwdRewrite m n f)

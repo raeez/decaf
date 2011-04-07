@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables #-}
 
 module Decaf.HooplNodes where
 --import Compiler.Hoopl hiding (Top)
@@ -51,7 +51,7 @@ data Node e x where
 
 
 -- node to G
-nodeToG :: (ShapeLifter e x) => Node e x -> Graph Node e x
+nodeToG :: forall e x. (ShapeLifter e x) => Node e x -> Graph Node e x
 nodeToG n = singletonG n
 
 
