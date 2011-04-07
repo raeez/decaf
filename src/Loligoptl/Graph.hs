@@ -45,9 +45,9 @@ data Block n e x where
 
   BCat    :: Block n e O -> Block n O x -> Block n e x
 
-  BHead   :: Block n C O -> n O O       -> Block n C O
+  BHead   :: Block n C O -> n O O       -> Block n C O -- the zipper
   BTail   :: n O O       -> Block n O C -> Block n O C  
-  BClosed :: Block n C O -> Block n O C -> Block n C C -- the zipper
+  BClosed :: Block n C O -> Block n O C -> Block n C C 
 
 
 
@@ -84,6 +84,14 @@ instance NonLocal n => NonLocal (Block n) where
 addBlock :: NonLocal thing => thing C C -> LabelMap (thing C C) -> LabelMap (thing C C)
 addBlock block body = mapInsert (entryLabel block) block body
 --bodyList = id
+  GNil  :: Graph' block n O O
+  GUnit :: block n O O -> Graph' block n O O 
+  GMany :: MaybeO e (block n O C)
+        -> LabelMap (block n C C)
+        -> MaybeO x (block n C O)
+        -> Graph' block n e x
+
+addBlock GNil b = GUnit 
 
 
 -- | Decorated graphs
