@@ -1,11 +1,24 @@
+{-# LANGUAGE GADTs #-}
+
 module Decaf.HooplNodes where
-import Compiler.Hoopl hiding (Top)
+--import Compiler.Hoopl hiding (Top)
 import Decaf.IR.LIR
---import Compiler.Hoopl.Graph
+import Loligoptl.Dataflow 
+import Loligoptl.Graph 
+import Loligoptl.Fuel 
+import Loligoptl.Label 
+
+
 
 
 -- Labels 
-type HooplLabel = Int
+type HooplLabel = Loligoptl.Label.Label
+
+
+
+
+
+
 
 
 
@@ -32,9 +45,15 @@ data Node e x where
 
 
 
+
+
+
+
 -- node to G
-nodeToG :: Node e x -> Graph Node e x
-nodeToG n = Graph n 
+nodeToG :: (ShapeLifter e x) => Node e x -> Graph Node e x
+nodeToG n = singletonG n
+
+
 
 
 

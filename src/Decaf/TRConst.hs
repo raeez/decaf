@@ -1,9 +1,15 @@
+{-# LANGUAGE GADTs #-}
+
 module Decaf.TRConst where
-import Compiler.Hoopl hiding (Top)
+--import Compiler.Hoopl hiding (Top)
 import Data.Map as Map
 import Decaf.IR.LIR
 import Control.Monad
 import Decaf.HooplNodes
+import Loligoptl.Dataflow
+import Loligoptl.Graph 
+import Loligoptl.Fuel 
+import Loligoptl.Label 
 
 
 
@@ -28,8 +34,8 @@ joinState (I i) (I j) = if i == j then (NoChange, I i)
 
 
 -- join two lattices : perform joinState on each, union two maps,  m1 \ m2 U m2 \ m1 U $ map joinState (m1 ^ m2)
-joinLattice :: JoinFun Lattice
-joinLattice _ (OldFact m) (NewFact n) = 
+joinLattice :: Lattice -> Lattice -> (ChangeFlag, Lattice)
+joinLattice _ m n = 
   let m' = difference m n
       n' = difference n m
       mn = intersection m n
@@ -52,9 +58,8 @@ joinLattice _ (OldFact m) (NewFact n) =
 -- define const lattice
 constLattice :: DataflowLattice Lattice
 constLattice = DataflowLattice
-  { fact_name   = "constlattice"
-  , fact_bot    = empty        
-  , fact_join   = joinLattice }
+  { factBottom  = empty        
+  , factJoin    = joinLattice }
 
 
 
@@ -115,8 +120,8 @@ simplify = deepFwdRw simp
         LMUL -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 * i2))
         LDIV -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 `div` i2))
         LMOD -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 `mod` i2))
-        LAND -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 `Decaf.TransRewrite.and` i2))
-        LOR  -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 `Decaf.TransRewrite.or` i2))
+        LAND -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 `Decaf.TRConst.and` i2))
+        LOR  -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 `Decaf.TRConst.or` i2))
         LXOR -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (i1 `xor` i2))
         -- not understand what these three do
         --LSHL
@@ -127,7 +132,7 @@ simplify = deepFwdRw simp
     s_node (LIRRegAssignNode x (LIRUnExpr op (LIRInt i))) = 
       case op of
         LNEG -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (-i))
-        LNOT -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt $ Decaf.TransRewrite.not i)
+        LNOT -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt $ Decaf.TRConst.not i)
 
     -- if lit op lit then jmp tl else jmp fl 
     s_node (LIRIfNode (LIRBinRelExpr (LIRIntOperand (LIRInt i1)) op (LIRIntOperand  LIRInt i2)) tl fl) = 
@@ -214,9 +219,9 @@ constProp = deepFwdRw cp   -- shallowFwdRw is not defined
 
 -- define fwd pass
 constPropPass = FwdPass
-  { fp_lattice = constLattice
-  , fp_transfer = varHasLit
-  , fp_rewrite = constProp `thenFwdRw` simplify }
+  { fpLattice = constLattice
+  , fpTransfer = varHasLit
+  , fpRewrite = constProp `thenFwdRw` simplify }
 
 
 
