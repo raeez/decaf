@@ -11,67 +11,81 @@ import Data.Char
 import Data.Int
 import Data.Set hiding (map)
 
+-- |'ASMInt' represents a bounded literal in the target language.
+-- we use 'Int64' in order to enforce (host-)compile-time garuntees
+-- about the size of data inside the assembler.
 type ASMInt = Int64
 
-class SymbolicAssembler a where
-    -- | The 'intelasm' function formats its input
-    -- into a string representation for output.
-    intelasm :: a -> String
+-- |'ASMByte' represents a single byte in the target language.
+-- we use a newtype on 'Int8' in order to i) enforce (host-)compile-time
+-- garuntees about the size of individual bytes and ii) in order to display
+-- individual bytes in context-specific settings (typically as an instance of
+-- the SymbolicAssembler class).
+newtype ASMByte = ASMByte Int8
 
-    -- | The 'gnuasm' function formats its input
-    -- into a string representation for output.
+-- |The 'SymbolicAssembler' class specifies the suite of objects
+-- that symbolically represent assembled opcodes and operands. The
+-- '___asm' functions specify conversion of the symbolic representation
+-- into a style-specific string representation, commonly understood by
+-- various external assemblers or compilers.
+class SymbolicAssembler a where
+    -- |The 'nasm' function formats its input
+    -- into a string representation understood
+    -- by the NASM family of assemblers.
+    nasm :: a -> String
+
+    -- |The 'gnuasm' function formats its input
+    -- into a string representation understood
+    -- by gcc.
     gnuasm :: a -> String
 
+-- |Represents a syntatically correct (by guarunteed statically) 
+-- x86_64 assembly program, ready to be passed to an assembler.
 data ASMProgram = ASMProgram
     { progFlags    :: Set ASMFlag
     , progExterns  :: Set ASMExternDecl
     , progSections :: [ASMSection]
     }
 
+-- |Represents a general assembler flag; usually assembler-specific.
 newtype ASMFlag = ASMFlag String
                 deriving (Ord, Eq)
 
+-- |Represents a declaration of the presence of a non-local symbol
+-- (requiring external linkage) in the current program.
 newtype ASMExternDecl = ASMExternDecl String
                       deriving (Ord, Eq)
 
-data ASMSection = ASMTextSection
-    { sectionInsts :: ASMList }
-                | ASMDataSection
-    { sectionData  :: [ASMDataDecl] }
+-- |Represents a segment of an assembly program; currently both .text and .data
+-- segments are required in order to output any assembler-specific assembly code.
+data ASMSection = ASMTextSection { sectionInsts :: ASMInstructions }
+                | ASMDataSection { sectionData  :: [ASMDataDecl] }
 
+-- |Represents a static declaration of global data, available to the program
+-- as pointers to memory regions represented symbolically.
 data ASMDataDecl = ASMDataSegment ASMLabel [ASMByte]
                  | ASMCommonSegment ASMLabel ASMInt
 
-newtype ASMByte = ASMByte Int8
-
+-- |Phantom-type indicator of an ASMOperand that is a register.
 data Reg
+
+-- |Phantom-type indicator of an ASMOperand that is a pointer to a memory region.
 data Mem
+
+-- |Phantom-type indicator of an ASMOperand that is a static integer literal.
 data Lit
 
-data ASMList where
-    ASMCons :: forall t. SymbolicAssembler t =>  t ->  ASMList -> ASMList
-    ASMNil :: ASMList
+data ASMGenOperand where
+    ASMGenOperand :: forall t. ASMOperand t -> ASMGenOperand
 
-asmConcat :: ASMList -> ASMList -> ASMList
-asmConcat ASMNil ASMNil         = ASMNil
-asmConcat ASMNil (ASMCons x xs) = ASMCons x xs
-asmConcat (ASMCons x xs) ASMNil = ASMCons x xs
-asmConcat (ASMCons x xs) y      = ASMCons x (asmConcat xs y)
+data ASMOperand a where
+    ASMMemOperand :: ASMMemBase -> Maybe ASMMemBase -> Int64 -> Int64 -> ASMOperand Mem
+    ASMSymOperand :: ASMSym -> ASMOperand Mem
+    ASMRegOperand :: ASMReg -> Int64 -> ASMOperand Reg
+    ASMLitOperand :: Int64 -> ASMOperand Lit
 
---asmMap :: (a -> b) -> ASMList -> ASMList
---asmMap f ASMNil = ASMNil
---asmMap f (ASMCons x xs) = ASMCons (f x) (asmMap f xs)
-
-castAsmList :: forall a. SymbolicAssembler a => [a] -> ASMList
-castAsmList [] = ASMNil
-castAsmList (x:xs) = ASMCons x (castAsmList xs)
-
-asmSingle :: forall a. SymbolicAssembler a => a -> ASMList
-asmSingle x = ASMCons x ASMNil
-
---getSingle :: forall a. SymbolicAssembler a => ASMList -> a
---getSingle (ASMCons x ASMNil) = x
-
+-- |Represents a single opcode (one, two or three bytes) in the x86_64
+-- instruction set. ASMInst is a GADT parameterized 
 data ASMInst a where
     ASMAddInst   :: ASMOperand a -> ASMOperand b -> ASMInst (a, b)
     ASMSubInst   :: ASMOperand a -> ASMOperand b -> ASMInst (a, b)
@@ -90,7 +104,6 @@ data ASMInst a where
     ASMPopInst   :: ASMOperand a -> ASMInst a
     ASMNegInst   :: ASMOperand a -> ASMInst a
     ASMNotInst   :: ASMOperand a -> ASMInst a
-    ASMCallInst  :: ASMSym -> ASMInst ()
     ASMJmpInst   :: ASMLabel -> ASMInst ()
     ASMJeInst    :: ASMLabel -> ASMInst ()
     ASMJneInst   :: ASMLabel -> ASMInst ()
@@ -99,20 +112,26 @@ data ASMInst a where
     ASMJlInst    :: ASMLabel -> ASMInst ()
     ASMJleInst   :: ASMLabel -> ASMInst ()
     ASMLabelInst :: ASMLabel -> ASMInst ()
-    ASMEnterInst :: Int64 -> ASMInst ()
+    ASMCallInst  :: ASMSym -> ASMInst ()
+    ASMEnterInst :: ASMInt -> ASMInst ()
     ASMRetInst   :: ASMInst ()
+
+data ASMInstructions where
+    ASMCons :: forall t. SymbolicAssembler t =>  t ->  ASMInstructions -> ASMInstructions
+    ASMNil :: ASMInstructions
+
+asmConcat :: ASMInstructions -> ASMInstructions -> ASMInstructions
+asmConcat ASMNil ASMNil         = ASMNil
+asmConcat ASMNil (ASMCons x xs) = ASMCons x xs
+asmConcat (ASMCons x xs) ASMNil = ASMCons x xs
+asmConcat (ASMCons x xs) y      = ASMCons x (asmConcat xs y)
+
+castAsmList :: forall a. SymbolicAssembler a => [a] -> ASMInstructions
+castAsmList [] = ASMNil
+castAsmList (x:xs) = ASMCons x (castAsmList xs)
 
 data ASMMemBase = ASMRegBase ASMReg
                 | ASMSymBase ASMSym
-
-data ASMOperand a where
-    ASMMemOperand :: ASMMemBase -> Maybe ASMMemBase -> Int64 -> Int64 -> ASMOperand Mem
-    ASMSymOperand :: ASMSym -> ASMOperand Mem
-    ASMRegOperand :: ASMReg -> Int64 -> ASMOperand Reg
-    ASMLitOperand :: Int64 -> ASMOperand Lit
-
-data ASMGenOperand where
-    ASMGenOperand :: forall t. ASMOperand t -> ASMGenOperand
 
 data ASMReg = RAX
             | RCX
@@ -159,7 +178,7 @@ newtype ASMSym = ASMSym String
 newtype ASMLabel = ASMLabel String
 
 -- | 'gnuSuffix' calculates the opcode suffix for
--- x86 instructions.
+-- x86_64 instructions.
 gnuSuffix :: Int64 -> Char
 gnuSuffix size = case size of
                       1 -> 'b'
@@ -168,7 +187,7 @@ gnuSuffix size = case size of
                       8 -> 'q'
 
 -- | 'intelPrefix' calculates the word-size delimiter for
--- memory addressing modes.
+-- memory addressing modes, placed before the square brackets.
 intelPrefix :: Int64 -> String
 intelPrefix size = case size of
                       0 -> "" -- undeclared
@@ -194,178 +213,170 @@ indentMap (x:xs) = case x of
 indent :: String
 indent = "    "
 
-sep :: String
-sep = "\n        "
-
 instance SymbolicAssembler ASMProgram where
-    intelasm (ASMProgram flags externs sections) =
-        unlines (map intelasm $ elems flags)
-     ++ unlines (map intelasm $ elems externs)
-     ++ unlines (indentLabels intelasm sections)
+    nasm (ASMProgram flags externs sections) =
+        unlines (map nasm $ elems flags)
+     ++ unlines (map nasm $ elems externs)
+     ++ unlines (indentLabels nasm sections)
 
 instance SymbolicAssembler ASMFlag where
-    intelasm (ASMFlag flag) = flag
+    nasm (ASMFlag flag) = flag
 
 instance SymbolicAssembler ASMExternDecl where
-    intelasm (ASMExternDecl extern) = "extern " ++ extern
+    nasm (ASMExternDecl extern) = "extern " ++ extern
 
 -- | the following instance declaration implements the following:
--- (unlines . reverse) map intelasm (insts :: [forall a. ASMInst a])
-instance SymbolicAssembler ASMList where
-    intelasm (ASMCons x xs) = intelasm xs ++ "\n" ++  intelasm x 
-    intelasm (ASMNil) = ""
+-- (unlines . reverse) map nasm (insts :: [forall a. ASMInst a])
+instance SymbolicAssembler ASMInstructions where
+    nasm (ASMCons x xs) = nasm xs ++ "\n" ++  nasm x 
+    nasm (ASMNil) = ""
 
 instance SymbolicAssembler ASMSection where
-    intelasm (ASMDataSection decls) =
+    nasm (ASMDataSection decls) =
         "section .data:\n"
-     ++ unlines (indentLabels intelasm decls)
+     ++ unlines (indentLabels nasm decls)
 
-    intelasm (ASMTextSection text) =
+    nasm (ASMTextSection text) =
         "section .text:\n" ++ indent
      ++ "global main\n"
-     ++ (unlines . indentMap . lines . intelasm) text
+     ++ (unlines . indentMap . lines . nasm) text
 
 instance SymbolicAssembler ASMDataDecl where
-    intelasm (ASMDataSegment label bytes) =
-        intelasm label ++ ": db " ++ outputBytes
+    nasm (ASMDataSegment label bytes) =
+        nasm label ++ ": db " ++ outputBytes
       where
-        outputBytes = concat $ intersperse ", " (map intelasm bytes)
+        outputBytes = concat $ intersperse ", " (map nasm bytes)
 
-    intelasm (ASMCommonSegment label size) =
-        "common " ++ intelasm label ++ " " ++ show (size * 8) ++ ":8"
+    nasm (ASMCommonSegment label size) =
+        "common " ++ nasm label ++ " " ++ show (size * 8) ++ ":8"
 
 instance SymbolicAssembler ASMByte where
-    intelasm (ASMByte byte) =
+    nasm (ASMByte byte) =
         (if byte < 0 then "-" else "") ++ "0x" ++ showHex (abs byte) ""
- 
 
 instance SymbolicAssembler ASMGenOperand where
-    intelasm (ASMGenOperand o) = intelasm o
+    nasm (ASMGenOperand o) = nasm o
 
 instance SymbolicAssembler ASMMemBase where
-    intelasm (ASMRegBase reg) = intelasm reg
-    intelasm (ASMSymBase sym) = intelasm sym
+    nasm (ASMRegBase reg) = nasm reg
+    nasm (ASMSymBase sym) = nasm sym
 
 instance forall a. SymbolicAssembler (ASMInst a) where
-    intelasm (ASMMovInst op1 op2) =
-        "mov " ++ intelasm op1 ++ ", " ++ intelasm op2
+    nasm (ASMMovInst op1 op2) =
+        "mov " ++ nasm op1 ++ ", " ++ nasm op2
 
-    intelasm (ASMAddInst op1 op2) =
-        "add "  ++ intelasm op1 ++ ", " ++ intelasm op2
+    nasm (ASMAddInst op1 op2) =
+        "add "  ++ nasm op1 ++ ", " ++ nasm op2
 
-    intelasm (ASMSubInst op1 op2) =
-        "sub " ++ intelasm op1 ++ ", " ++ intelasm op2
+    nasm (ASMSubInst op1 op2) =
+        "sub " ++ nasm op1 ++ ", " ++ nasm op2
 
-    intelasm (ASMCmpInst op1 op2) =
-        "cmp " ++ intelasm op1 ++ ", " ++ intelasm op2
+    nasm (ASMCmpInst op1 op2) =
+        "cmp " ++ nasm op1 ++ ", " ++ nasm op2
 
-    --intelasm (ASMAndInst ASMOperand a -> ASMOperand b -> ASMInst (a, b)) =
-    --intelasm (ASMOrInst  ASMOperand a -> ASMOperand b -> ASMInst (a, b)) =
-    --intelasm (ASMXorInst ASMOperand a -> ASMOperand b -> ASMInst (a, b)) =
-    --intelasm (ASMShlInst ASMOperand a -> ASMOperand b -> ASMInst (a, b)) =
-    --intelasm (ASMShrInst ASMOperand a -> ASMOperand b -> ASMInst (a, b)) =
-    --intelasm (ASMShraInstASMOperand a -> ASMOperand b -> ASMInst (a, b)) =
+    --nasm (ASMAndInst ASMOperand a -> ASMOperand b -> ASMInst (a, b)) =
+    --nasm (ASMOrInst  ASMOperand a -> ASMOperand b -> ASMInst (a, b)) =
+    --nasm (ASMXorInst ASMOperand a -> ASMOperand b -> ASMInst (a, b)) =
+    --nasm (ASMShlInst ASMOperand a -> ASMOperand b -> ASMInst (a, b)) =
+    --nasm (ASMShrInst ASMOperand a -> ASMOperand b -> ASMInst (a, b)) =
+    --nasm (ASMShraInstASMOperand a -> ASMOperand b -> ASMInst (a, b)) =
  
-    intelasm (ASMMulInst op) =
-        "imul " ++ intelasm op
+    nasm (ASMMulInst op) =
+        "imul " ++ nasm op
 
-    intelasm (ASMDivInst op) =
-        "div " ++ intelasm op
+    nasm (ASMDivInst op) =
+        "div " ++ nasm op
 
-    intelasm (ASMModInst op) =
-        "mod " ++ intelasm op
+    nasm (ASMModInst op) =
+        "mod " ++ nasm op
 
-    intelasm (ASMPushInst op) =
-        "push " ++ intelasm op
+    nasm (ASMPushInst op) =
+        "push " ++ nasm op
 
-    intelasm (ASMPopInst op) = 
-        "pop " ++ intelasm op
+    nasm (ASMPopInst op) = 
+        "pop " ++ nasm op
 
-    intelasm (ASMCallInst proc) =
-        "call " ++ intelasm proc
+    nasm (ASMCallInst proc) =
+        "call " ++ nasm proc
 
-    intelasm (ASMJmpInst label) =
-        "jmp " ++ intelasm label
+    nasm (ASMJmpInst label) =
+        "jmp " ++ nasm label
 
-    intelasm (ASMJeInst label) =
-        "je " ++ intelasm label
+    nasm (ASMJeInst label) =
+        "je " ++ nasm label
 
-    intelasm (ASMJneInst label) =
-        "jne " ++ intelasm label
+    nasm (ASMJneInst label) =
+        "jne " ++ nasm label
 
-    intelasm (ASMJgInst label) =
-        "jg " ++ intelasm label
+    nasm (ASMJgInst label) =
+        "jg " ++ nasm label
 
-    intelasm (ASMJgeInst label) =
-        "jge " ++ intelasm label
+    nasm (ASMJgeInst label) =
+        "jge " ++ nasm label
 
-    intelasm (ASMJlInst label) =
-        "jl " ++ intelasm label
+    nasm (ASMJlInst label) =
+        "jl " ++ nasm label
 
-    intelasm (ASMJleInst label) =
-        "jle " ++ intelasm label
+    nasm (ASMJleInst label) =
+        "jle " ++ nasm label
 
-    intelasm (ASMEnterInst offset) =
+    nasm (ASMEnterInst offset) =
         "enter " ++ literalDisplay offset 
 
-    intelasm (ASMNegInst op) =
-        "neg " ++ intelasm op
+    nasm (ASMNegInst op) =
+        "neg " ++ nasm op
 
-    intelasm (ASMNotInst op) =
-        "not " ++ intelasm op
+    nasm (ASMNotInst op) =
+        "not " ++ nasm op
 
-    intelasm (ASMLabelInst label) =
-        intelasm label ++ ":"
+    nasm (ASMLabelInst label) =
+        nasm label ++ ":"
 
-    intelasm (ASMRetInst) =
+    nasm (ASMRetInst) =
         "ret"
 
-intelMemAddr :: SymbolicAssembler a => a -> Maybe a -> Int64 -> Int64 -> String
-intelMemAddr base reg offset size = 
-    intelPrefix size ++ " [" ++ intelasm base ++ b' ++ off ++ "]"
-  where
-      off
-        | offset /= 0 = "+" ++ literalDisplay offset
-        | otherwise  = ""
-
-      b' = case reg of
-              Just r -> "+" ++ intelasm r
-              Nothing  -> ""
-
-literalDisplay :: Int64 -> String
+literalDisplay :: ASMInt -> String
 literalDisplay literal =
     (if literal < 0 then "-" else "") ++ "0x" ++ showHex (abs literal) ""
 
 instance SymbolicAssembler (ASMOperand a) where
-    intelasm (ASMRegOperand reg size) =
-        intelasm reg
+    nasm (ASMRegOperand reg size) =
+        nasm reg
 
-    intelasm (ASMSymOperand sym) =
-        intelasm sym
+    nasm (ASMSymOperand sym) =
+        nasm sym
 
-    intelasm (ASMLitOperand l) =
+    nasm (ASMLitOperand l) =
         literalDisplay l
 
-    intelasm (ASMMemOperand base reg offset size) =
-        intelMemAddr base reg offset size
+    nasm (ASMMemOperand base reg offset size) =
+        intelPrefix size ++ " [" ++ nasm base ++ reg' ++ off ++ "]"
+      where
+        off
+          | offset /= 0 = "+" ++ literalDisplay offset
+          | otherwise  = ""
+
+        reg' = case reg of
+                  Just r -> "+" ++ nasm r
+                  Nothing  -> ""
 
 instance SymbolicAssembler ASMReg where
-    intelasm (RAX) = "rax"
-    intelasm (RBX) = "rbx"
-    intelasm (RCX) = "rcx"
-    intelasm (RDX) = "rdx"
-    intelasm (RBP) = "rbp"
-    intelasm (RSP) = "rsp"
-    intelasm (RSI) = "rsi"
-    intelasm (RDI) = "rdi"
-    intelasm (R8) = "r8"
-    intelasm (R9) = "r9"
-    intelasm (R10) = "r10"
-    intelasm (R11) = "r11"
-    intelasm (R12) = "r12"
-    intelasm (R13) = "r13"
-    intelasm (R14) = "r14"
-    intelasm (R15) = "r15"
+    nasm (RAX) = "rax"
+    nasm (RBX) = "rbx"
+    nasm (RCX) = "rcx"
+    nasm (RDX) = "rdx"
+    nasm (RBP) = "rbp"
+    nasm (RSP) = "rsp"
+    nasm (RSI) = "rsi"
+    nasm (RDI) = "rdi"
+    nasm (R8)  = "r8"
+    nasm (R9)  = "r9"
+    nasm (R10) = "r10"
+    nasm (R11) = "r11"
+    nasm (R12) = "r12"
+    nasm (R13) = "r13"
+    nasm (R14) = "r14"
+    nasm (R15)  = "r15"
     gnuasm (RAX) = "%rax"
     gnuasm (RBX) = "%rbx"
     gnuasm (RCX) = "%rcx"
@@ -374,8 +385,8 @@ instance SymbolicAssembler ASMReg where
     gnuasm (RSP) = "%rsp"
     gnuasm (RSI) = "%rsi"
     gnuasm (RDI) = "%rdi"
-    gnuasm (R8) = "%r8"
-    gnuasm (R9) = "%r9"
+    gnuasm (R8)  = "%r8"
+    gnuasm (R9)  = "%r9"
     gnuasm (R10) = "%r10"
     gnuasm (R11) = "%r11"
     gnuasm (R12) = "%r12"
@@ -384,7 +395,7 @@ instance SymbolicAssembler ASMReg where
     gnuasm (R15) = "%r15"
 
 instance SymbolicAssembler ASMSym where
-    intelasm (ASMSym sym) = sym
+    nasm (ASMSym sym) = sym
 
 instance SymbolicAssembler ASMLabel where
-    intelasm (ASMLabel label) = label
+    nasm (ASMLabel label) = label

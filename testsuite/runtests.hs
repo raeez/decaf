@@ -199,7 +199,7 @@ cogen_ source =
            (prog', c, results) = allocateRegisters t prog 
            assembler = programAssembler (content numberedTable) prog'
            (prog'', state') = runAssembler assembler mkAssemblerState
-           asmout = intelasm prog''
+           asmout = nasm prog''
 	in asmout
 
 

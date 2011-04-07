@@ -34,7 +34,7 @@ compile debug source filename =
                            (prog', c, results) = allocateRegisters t prog 
                            assembler = programAssembler (content numberedTable) prog'
                            (prog'', state') = runAssembler assembler mkAssemblerState
-                           asmout = intelasm prog''
+                           asmout = nasm prog''
                        writeFile ((fst $ break (=='.') filename) ++ ".asm") asmout
                        putStrLn asmout
                        exitSuccess

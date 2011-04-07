@@ -17,7 +17,7 @@ import Decaf.IR.ASM
 
 ------------------- MONAD -----------------------------
 data AssemblerState = AssemblerState
-    { assembler       :: ASMList
+    { assembler       :: ASMInstructions
     , declaredSymbols :: Set ASMExternDecl
     , utilizedSymbols :: Set ASMExternDecl
     , machine         :: MachineState
@@ -56,7 +56,7 @@ useSymbol sym = Assembler (\s ->
     let updatedData = insert (ASMExternDecl sym) (utilizedSymbols s)
     in ((), s { utilizedSymbols = updatedData }))
 
-getAsmList :: Assembler ASMList
+getAsmList :: Assembler ASMInstructions
 getAsmList = Assembler (\s -> (assembler s, s))
 
 getExterns :: Assembler (Set ASMExternDecl)
@@ -206,9 +206,9 @@ mapTextSection (LIRProgram (LIRLabel label) units) =
     do instructions <- mapM mapUnit units
        let head = ASMCons (ASMLabelInst (ASMLabel label)) ASMNil
            instructions' = castAsmList instructions
-       return (ASMTextSection (asmConcat head instructions'))
+       return $ ASMTextSection (asmConcat head instructions')
 
-mapUnit :: LIRUnit -> forall a. Assembler ASMList
+mapUnit :: LIRUnit -> forall a. Assembler ASMInstructions
 mapUnit (LIRUnit (LIRLabel label) insts) =
     do instructions <- mapM labelFilter insts
        let head = unitLabel
@@ -346,19 +346,7 @@ loadstore reg@(ASMGenOperand ASMRegOperand {}) pntr@(ASMGenOperand ASMSymOperand
 
 loadstore op1 op2 =
     mov op1 op2
---twoop :: Assembler m -> LIROperand -> LIROperand -> Assembler ()
---twoop opcode op1@(ASMGenOperand ASMMemOperand {}) op2@(ASMGenOperand ASMMemOperand {}) =
-    --do o2 <- asm op2
-       --mov r11 o2
 
-       --opcode r10 r11
-
-       --o1 <- asm op1
-       --mov o1 r10
-
---twoop opcode op1@(ASMGenOperand ASMMemOperand {}) op2@(ASMGenOperand ASMMemOperand {}) =
-    --do o2 <- asm op2
-       
 twoop opcode op1 op2 =
     do o2 <- asm op2
        mov r11 o2
@@ -492,7 +480,7 @@ instance ASMOper LIROperand where
                     address =  fromIntegral (-8 * (s+1)) :: ASMInt
                 other  -> ASMGenOperand $ ASMRegOperand (mapRegister reg) 8
       
-    asm (LIRIntOperand i)    = return $ ASMGenOperand $ ASMLitOperand i
+    asm (LIRIntOperand i) = return $ ASMGenOperand $ ASMLitOperand i
     asm (LIRStrOperand s) = return $ ASMGenOperand $ ASMSymOperand (ASMSym s)
 
 instance ASMOper LIRMemAddr where
