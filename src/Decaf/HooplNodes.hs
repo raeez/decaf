@@ -1,11 +1,25 @@
+{-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables #-}
+
 module Decaf.HooplNodes where
-import Compiler.Hoopl hiding (Top)
+--import Compiler.Hoopl hiding (Top)
 import Decaf.IR.LIR
---import Compiler.Hoopl.Graph
+import Loligoptl.Dataflow 
+import Loligoptl.Graph 
+import Loligoptl.Fuel 
+import Loligoptl.Label 
+
+
 
 
 -- Labels 
-type HooplLabel = Int
+type HooplLabel = Loligoptl.Label.Label
+
+
+
+
+
+
+
 
 
 
@@ -32,9 +46,15 @@ data Node e x where
 
 
 
+
+
+
+
 -- node to G
-nodeToG :: Node e x -> Graph Node e x
-nodeToG n = Graph n 
+nodeToG :: forall e x. (ShapeLifter e x) => Node e x -> Graph Node e x
+nodeToG n = singletonG n
+
+
 
 
 
@@ -42,4 +62,12 @@ nodeToG n = Graph n
 joinChangeFlag :: ChangeFlag -> ChangeFlag -> ChangeFlag 
 joinChangeFlag NoChange NoChange = NoChange
 joinChangeFlag _ _               = SomeChange                             
+
+
+
+
+  
+
+
+
 

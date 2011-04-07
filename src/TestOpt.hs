@@ -1,6 +1,8 @@
 module Main where
 import Decaf
-import Decaf.TransRewrite
+import Decaf.TRConst
+--import Decaf.TRCSE
+
 
 
 main = do
