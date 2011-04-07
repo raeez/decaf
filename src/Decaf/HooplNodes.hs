@@ -22,6 +22,7 @@ type HooplLabel = Loligoptl.Label.Label
 
 
 
+
 -- nodes
 data Node e x where
   LIRRegAssignNode :: LIRReg -> LIRExpr -> Node O O
@@ -61,4 +62,12 @@ nodeToG n = singletonG n
 joinChangeFlag :: ChangeFlag -> ChangeFlag -> ChangeFlag 
 joinChangeFlag NoChange NoChange = NoChange
 joinChangeFlag _ _               = SomeChange                             
+
+
+
+
+  
+
+
+
 

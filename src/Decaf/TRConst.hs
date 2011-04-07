@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTs, RankNTypes #-}
 
 module Decaf.TRConst where
 --import Compiler.Hoopl hiding (Top)
@@ -10,13 +10,14 @@ import Loligoptl.Dataflow
 import Loligoptl.Graph 
 import Loligoptl.Fuel 
 import Loligoptl.Label 
-
+import Data.Maybe
 
 
 ----------------------------------
 -- Define lattice
 
 data State = Top | I Int
+                   deriving (Eq, Ord, Show)
 type Var = LIRReg
 type Lattice = Map Var State
 
@@ -35,21 +36,21 @@ joinState (I i) (I j) = if i == j then (NoChange, I i)
 
 -- join two lattices : perform joinState on each, union two maps,  m1 \ m2 U m2 \ m1 U $ map joinState (m1 ^ m2)
 joinLattice :: Lattice -> Lattice -> (ChangeFlag, Lattice)
-joinLattice _ m n = 
+joinLattice m n = 
   let m' = difference m n
       n' = difference n m
       mn = intersection m n
       mnks = keys mn
       --for any key, lookup its value in m and n, then use joinState on them, return the results in a map       
-      mnjoin = Map.map (\x -> 
-                     let vm = Map.lookup x m
-                         vn = Map.lookup x n
+      mnjoin = Prelude.map (\x -> 
+                     let vm = fromJust $ Map.lookup x m
+                         vn = fromJust $ Map.lookup x n
                      in (x, joinState vm vn)) mnks 
       -- remove ChangeFlag in value
-      mn' = Map.map (\(f, s) -> s) mnjoin
+      mn' = fromList $ Prelude.map (\(k, (f, s)) -> (k, s)) mnjoin
       -- join all the flags
-      cf  = Map.fold (\(f, s) f' -> joinChangeFlag f f') NoChange mnjoin 
-      cf' = cf || (n' /= empty)
+      cf  = foldr (\(k, (f, s)) f' -> joinChangeFlag f f') NoChange mnjoin 
+      cf' = if n' /= empty then SomeChange else cf   -- logical combine
    in (cf', union m' $ union n' mn')
       
 
@@ -66,6 +67,15 @@ constLattice = DataflowLattice
 
 
 
+-- generate transfer function
+mkFTransfer :: (Node e x -> Lattice -> Fact x Lattice) -> FwdTransfer Node Lattice
+mkFTransfer t = FwdTransfer3 { getFwdTransfer3 = (t, t, t) }
+
+
+
+
+
+
 -- define constant lattice transfer function
 varHasLit :: FwdTransfer Node Lattice
 varHasLit = mkFTransfer ft
@@ -74,8 +84,8 @@ varHasLit = mkFTransfer ft
     ft (LIRLabelNode _) f = f
     ft (LIRRegAssignNode x (LIROperExpr (LIRIntOperand (LIRInt k)))) f = Map.insert x (I k) f    -- x = 5 --> (x, 5)   
     ft (LIRRegAssignNode x _) f = f                                                              -- x = _, no change
-    ft (LIRJumpLabelNode l) f = mkFactBase [(l, f)]                    -- jmp l --> associate f with l 
-    ft (LIRIfNode expr tl fl) f = mkFactBase [(tl, f), (fl, f)]        -- if expr the jmp tl else jmp fl
+    ft (LIRJumpLabelNode l) f = mkFactBase constLattice [(l, f)]                    -- jmp l --> associate f with l 
+    ft (LIRIfNode expr tl fl) f = mkFactBase constLattice [(tl, f), (fl, f)]        -- if expr the jmp tl else jmp fl
     
     ft (LIRTempEnterNode _) f = f
     ft (LIRRegOffAssignNode _ _ _ _) f = f 
@@ -101,6 +111,17 @@ not x = if x == 0 then 1 else 0
 
 
 
+-- create deep rewrite function
+deepFwdRw :: Monad m => (Node e x -> Fact x Lattice -> m (Maybe (Graph n e x))) -> FwdRewrite m Node f
+deepFwdRw rw = FwdRewrite3 { getFwdRewrite3 = (rw', rw', rw') }
+              where 
+                rw' :: Monad m => Node e x -> Fact x Lattice -> m (Maybe (FwdRev m n f e x))
+                rw' n f = do 
+                  x <- rw n f 
+                  case x of 
+                    Nothing -> return Nothing
+                    Just x' -> return $ Just $ FwdRev x' $ deepFwdRw rw
+                    
 
 
 
@@ -108,7 +129,7 @@ not x = if x == 0 then 1 else 0
 simplify :: Monad m => FwdRewrite m Node f
 simplify = deepFwdRw simp
   where
-    simp :: Node -> Fact x Lattice -> m (Maybe (Graph n e x))
+    simp :: (Monad m, ShapeLifter e x) => Node e x -> Fact x Lattice -> m (Maybe (Graph Node e x))
     simp node _ = return $ liftM nodeToG $ s_node node
   
     s_node :: Node e x -> Maybe (Node e x)
@@ -129,13 +150,13 @@ simplify = deepFwdRw simp
         --LSHRA
 
     -- x = op lit
-    s_node (LIRRegAssignNode x (LIRUnExpr op (LIRInt i))) = 
+    s_node (LIRRegAssignNode x (LIRUnExpr op (LIRIntOperand (LIRInt i)))) = 
       case op of
         LNEG -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt (-i))
         LNOT -> Just $ LIRRegAssignNode x (LIROperExpr $ LIRIntOperand $ LIRInt $ Decaf.TRConst.not i)
 
     -- if lit op lit then jmp tl else jmp fl 
-    s_node (LIRIfNode (LIRBinRelExpr (LIRIntOperand (LIRInt i1)) op (LIRIntOperand  LIRInt i2)) tl fl) = 
+    s_node (LIRIfNode (LIRBinRelExpr (LIRIntOperand (LIRInt i1)) op (LIRIntOperand $ LIRInt i2)) tl fl) = 
         if eval i1 op i2 then Just $ LIRJumpLabelNode tl
                        else Just $ LIRJumpLabelNode fl
         where 
@@ -172,36 +193,36 @@ simplify = deepFwdRw simp
 constProp :: Monad m => FwdRewrite m Node Lattice
 constProp = deepFwdRw cp   -- shallowFwdRw is not defined
   where
-    cp :: Node -> Fact x Lattice -> m (Maybe (Graph n e x))    
+    cp :: Node e x -> Fact x Lattice -> m (Maybe (Graph n e x))    
     cp node f  = return $ liftM nodeToG $ map_node node
       where 
-        map_node :: Node -> Node
+        map_node :: Node e x -> Maybe (Node e x)
         -- operand in assignment expr
         map_node (LIRRegAssignNode x (LIRBinExpr opr1 op opr2)) = 
-                  LIRRegAssignNode x (LIRBinExpr (propOperand opr1) op (propOperand opr2))  -- always rewrite
+                  Just $ LIRRegAssignNode x (LIRBinExpr (propOperand opr1) op (propOperand opr2))  -- always rewrite
         map_node (LIRRegAssignNode x (LIRUnExpr op opr)) = 
-                  LIRRegAssignNode x (LIRUnExpr op $ propOperand opr)                       -- always rewrite
+                  Just $ LIRRegAssignNode x (LIRUnExpr op $ propOperand opr)                       -- always rewrite
         map_node (LIRRegAssignNode x (LIROperExpr opr)) = 
-                  LIRRegAssignNode x (LIROperExpr $ propOperand opr)                        -- always rewrite
+                  Just $ LIRRegAssignNode x (LIROperExpr $ propOperand opr)                        -- always rewrite
       
         -- operand in offset assignment 
         map_node (LIRRegOffAssignNode x y s opr) = 
-                  LIRRegOffAssignNode x y s $ propOperand opr
+                  Just $ LIRRegOffAssignNode x y s $ propOperand opr
 
         -- operand in store 
         map_node (LIRStoreNode a opr) = 
-                  LIRStoreNode a $ propOperand
+                  Just $ LIRStoreNode a $ propOperand
 
         -- operand in if relexpr
         map_node (LIRIfNode (LIRBinRelExpr opr1 op opr2) tl fl) =
-                  LIRIfNode (LIRBinRelExpr (propOperand opr1) op (propOperand opr2) tl fl)
+                  Just $ LIRIfNode (LIRBinRelExpr (propOperand opr1) op (propOperand opr2) tl fl)
         map_node (LIRIfNode (LIRNotRelExpr opr) tl fl) =
-                  LIRIfNode (LIRNotRelExpr $ propOperand opr) tl fl 
+                  Just $ LIRIfNode (LIRNotRelExpr $ propOperand opr) tl fl 
         map_node (LIRIfNode (LIROperRelExpr opr) tl fl) =
-                  LIRIfNode (LIROperRelExpr $ propOperand opr) tl fl
+                  Just $ LIRIfNode (LIROperRelExpr $ propOperand opr) tl fl
 
         -- others do not need const prop
-        map_node n = n
+        map_node n = Just n
 
         -- prop constant in a LIROperand 
         propOperand :: LIROperand -> LIROperand
@@ -217,6 +238,55 @@ constProp = deepFwdRw cp   -- shallowFwdRw is not defined
 
 
 
+
+-- combines two FwdRewrte3
+wrapFR2
+  :: (forall e x . (n1 e x -> f1 -> m1 (Maybe (Graph n1 e x, FwdRewrite m1 n1 f1))) ->
+                   (n2 e x -> f2 -> m2 (Maybe (Graph n2 e x, FwdRewrite m2 n2 f2))) ->
+                   (n3 e x -> f3 -> m3 (Maybe (Graph n3 e x, FwdRewrite m3 n3 f3)))
+  )
+                 -- ^ This argument may assume that any function passed to it      
+                 -- respects fuel, and it must return a result that respects fuel.        
+     -> FwdRewrite m1 n1 f1
+     -> FwdRewrite m2 n2 f2
+     -> FwdRewrite m3 n3 f3      -- see Note [Respects Fuel]                                
+wrapFR2 wrap2 (FwdRewrite3 (f1, m1, l1)) (FwdRewrite3 (f2, m2, l2)) =
+  FwdRewrite3 (wrap2 f1 f2, wrap2 m1 m2, wrap2 l1 l2)
+
+
+
+-- combines two FwdRewrite
+thenFwdRw :: forall m n f. Monad m
+          => FwdRewrite m n f
+          -> FwdRewrite m n f
+          -> FwdRewrite m n f
+thenFwdRw rw3 rw3' = wrapFR2 thenrw rw3 rw3'
+ where
+  thenrw :: forall m1 e x t t1 m n f.
+            Monad m1 =>
+            (t -> t1 -> m1 (Maybe (Graph n e x, FwdRewrite m n f)))
+            -> (t -> t1 -> m1 (Maybe (Graph n e x, FwdRewrite m n f)))
+            -> t
+            -> t1
+            -> m1 (Maybe (Graph n e x, FwdRewrite m n f))
+  thenrw rw rw' n f = rw n f >>= fwdRes
+     where fwdRes Nothing   = rw' n f
+           fwdRes (Just gr) = return $ Just $ fadd_rw rw3' gr
+
+
+
+
+-- | Function inspired by 'add' in the paper                                                                        
+fadd_rw :: Monad m
+           => FwdRewrite m n f
+           -> (Graph n e x, FwdRewrite m n f)
+           -> (Graph n e x, FwdRewrite m n f)
+fadd_rw rw2 (g, rw1) = (g, rw1 `thenFwdRw` rw2)
+
+
+
+
+
 -- define fwd pass
 constPropPass = FwdPass
   { fpLattice = constLattice
@@ -224,43 +294,6 @@ constPropPass = FwdPass
   , fpRewrite = constProp `thenFwdRw` simplify }
 
 
-
-
-
-{-
-type Var = String
-type Label = String
-data Expr = Var Var | Lit Int
-data Lit = L Int
-
-data Node e x where
-  LabelSSA :: Label -> Node C O
-  AssignSSA :: Var -> Expr -> Node O O
-  BranchSSA :: Label -> Node O C
-  
-
-type ConstFact = Map Var (WithTop Lit)
-constLattice:: DataflowLattice ConstFact
-constLattice = DataflowLattice 
- { fact_bot = mapEmpty,
-   fact_join = union (extendJoinDomain constFactAdd) }
- where 
-   constFactAdd _ (OldFact old) (NewFact new)
-     = if new == old then (NoChange, PElem new)
-                     else (SomeChange, Top)
-
-
-
---------------------------------------------------
--- Analysis: variable equals a literal constant
-varHasLit :: FwdTransfer Node ConstFact
-varHasLit = mkFTransfer ft
-   where
-     ft :: Node e x -> ConstFact -> Fact x ConstFact
-     ft (LabelSSA _) f = f
-     ft (AssignSSA x _) f = insert x Top f
-     ft (BranchSSA l) f = mkFactBase [(l, f)]
--}
 
 
   
