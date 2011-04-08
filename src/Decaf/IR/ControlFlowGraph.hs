@@ -61,14 +61,17 @@ data ControlGraph = ControlGraph {cgNodes :: [ControlPath]} -- a list of nodes f
 
 
 -- CHANGE FROM LIRInst to new itermediate ' type
-convertLIRInsts :: [CFGInst] -> ControlPath
+convertLIRInsts :: [CFGInst] -> Graph Node C C
 convertLIRInsts insts = convHelp [] [] insts
   where
-    convHelp :: ControlPath -> [LIRInst] -> [CFGInst] -> ControlPath
-    convHelp nodes body [] = nodes ++ [mkBasicBlock body]
+    convHelp :: Graph Node C C -> Block Node C O -> [CFGInst] -> Graph Node C C
+    convHelp graph [] ((LIRLabelInst lab):is) = convHelp graph [
+     
+    convHelp graph [block] [] = graph `gSplice` singletonG block
+--  convHelp graph block (inst:is) = 
     convHelp nodes body (inst:is) =
         case inst of
-          CFGLIRInst inst@(LIRCallInst{}) -> convHelp (nodes ++ (pushBlock' inst)) [] is -- fix this?
+          CFGLIRInst inst@(LIRCallInst{}) -> convHelp (graph `gSplice` (BCat block (BLast (Node inst)))) [] is -- fix this?
           CFGLIRInst inst@LIRRetInst -> convHelp (nodes ++ (pushBlock' inst)) [] is
           CFGIf reg label block eblock ->
               convHelp (nodes ++ pushBlock ++ [mkBranch reg label (convHelp [] [] block) (convHelp [] [] eblock)]) [] is
