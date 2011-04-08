@@ -24,7 +24,7 @@ flag testing
 Library
     hs-source-dirs: src/	
 
-    Build-Depends:  HUnit, graphviz, parsec, base > 4, regex-posix, fgl, mtl, process, QuickCheck
+    Build-Depends:  HUnit, graphviz, parsec, base > 4, regex-posix, fgl, mtl, process, QuickCheck, containers
     Exposed-Modules:  Decaf, Decaf.Tokens, Decaf.IR.AST, Decaf.IR.LIR, Decaf.Scanner, Decaf.Parser, Decaf.Checker, Decaf.Data.Zipper, Decaf.IR.SymbolTable, Decaf.Data.Tree, Decaf.Data.GraphTree, Decaf.Util.Prelude, Decaf.Util.InteractiveGrapher, Decaf.Util.Report, Decaf.IR.Class, Decaf.IR.ControlFlowGraph, Decaf.Translator
 
     Other-Modules: Decaf.Data.ContextTree
@@ -38,14 +38,12 @@ executable scanner
 
     Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process, QuickCheck, containers
 
-    if true 
-        ghc-options:    -Wall -fno-warn-name-shadowing
+    ghc-options:        -Wall -fno-warn-name-shadowing
 
     if impl(ghc >= 6.12.1)
         ghc-options:    -fno-warn-unused-do-bind
 
     ghc-prof-options:   -prof -auto-all
-    extensions:         CPP
 
     if flag(testing)
         cpp-options:    -DTESTING
@@ -62,14 +60,12 @@ executable parser
 
     Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process, QuickCheck, containers
 
-    if true 
-        ghc-options:    -Wall -fno-warn-name-shadowing
+    ghc-options:        -Wall -fno-warn-name-shadowing
 
     if impl(ghc >= 6.12.1)
         ghc-options:    -fno-warn-unused-do-bind
 
     ghc-prof-options:   -prof -auto-all
-    extensions:         CPP
 
     if flag(testing)
         cpp-options:    -DTESTING
@@ -85,14 +81,12 @@ executable scanner-repl
     other-modules:      Decaf
 
     Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process, QuickCheck, containers
-    if true 
-        ghc-options:    -Wall -fno-warn-name-shadowing
+    ghc-options:        -Wall -fno-warn-name-shadowing
 
     if impl(ghc >= 6.12.1)
         ghc-options:    -fno-warn-unused-do-bind
 
     ghc-prof-options:   -prof -auto-all
-    extensions:         CPP
 
     if flag(testing)
         cpp-options:    -DTESTING
@@ -110,14 +104,12 @@ executable grapher
 
     Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process, QuickCheck, containers
 
-    if true 
-        ghc-options:    -Wall -fno-warn-name-shadowing
+    ghc-options:        -Wall -fno-warn-name-shadowing
 
     if impl(ghc >= 6.12.1)
         ghc-options:    -fno-warn-unused-do-bind
 
     ghc-prof-options:   -prof -auto-all
-    extensions:         CPP
 
     if flag(testing)
         cpp-options:    -DTESTING
@@ -134,14 +126,12 @@ executable checker
 
     Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process, QuickCheck, containers
 
-    if true 
-        ghc-options:    -Wall -fno-warn-name-shadowing
+    ghc-options:        -Wall -fno-warn-name-shadowing
 
     if impl(ghc >= 6.12.1)
         ghc-options:    -fno-warn-unused-do-bind
 
     ghc-prof-options:   -prof -auto-all
-    extensions:         CPP
 
     if flag(testing)
         cpp-options:    -DTESTING
@@ -157,14 +147,12 @@ executable compiler
 
     Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process, QuickCheck, containers
 
-    if true 
-        ghc-options:    -Wall -fno-warn-name-shadowing
+    ghc-options:        -Wall -fno-warn-name-shadowing
 
     if impl(ghc >= 6.12.1)
         ghc-options:    -fno-warn-unused-do-bind
 
     ghc-prof-options:   -prof -auto-all
-    extensions:         CPP
 
     if flag(testing)
         cpp-options:    -DTESTING
@@ -183,14 +171,12 @@ executable runtests
 
 
     Build-Depends:      base > 4, parsec, regex-posix, graphviz, HUnit, process, containers, QuickCheck
-    if true 
-        ghc-options:    -Wall -fno-warn-name-shadowing
+    ghc-options:        -Wall -fno-warn-name-shadowing
 
     if impl(ghc >= 6.12.1)
         ghc-options:    -fno-warn-unused-do-bind
 
     ghc-prof-options:   -prof -auto-all
-    extensions:         CPP
 
     if flag(testing)
         cpp-options:    -DTESTING

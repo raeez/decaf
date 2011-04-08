@@ -83,8 +83,8 @@ ws = skipMany whitespace
 -- literals
 --------------------------------------------
 --
-literal :: Parser Token
-literal = chrLiteral
+genliteral :: Parser Token
+genliteral = chrLiteral
        <|> strLiteral
        <|> numLiteral
        <?> "literal"
@@ -320,7 +320,7 @@ posCount input p = let line = head $ lines input in
 singleToken :: Parser Token
 singleToken = do
                 ws
-                t <- (operator <|> literal <|> identifier <|> terminal <|> end)
+                t <- (operator <|> genliteral <|> identifier <|> terminal <|> end)
                 ws
                 return t
 

@@ -265,6 +265,7 @@ checkProgram :: DecafProgram -> Checker Bool
 checkProgram (DecafProgram fields methods) =
     do addSymbol $ StringRec missingRetMessage  0
        addSymbol $ StringRec outOfBoundsMessage 0  -- needed for translator
+       mapM addMethodNameString methods
        foldl (>>) (return False) (map checkFieldDec fields)
        foldl (>>) (return False) (map checkMethodDec methods)
        b <- lookNear "main"
@@ -274,6 +275,8 @@ checkProgram (DecafProgram fields methods) =
             then return True
             else pushError p "Method \"main\" must have empty parameter list"
          _ -> pushError (0, 0) "Must define method main"
+  where
+    addMethodNameString m@DecafMethod {} = do addSymbol $ StringRec (methodID m) 0
 
 -- Type checking
 

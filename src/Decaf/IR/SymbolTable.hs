@@ -1,4 +1,5 @@
 module Decaf.IR.SymbolTable where
+import Data.Int
 import Decaf.IR.AST
 import Decaf.Data.Zipper
 import Decaf.Data.Tree
@@ -86,7 +87,7 @@ mkSymbolTree :: SymbolTree
 mkSymbolTree = mkZipper (SymbolTable [] GlobalBlock)
 
 data LabelCounter = LabelCounter
-    { regCount :: Int
+    { regCount    :: Int
     , globalCount :: Int
     , methodCount :: Int
     , stringCount :: Int
@@ -111,6 +112,7 @@ getRegCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
                       let n = regCount c
                       in (n, s{csCounter=c{regCount = n+1}}))
 
+getGlobalCount :: Int -> RegisterCounter Int
 getGlobalCount i = RegisterCounter (\s@(CounterState{csCounter=c}) ->
                          let n = globalCount c
                          in (n, s{csCounter=c{globalCount = n+i}}))
@@ -144,16 +146,20 @@ numberTreeH t =
 numberRec :: SymbolRecord -> RegisterCounter SymbolRecord
 numberRec (VarRec a _) = do c <- getRegCount
                             return $ VarRec a c
+
 numberRec (MethodRec a _) = do c <- getMethodCount
                                return $ MethodRec a ("meth", c)
+
 numberRec (ArrayRec {}) = error "Tried to number locally defined array in SymbolTable.hs: numberRec"
 numberRec (StringRec a _) = do c <- getStringCount
                                return $ StringRec a c
 
-numberGlobal (ArrayRec a _) = do c <- getGlobalCount (readDecafInteger (arrayLength a))
+numberGlobal (ArrayRec a _) = do c <- getGlobalCount (fromIntegral $ readDecafInteger $ arrayLength a :: Int)
                                  return $ ArrayRec a (c)
+
 numberGlobal (VarRec a _ ) =  do c <- getGlobalCount 1
                                  return $ VarRec a (-c-1)
+
 numberGlobal m@(MethodRec {}) = return m
 numberGlobal (StringRec a _) = do c <- getStringCount
                                   return $ StringRec a c

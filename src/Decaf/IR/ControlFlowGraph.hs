@@ -1,4 +1,5 @@
 module Decaf.IR.ControlFlowGraph where
+import Data.Int
 import Decaf.IR.Class
 import Decaf.IR.AST
 import Decaf.IR.LIR

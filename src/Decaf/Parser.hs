@@ -718,7 +718,7 @@ term' = do
 factor :: DecafParser Factor
 factor = (try methodcall >>= \o -> fmap (DecafMethodExpr' o . morphPos) getPosition)
       <|> (location >>= \o -> fmap (DecafLocExpr' o . morphPos) getPosition)
-      <|> (lit >>= \o -> fmap (DecafLitExpr' o . morphPos) getPosition)
+      <|> (literal >>= \o -> fmap (DecafLitExpr' o . morphPos) getPosition)
       <|> (opnot >> smallexpr >>= \o -> fmap (DecafNotExpr' o . morphPos) getPosition)
       <|> do
             opmin
@@ -738,7 +738,7 @@ factor = (try methodcall >>= \o -> fmap (DecafMethodExpr' o . morphPos) getPosit
 smallexpr :: DecafParser DecafExpr
 smallexpr = (try methodcall >>= \o -> fmap (rewriteFactor . DecafMethodExpr' o . morphPos) getPosition)
          <|> (location >>= \o -> fmap (rewriteFactor . DecafLocExpr' o . morphPos) getPosition)
-         <|> (lit >>= \o -> fmap (rewriteFactor . DecafLitExpr' o . morphPos) getPosition)
+         <|> (literal >>= \o -> fmap (rewriteFactor . DecafLitExpr' o . morphPos) getPosition)
          <|> (opnot >> ((try smallexpr) <|> expr) >>= \o -> fmap (rewriteFactor . DecafNotExpr' o . morphPos) getPosition)
          <|> do
                 opmin
@@ -827,8 +827,8 @@ aseq = assign >> fmap (DecafEq . morphPos) getPosition
 mineq = minusassign >> fmap (DecafMinusEq . morphPos) getPosition
 pluseq = plusassign >> fmap (DecafPlusEq . morphPos) getPosition
 
-lit :: DecafParser DecafLiteral
-lit = ilit <|> clit  <|> blit
+literal :: DecafParser DecafLiteral
+literal = ilit <|> clit  <|> blit
 
 slit :: DecafParser DecafString
 slit = strlit

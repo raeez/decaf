@@ -1,0 +1,14 @@
+#!/bin/bash
+
+for f in *.dcf
+  do
+    compiler $f
+    done
+
+for f in *.asm
+  do
+    nasm -f elf64 -g $f
+    done
+
+scp buildscript *.o *.out le05@silver.csail.mit.edu:
+ssh le05@silver.csail.mit.edu "./buildscript"

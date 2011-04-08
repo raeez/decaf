@@ -46,8 +46,3 @@ testsuite/
   tests
 viz/
   visualizations of graphs we've been working with
-
-TODO
-----
-- monadic interleaving of state for error recovery in scanner and parser.
-- multiple error reporting for parser.

@@ -1,8 +1,11 @@
+*.chi
+*.chs.h
+dist
 *.o
 *.hi
 *.out
 *~
 *.un~
 *.sw[a-z]
-dist/
 testsuite/runtests
+.DS_Store

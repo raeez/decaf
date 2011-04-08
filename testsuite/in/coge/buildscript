@@ -1,0 +1,10 @@
+#!/bin/bash
+
+for f in *.o
+  do
+    echo "processing $f..."
+    gcc -g -o ${f/%o/bin} $f
+    ./${f/%o/bin} > ${f/%o/output}
+     diff ${f/%o/out} ${f/%o/output}
+     echo "done."
+    done

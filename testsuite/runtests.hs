@@ -197,8 +197,10 @@ cogen_ source =
            (lir, _) = runTranslator (translateProgram (top numberedTable) p) (mkNamespace rc)
            prog = (translateCFG . convertProgram) lir
            (prog', c, results) = allocateRegisters t prog 
-           asm =  ((intelasm . content) numberedTable) ++ (intelasm prog)
-	in asm
+           assembler = programAssembler (content numberedTable) prog'
+           (prog'', state') = runAssembler assembler mkAssemblerState
+           asmout = nasm prog''
+	in asmout
 
 
 
