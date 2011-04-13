@@ -37,7 +37,7 @@ class SymbolicAssembler a where
     -- |The 'gnuasm' function formats its input
     -- into a string representation understood
     -- by gcc.
-    gnuasm :: a -> String
+    --gnuasm :: a -> String
 
 -- |Represents a syntatically correct (by guarunteed statically) 
 -- x86_64 assembly program, ready to be passed to an assembler.
@@ -377,22 +377,22 @@ instance SymbolicAssembler ASMReg where
     nasm (R13) = "r13"
     nasm (R14) = "r14"
     nasm (R15)  = "r15"
-    gnuasm (RAX) = "%rax"
-    gnuasm (RBX) = "%rbx"
-    gnuasm (RCX) = "%rcx"
-    gnuasm (RDX) = "%rdx"
-    gnuasm (RBP) = "%rbp"
-    gnuasm (RSP) = "%rsp"
-    gnuasm (RSI) = "%rsi"
-    gnuasm (RDI) = "%rdi"
-    gnuasm (R8)  = "%r8"
-    gnuasm (R9)  = "%r9"
-    gnuasm (R10) = "%r10"
-    gnuasm (R11) = "%r11"
-    gnuasm (R12) = "%r12"
-    gnuasm (R13) = "%r13"
-    gnuasm (R14) = "%r14"
-    gnuasm (R15) = "%r15"
+    --gnuasm (RAX) = "%rax"
+    --gnuasm (RBX) = "%rbx"
+    --gnuasm (RCX) = "%rcx"
+    --gnuasm (RDX) = "%rdx"
+    --gnuasm (RBP) = "%rbp"
+    --gnuasm (RSP) = "%rsp"
+    --gnuasm (RSI) = "%rsi"
+    --gnuasm (RDI) = "%rdi"
+    --gnuasm (R8)  = "%r8"
+    --gnuasm (R9)  = "%r9"
+    --gnuasm (R10) = "%r10"
+    --gnuasm (R11) = "%r11"
+    --gnuasm (R12) = "%r12"
+    --gnuasm (R13) = "%r13"
+    --gnuasm (R14) = "%r14"
+    --gnuasm (R15) = "%r15"
 
 instance SymbolicAssembler ASMSym where
     nasm (ASMSym sym) = sym
