@@ -46,7 +46,7 @@ exception code
       | code == 0 = missingRetMessage
 
 exceptionHeader :: LIRLabel
-exceptionHeader = LIRLabel "__exceptionhandlers"
+exceptionHeader = LIRLabel "__exceptionhandlers" 0
 
 exceptionString :: SymbolTree -> String -> String
 exceptionString st msg =
@@ -57,15 +57,18 @@ exceptionString st msg =
 
 exceptionLabel :: SymbolTree -> String -> LIRLabel
 exceptionLabel st msg  = case globalSymLookup ('.':msg) st of
-                           Just (StringRec _ l) ->  LIRLabel $ "__exception" ++ show l
+                           Just (StringRec _ l) ->  LIRLabel "__exception" l
                            _ -> error $ "LIR.hs:exceptionLabel could not find symbol for :" ++ msg
 
 boundsLabel :: Bool -> Int -> LIRLabel
-boundsLabel t c = if t then (LIRLabel $ "__boundscheck" ++ show c) else (LIRLabel $ "__boundscheck" ++ show c ++ "__positive")
+boundsLabel t c = if t then (LIRLabel  "__boundscheck" c) 
+                  else (LIRLabel "__boundscheck_positive" c)
 
 compareLabel :: Int -> LIRLabel
-compareLabel c = LIRLabel $  "__cmp" ++ show c
+compareLabel c = LIRLabel  "__cmp" c
 
+
+-- following three are not labels in the LIRLabel sense
 stringLabel :: Int -> String
 stringLabel c = "__string" ++ show c
 
@@ -76,13 +79,13 @@ methodLabel :: String -> Int -> String
 methodLabel m c = "__proc" ++ show c ++ "__" ++ m
 
 loopLabel :: Int -> LIRLabel
-loopLabel l = LIRLabel $ "LLOOP" ++ show l
+loopLabel l = LIRLabel "LLOOP" l
 
 endLabel :: Int -> LIRLabel
-endLabel l = LIRLabel $ "LEND" ++ show l
+endLabel l = LIRLabel "LEND"  l
 
 trueLabel :: Int -> LIRLabel
-trueLabel l = LIRLabel $ "LTRUE" ++ show l
+trueLabel l = LIRLabel "LTRUE" l
 
 data LIRProgram = LIRProgram
     { lirProgLabel :: LIRLabel
@@ -183,7 +186,7 @@ type LIROffset = LIRInt
 
 type LIRInt = Int64
 
-data LIRLabel = LIRLabel String
+data LIRLabel = LIRLabel String Int
               deriving (Show, Eq, Typeable)
 
 instance IRNode LIRProgram where
@@ -339,6 +342,6 @@ instance IRNode LIRInt where
     pos _     = error "LIR has no associated position"
 
 instance IRNode LIRLabel where
-    pp (LIRLabel s) = s
+    pp (LIRLabel s n) = if n == -1 then s else s++(show n)
     treeify s = Node (pp s) []
     pos _     = error "LIR has no associated position"

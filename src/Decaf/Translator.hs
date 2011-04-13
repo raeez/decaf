@@ -70,8 +70,11 @@ translateProgram :: SymbolTree -> DecafProgram -> Translator CFGProgram
 translateProgram st program =
   do units <- mapM (translateMethod st) (methods program)
      eUnits <- mapM ($st) exceptionHandlers
-     return $ CFGProgram (LIRLabel $ "START") ( units
-                                                ++ [CFGUnit exceptionHeader (concat eUnits)])
+     last <- incLabel
+     return $ CFGProgram (LIRLabel "START" 0) 
+                         (units ++ [CFGUnit exceptionHeader (concat eUnits)])
+                         last
+                         
 
 -- | Given a SymbolTree, Translate a DecafMethod into an LIRUnit
 translateMethod :: SymbolTree -> DecafMethod -> Translator CFGUnit
@@ -87,7 +90,7 @@ translateMethod st method =
                return $ CFGUnit (methodlabel count) (prologue
                                                   ++ body
                                                   ++ postcall)
-        _ -> return $ CFGUnit (LIRLabel ("Translator.hs:translateMethod Invalid SymbolTable; could not find '" ++ methodID method ++ "' symbol")) [])
+        _ -> return $ CFGUnit (LIRLabel ("Translator.hs:translateMethod Invalid SymbolTable; could not find '" ++ methodID method ++ "' symbol") 0) [])
   where
     st' index = select (index - firstMethodIndex) st
     firstMethodIndex = countStatics $ (symbolRecords . table) st
@@ -96,8 +99,9 @@ translateMethod st method =
     countStatics (_:xs) = 1 + (countStatics xs)
 
     methodlabel c = if methodname == "main"
-                      then LIRLabel methodname
-                      else LIRLabel (methodLabel methodname c)
+                      then LIRLabel methodname (-1) -- minus 1 so that not displayed
+                      else LIRLabel ("__" ++ methodname ++ "__proc") c
+--                      else LIRLabel (methodLabel methodname c) c
       where
         methodname = methodID method
 
@@ -251,7 +255,7 @@ translateRelExpr st expr =
                                      CFGExprInst {} -> 
                                          return (instructions, LIROperRelExpr oper)
      
-                                     _ -> return ([CFGLIRInst $ LIRLabelInst $ LIRLabel $ "Translator.hs:translateRelExpr Invalid Expression tree; not of type relExpr"], LIROperRelExpr $ LIRRegOperand LRAX))
+                                     _ -> return ([CFGLIRInst $ LIRLabelInst $ LIRLabel "Translator.hs:translateRelExpr Invalid Expression tree; not of type relExpr" (-1)], LIROperRelExpr $ LIRRegOperand LRAX))
 
 translateExpr :: SymbolTree -> DecafExpr -> Translator ([CFGInst], LIROperand)
 translateExpr st (DecafLocExpr loc _) =
@@ -328,7 +332,7 @@ translateExpr st (DecafParenExpr expr _) =
        return (instructions ++ [CFGLIRInst $ LIRRegAssignInst s o], LIRRegOperand s)
 
 translateExpr _ _ =
-    return ([CFGLIRInst $ LIRLabelInst (LIRLabel $ "Translator.hs:translateExpr Invalid expression tree")], LIRIntOperand 0)
+    return ([CFGLIRInst $ LIRLabelInst (LIRLabel "Translator.hs:translateExpr Invalid expression tree" (-1))], LIRIntOperand 0)
 
 translateLiteral :: SymbolTree -> DecafLiteral -> Translator LIROperand
 translateLiteral _ (DecafIntLit i _) = return $ LIRIntOperand (readDecafInteger i)
@@ -405,7 +409,7 @@ translateString st string =
          Just (StringRec _ label) ->
              do t <- incTemp
                 return ([CFGLIRInst $ LIRRegAssignInst (SREG t) (LIROperExpr $ LIRStrOperand $ stringLabel label)], LIRRegOperand $ SREG t)
-         _ -> return ([CFGLIRInst $ LIRLabelInst $ LIRLabel $ "Translator.hs:translateString Invalid SymbolTable; could not find '" ++ string ++ "' symbol"], LIRRegOperand LRBP))
+         _ -> return ([CFGLIRInst $ LIRLabelInst $ LIRLabel ("Translator.hs:translateString Invalid SymbolTable; could not find '" ++ string ++ "' symbol") (-1)], LIRRegOperand LRBP))
 
 translateLocation :: SymbolTree -> DecafLoc -> Translator ([CFGInst], LIROperand)
 translateLocation st loc =
@@ -421,7 +425,7 @@ translateLocation st loc =
                        ++ (map CFGLIRInst instructions)
                        ++ [CFGLIRInst $ LIRLoadInst (SREG t) mem], LIRRegOperand (SREG t))
 
-        _ -> return ([CFGLIRInst $ LIRLabelInst (LIRLabel $ "Translator.hs:translateLocation Invalid SymbolTable; could not find '" ++ ident loc ++ "' symbol in\n" ++ show st)], LIRRegOperand $ SREG (-1)))
+        _ -> return ([CFGLIRInst $ LIRLabelInst (LIRLabel ("Translator.hs:translateLocation Invalid SymbolTable; could not find '" ++ ident loc ++ "' symbol in\n" ++ show st) (-1))], LIRRegOperand $ SREG (-1)))
 
 arrayBoundsCheck :: SymbolTree -> DecafArr -> LIROperand -> Translator [CFGInst]
 arrayBoundsCheck st (DecafArr _ _ len _) indexOperand =
