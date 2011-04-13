@@ -1,5 +1,4 @@
 module Decaf.IR.SymbolTable where
-import Data.Int
 import Decaf.IR.AST
 import Decaf.Data.Zipper
 import Decaf.Data.Tree
@@ -59,6 +58,8 @@ symType :: SymbolRecord -> DecafType
 symType (VarRec v _) = varType v
 symType (MethodRec m _) = methodType m
 symType (ArrayRec a _) = arrayType a
+symType _ =
+    error "SymbolTable.hs:symType called on a SymbolRecord container not holding a type"
 
 table :: SymbolTree -> SymbolTable
 table = content . tree
@@ -107,7 +108,7 @@ instance Monad RegisterCounter where
     m >>= f = RegisterCounter(\s ->
                   let (x, s') = runRegisterCounter m s
                   in runRegisterCounter (f x) s')
-
+getRegCount :: RegisterCounter Int
 getRegCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
                       let n = regCount c
                       in (n, s{csCounter=c{regCount = n+1}}))
@@ -116,11 +117,12 @@ getGlobalCount :: Int -> RegisterCounter Int
 getGlobalCount i = RegisterCounter (\s@(CounterState{csCounter=c}) ->
                          let n = globalCount c
                          in (n, s{csCounter=c{globalCount = n+i}}))
-
+getMethodCount :: RegisterCounter Int
 getMethodCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
                          let n = methodCount c
                          in (n, s{csCounter=c{methodCount = n+1}}))
 
+getStringCount :: RegisterCounter Int
 getStringCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
                          let n = stringCount c
                          in (n, s{csCounter=c{stringCount = n+1}}))
@@ -154,6 +156,7 @@ numberRec (ArrayRec {}) = error "Tried to number locally defined array in Symbol
 numberRec (StringRec a _) = do c <- getStringCount
                                return $ StringRec a c
 
+numberGlobal :: SymbolRecord -> RegisterCounter SymbolRecord
 numberGlobal (ArrayRec a _) = do c <- getGlobalCount (fromIntegral $ readDecafInteger $ arrayLength a :: Int)
                                  return $ ArrayRec a (c)
 

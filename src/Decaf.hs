@@ -7,7 +7,7 @@ module Decaf
     , module Decaf.Assembler
     , module Decaf.Data.Tree
     , module Decaf.Data.Zipper
-    , module Decaf.IR.Class
+    , module Decaf.IR.IRNode
     , module Decaf.IR.AST
     , module Decaf.IR.LIR
     , module Decaf.IR.ASM
@@ -19,7 +19,7 @@ module Decaf
 import Decaf.Util.Report
 import Decaf.Data.Tree
 import Decaf.Data.Zipper
-import Decaf.IR.Class
+import Decaf.IR.IRNode
 import Decaf.IR.AST
 import Decaf.IR.LIR
 import Decaf.IR.ASM
