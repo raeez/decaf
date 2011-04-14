@@ -1,7 +1,9 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Decaf.IR.ControlFlowGraph where
-import Decaf.IR.Class
+--import Decaf.IR.Class
+import Data.Int
+import Decaf.IR.IRNode
 import Decaf.IR.AST
 import Decaf.IR.LIR
 import Decaf.IR.SymbolTable
@@ -187,5 +189,3 @@ makeBlocks insts = startBlock [] insts
 {-CFTtoLOLG :: ControlGraph -> LolGraph
 CFTtoLOLG (ControlGraph paths) = foldl dgSplice GNil (map (h  paths)
   where-}
-
-

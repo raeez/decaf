@@ -16,6 +16,8 @@ type TokenD = Token
 -- |The 'scanner' function takes and generates a corresponding list of Token
 scanner :: String -> [TokenD]
 scanner = eatFirst
+
+scannerQc :: String -> Bool
 scannerQc = (\s -> (length s == 0) || (length (scanner s) > 0))
 
 

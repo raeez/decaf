@@ -25,7 +25,23 @@ Library
     hs-source-dirs: src/	
 
     Build-Depends:  HUnit, graphviz, parsec, base > 4, regex-posix, fgl, mtl, process, QuickCheck, containers
-    Exposed-Modules:  Decaf, Decaf.Tokens, Decaf.IR.AST, Decaf.IR.LIR, Decaf.Scanner, Decaf.Parser, Decaf.Checker, Decaf.Data.Zipper, Decaf.IR.SymbolTable, Decaf.Data.Tree, Decaf.Data.GraphTree, Decaf.Util.Prelude, Decaf.Util.InteractiveGrapher, Decaf.Util.Report, Decaf.IR.Class, Decaf.IR.ControlFlowGraph, Decaf.Translator
+    Exposed-Modules:  Decaf,
+                      Decaf.Tokens,
+                      Decaf.IR.AST,
+                      Decaf.IR.LIR,
+                      Decaf.Scanner,
+                      Decaf.Parser,
+                      Decaf.Checker,
+                      Decaf.Data.Zipper,
+                      Decaf.IR.SymbolTable,
+                      Decaf.Data.Tree,
+                      Decaf.Data.GraphTree,
+                      Decaf.Util.Prelude,
+                      Decaf.Util.InteractiveGrapher,
+                      Decaf.Util.Report,
+                      Decaf.IR.IRNode,
+                      Decaf.IR.ControlFlowGraph,
+                      Decaf.Translator
 
     Other-Modules: Decaf.Data.ContextTree
 
@@ -38,10 +54,7 @@ executable scanner
 
     Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process, QuickCheck, containers
 
-    ghc-options:        -Wall -fno-warn-name-shadowing
-
-    if impl(ghc >= 6.12.1)
-        ghc-options:    -fno-warn-unused-do-bind
+    ghc-options:        -Wall -fno-warn-name-shadowing -fno-warn-unused-do-bind
 
     ghc-prof-options:   -prof -auto-all
 
@@ -60,10 +73,7 @@ executable parser
 
     Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process, QuickCheck, containers
 
-    ghc-options:        -Wall -fno-warn-name-shadowing
-
-    if impl(ghc >= 6.12.1)
-        ghc-options:    -fno-warn-unused-do-bind
+    ghc-options:        -Wall -fno-warn-name-shadowing -fno-warn-unused-do-bind
 
     ghc-prof-options:   -prof -auto-all
 
@@ -81,10 +91,7 @@ executable scanner-repl
     other-modules:      Decaf
 
     Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process, QuickCheck, containers
-    ghc-options:        -Wall -fno-warn-name-shadowing
-
-    if impl(ghc >= 6.12.1)
-        ghc-options:    -fno-warn-unused-do-bind
+    ghc-options:        -Wall -fno-warn-name-shadowing -fno-warn-unused-do-bind
 
     ghc-prof-options:   -prof -auto-all
 
@@ -104,10 +111,7 @@ executable grapher
 
     Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process, QuickCheck, containers
 
-    ghc-options:        -Wall -fno-warn-name-shadowing
-
-    if impl(ghc >= 6.12.1)
-        ghc-options:    -fno-warn-unused-do-bind
+    ghc-options:        -Wall -fno-warn-name-shadowing -fno-warn-unused-do-bind
 
     ghc-prof-options:   -prof -auto-all
 
@@ -126,10 +130,7 @@ executable checker
 
     Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process, QuickCheck, containers
 
-    ghc-options:        -Wall -fno-warn-name-shadowing
-
-    if impl(ghc >= 6.12.1)
-        ghc-options:    -fno-warn-unused-do-bind
+    ghc-options:        -Wall -fno-warn-name-shadowing -fno-warn-unused-do-bind
 
     ghc-prof-options:   -prof -auto-all
 
@@ -147,10 +148,7 @@ executable compiler
 
     Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process, QuickCheck, containers
 
-    ghc-options:        -Wall -fno-warn-name-shadowing
-
-    if impl(ghc >= 6.12.1)
-        ghc-options:    -fno-warn-unused-do-bind
+    ghc-options:        -Wall -fno-warn-name-shadowing -fno-warn-unused-do-bind
 
     ghc-prof-options:   -prof -auto-all
 
@@ -171,10 +169,8 @@ executable runtests
 
 
     Build-Depends:      base > 4, parsec, regex-posix, graphviz, HUnit, process, containers, QuickCheck
-    ghc-options:        -Wall -fno-warn-name-shadowing
+    ghc-options:        -Wall -fno-warn-name-shadowing -fno-warn-unused-do-bind
 
-    if impl(ghc >= 6.12.1)
-        ghc-options:    -fno-warn-unused-do-bind
 
     ghc-prof-options:   -prof -auto-all
 

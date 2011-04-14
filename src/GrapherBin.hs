@@ -5,7 +5,7 @@ import System.Exit
 import Decaf.Data.GraphTree
 import Decaf.Data.Zipper
 import Decaf.Util.Report
-import Decaf.IR.Class
+import Decaf.IR.IRNode
 import Decaf.IR.AST
 import Decaf.Parser
 import Decaf.Checker hiding (check)

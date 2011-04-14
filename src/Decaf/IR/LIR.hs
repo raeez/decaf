@@ -2,7 +2,8 @@
   , TypeSynonymInstances #-}
 
 module Decaf.IR.LIR where
-import Decaf.IR.Class
+--import Decaf.IR.Class
+import Decaf.IR.IRNode
 import Decaf.Data.Tree
 import Decaf.IR.SymbolTable
 
@@ -89,8 +90,25 @@ endLabel l = LIRLabel "LEND"  l
 trueLabel :: Int -> LIRLabel
 trueLabel l = LIRLabel "LTRUE" l
 
+
+type LIRInt    = Int64
+type LIRSize   = LIRInt
+type LIROffset = LIRInt
+
+
 falseLabel :: Int -> LIRLabel
 falseLabel l = LIRLabel "LFalse" l
+
+
+data LIRLabel = LIRLabel String Int
+    deriving (Eq, Typeable)
+
+instance Show LIRLabel where
+  show (LIRLabel s n) = if n == -1 then s else s ++ (show n)
+
+uniqueID :: LIRLabel -> Int
+uniqueID (LIRLabel _ i) = i
+
 
 data LIRProgram = LIRProgram
     { lirProgLabel :: LIRLabel
@@ -103,7 +121,6 @@ data LIRUnit = LIRUnit
     } deriving (Show, Eq, Typeable)
 
 data LIRInst = LIRRegAssignInst LIRReg LIRExpr
-             | LIRRegCmpAssignInst LIRReg LIRExpr LIRLabel
              | LIRRegOffAssignInst LIRReg LIRReg LIRSize LIROperand
              | LIRStoreInst LIRMemAddr LIROperand
              | LIRLoadInst LIRReg LIRMemAddr
@@ -186,26 +203,10 @@ data LIRReg = LRAX
             | MEM String
             deriving (Show, Eq, Typeable)
 
-type LIRSize = LIRInt
-
-type LIROffset = LIRInt
-
-type LIRInt = Int64
-
-data LIRLabel = LIRLabel String Int
-    deriving (Eq, Typeable)
-
-
-instance Show LIRLabel where
-  show (LIRLabel s n) = if n == -1 then s else s ++ (show n)
-
-uniqueID :: LIRLabel -> Int
-uniqueID (LIRLabel _ i) = i
 
 
 
 -- | (very) Intermediate control flow graph representation
-
 data CFGProgram = CFGProgram
     { cgProgLabel :: LIRLabel
     , cgProgUnits :: [CFGUnit]
@@ -247,7 +248,6 @@ data ControlGraph = ControlGraph {cgNodes :: [ControlPath]} -- a list of nodes f
 instance IRNode LIRProgram where
     pp (LIRProgram label units) = pp label ++ ":\n" ++ unlines (map pp units)
     treeify (LIRProgram label units) = Node (pp label) (map treeify units)
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRUnit where
     pp (LIRUnit label insts) =
@@ -259,14 +259,13 @@ instance IRNode LIRUnit where
                                     _ -> "    " ++ pp x
                         in (repr:indentMap xs)
     treeify (LIRUnit label insts) = Node ("LIRUnit: " ++ pp label) (map treeify insts)
-    pos _     = error "LIR has no associated position"
 
 
 
 instance IRNode LIRInst where
     pp (LIRRegAssignInst reg expr) = pp reg ++ " <- " ++ pp expr
-    pp (LIRRegCmpAssignInst reg expr label) = pp reg ++ " <- " ++ pp expr ++ " [" ++ pp label ++ "]"
-    pp (LIRRegOffAssignInst reg offset size operand) = pp reg ++ "(" ++ pp offset ++ ", " ++ pp size ++ ") <- " ++ pp operand
+    pp (LIRRegOffAssignInst reg offset size operand) =
+        pp reg ++ "(" ++ pp offset ++ ", " ++ pp size ++ ") <- " ++ pp operand
     pp (LIRStoreInst mem operand) = "STORE " ++ pp mem ++ ", " ++ pp operand
     pp (LIRLoadInst reg mem) = "LOAD " ++ pp reg ++ ", " ++ pp mem
     pp (LIREnterInst num) = "ENTER " ++ (show num)
@@ -275,41 +274,45 @@ instance IRNode LIRInst where
     pp (LIRCallInst proc) = "call " ++ pp proc
     pp LIRRetInst = "RET"
     pp (LIRLabelInst label) = pp label
-    treeify (LIRRegAssignInst reg expr) = Node "ASSIGN" [treeify reg, treeify expr]
-    treeify (LIRRegOffAssignInst reg offset size operand) = Node "ASSIGN" [treeify reg, treeify offset, treeify size, treeify operand]
-    treeify (LIRStoreInst mem operand) = Node "STR" [treeify mem, treeify operand]
+    treeify (LIRRegAssignInst reg expr) =
+        Node "ASSIGN" [treeify reg, treeify expr]
+    treeify (LIRRegOffAssignInst reg offset size operand) =
+        Node "ASSIGN" $ [treeify reg, treeify offset, treeify size, treeify operand]
+    treeify (LIRStoreInst mem operand) =
+        Node "STR" [treeify mem, treeify operand]
     treeify (LIRLoadInst reg mem) = Node "LD" [treeify reg, treeify mem]
+    treeify (LIREnterInst bytes) = Node ("Enter[" ++ pp bytes ++ "]") []
     treeify (LIRJumpLabelInst label) = Node "JMP" [treeify label]
     treeify (LIRIfInst expr flab tlab) = Node "IF" [treeify expr, treeify flab, treeify tlab]
     treeify (LIRCallInst proc) = Node "CALL" [treeify proc]
     treeify LIRRetInst = Node "RET" []
     treeify (LIRLabelInst label) = Node (pp label) []
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRProc where
     pp (LIRProcLabel label) = pp label
     pp (LIRProcReg reg) = pp reg
     treeify (LIRProcLabel label) = Node (pp label) []
     treeify (LIRProcReg reg) = treeify reg
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRExpr where
-    pp (LIRBinExpr operand binop operand') = pp operand ++ " " ++ pp binop ++ " " ++ pp operand'
+    pp (LIRBinExpr operand binop operand') =
+        pp operand ++ " " ++ pp binop ++ " " ++ pp operand'
     pp (LIRUnExpr unop operand) = pp unop ++ pp operand
     pp (LIROperExpr operand) = pp operand
-    treeify (LIRBinExpr operand binop operand') = Node (pp binop) [treeify operand, treeify operand']
+    treeify (LIRBinExpr operand binop operand') =
+        Node (pp binop) [treeify operand, treeify operand']
     treeify (LIRUnExpr unop operand) = Node (pp unop) [treeify operand]
     treeify (LIROperExpr operand) = Node (pp operand) []
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRRelExpr where
-    pp (LIRBinRelExpr operand relop operand') = pp operand ++ " " ++ pp relop ++ " " ++ pp operand'
+    pp (LIRBinRelExpr operand relop operand') =
+        pp operand ++ " " ++ pp relop ++ " " ++ pp operand'
     pp (LIRNotRelExpr operand) = "!" ++ pp operand
     pp (LIROperRelExpr operand) = pp operand
-    treeify (LIRBinRelExpr operand relop operand') = Node (pp relop) [treeify operand, treeify operand']
+    treeify (LIRBinRelExpr operand relop operand') =
+        Node (pp relop) [treeify operand, treeify operand']
     treeify (LIRNotRelExpr operand) = Node "!" [treeify operand]
     treeify (LIROperRelExpr operand) = Node (pp operand) []
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRBinOp where
     pp (LADD) = "ADD"
@@ -323,16 +326,14 @@ instance IRNode LIRBinOp where
     pp (LSHL) = "SHL"
     pp (LSHR) = "SHR"
     pp (LSHRA) = "SHRA"
-    pp (LIRBinRelOp relop label) = pp relop
-    treeify (LIRBinRelOp relop label) = treeify relop
+    pp (LIRBinRelOp relop _) = pp relop
+    treeify (LIRBinRelOp relop _) = treeify relop
     treeify a = Node (pp a) []
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRUnOp where
     pp (LNEG) = "-"
     pp (LNOT) = "!"
     treeify a = Node (pp a) []
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRRelOp where
     pp (LEQ) = "=="
@@ -342,10 +343,9 @@ instance IRNode LIRRelOp where
     pp (LLT) = "<"
     pp (LLTE) = "<="
     treeify a = Node (pp a) []
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRMemAddr where
-    pp (LIRMemAddr base reg offset size) =
+    pp (LIRMemAddr base reg offset _) =
         "[" ++ pp base ++ " + " ++ reg' ++ " + " ++ pp offset ++ "]"
       where
         reg' = case reg of
@@ -359,14 +359,11 @@ instance IRNode LIRMemAddr where
                   Just r -> [treeify r]
                   Nothing -> []
 
-    pos _     = error "LIR has no associated position"
-
 instance IRNode LIROperand where
     pp (LIRRegOperand reg) = pp reg
     pp (LIRIntOperand i) = pp i
     pp (LIRStrOperand s) = s
     treeify a = Node (pp a) []
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRReg where
     pp (LRAX) = "RAX"
@@ -389,14 +386,11 @@ instance IRNode LIRReg where
     pp (MEM s)  = s
     pp (SREG i) = "s" ++ (show i)
     treeify a = Node (pp a) []
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRInt where
     pp i = (if i < 0 then "-" else "") ++ "0x" ++ showHex (abs i) ""
     treeify i = Node (pp i) []
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRLabel where
     pp l@(LIRLabel s n) = show l
     treeify s = Node (pp s) []
-    pos _     = error "LIR has no associated position"

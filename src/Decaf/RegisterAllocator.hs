@@ -5,7 +5,7 @@
 
 module Decaf.RegisterAllocator where
 import Decaf.IR.SymbolTable
-import Decaf.IR.Class
+import Decaf.IR.IRNode
 import Decaf.IR.AST
 import Decaf.IR.LIR
 import Decaf.Translator
@@ -88,12 +88,6 @@ instance Data LIRInst where
      a'1 <- f a1
      a'2 <- f a2
      return (LIRRegAssignInst a'1 a'2)
- gmapM f (LIRRegCmpAssignInst a1 a2 a3) =
-  do 
-     a'1 <- f a1
-     a'2 <- f a2
-     a'3 <- f a3
-     return (LIRRegCmpAssignInst a'1 a'2 a'3)
  gmapM f (LIRRegOffAssignInst a1 a2 a3 a4) =
   do 
      a'1 <- f a1
@@ -411,18 +405,6 @@ getMethods st =
         pullMethod _ = []
     in 
       concatMap pullMethod recs
-
---genLoadStores :: LIRInst -> [LIRInst]
---genLoadStores (LIRRegAssignInst (MEM s) LIRExpr) =
---genLoadStores (LIRRegAssignInst (GI s) LIRExpr) =
---genLoadStores (LIRRegAssignInst (SREG s) LIRExpr) =
-
---genLoadStores inst@(LIRRegCmpAssignInst LIRReg LIRExpr LIRLabel) =
---genLoadStores inst@(LIRRegOffAssignInst LIRReg LIRReg LIRSize LIROperand) =
---genLoadStores inst@(LIRStoreInst LIRMemAddr LIROperand) =
---genLoadStores inst@(LIRLoadInst LIRReg LIRMemAddr) =
---genLoadStores other = other
-
 
 allocateRegisters :: SymbolTree -> LIRProgram -> (LIRProgram, Int, [RegCounterState])
 allocateRegisters st prog = 

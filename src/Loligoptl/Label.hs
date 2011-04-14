@@ -9,7 +9,6 @@ module Loligoptl.Label
   , IsSet (..)
   , mapDeleteList, mapMember
   )
-
 where
 
 import qualified Data.IntMap as M

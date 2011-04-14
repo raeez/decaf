@@ -2,7 +2,7 @@ module Decaf.Translator where
 import Data.Char
 import Data.Int
 import Data.List
-import Decaf.IR.Class
+import Decaf.IR.IRNode
 import Decaf.IR.AST
 import Decaf.IR.LIR
 import Decaf.IR.SymbolTable
