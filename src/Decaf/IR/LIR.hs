@@ -87,6 +87,9 @@ endLabel l = LIRLabel "LEND"  l
 trueLabel :: Int -> LIRLabel
 trueLabel l = LIRLabel "LTRUE" l
 
+falseLabel :: Int -> LIRLabel
+falseLabel l = LIRLabel "LFalse" l
+
 data LIRProgram = LIRProgram
     { lirProgLabel :: LIRLabel
     , lirProgUnits :: [LIRUnit]
@@ -104,7 +107,7 @@ data LIRInst = LIRRegAssignInst LIRReg LIRExpr
              | LIRLoadInst LIRReg LIRMemAddr
              | LIREnterInst Int64
              | LIRJumpLabelInst LIRLabel
-             | LIRIfInst LIRRelExpr LIRLabel
+             | LIRIfInst LIRRelExpr LIRLabel LIRLabel -- false, then true
              | LIRCallInst LIRProc
              | LIRRetInst
              | LIRLabelInst LIRLabel
@@ -189,6 +192,48 @@ type LIRInt = Int64
 data LIRLabel = LIRLabel String Int
               deriving (Show, Eq, Typeable)
 
+
+
+-- | (very) Intermediate control flow graph representation
+
+data CFGProgram = CFGProgram
+    { cgProgLabel :: LIRLabel
+    , cgProgUnits :: [CFGUnit]
+    , cgProgLastLabel :: Int
+    } deriving (Show, Eq)
+
+data CFGUnit = CFGUnit
+    { cgUnitLabel ::LIRLabel
+    , cgUnitInstructions :: [CFGInst]
+    } deriving (Show, Eq)
+
+data CFGInst = CFGLIRInst LIRInst
+             | CFGIf LIROperand JumpLabel [CFGInst] [CFGInst]
+             | CFGExprInst { cgExpr :: CFGExpr }
+               deriving (Show, Eq)
+
+data CFGExpr = CFGLogExpr CFGInst LIRBinOp CFGInst LIRReg
+             | CFGFlatExpr [CFGInst] LIROperand
+              deriving (Show, Eq)
+
+type JumpLabel = Int
+
+cgOper (CFGExprInst (CFGLogExpr _ _ _ r)) = LIRRegOperand r
+cgOper (CFGExprInst (CFGFlatExpr _ o)) = o
+cgOper _ = error "Tried to mkBranch for improper CFGExprInst"
+
+
+data ControlNode = BasicBlock [LIRInst]
+                 | Branch
+                   { condReg :: LIROperand
+                   , falseBlock :: ControlPath
+                   , trueBlock  :: ControlPath }
+
+type ControlPath = [ControlNode]
+
+data ControlGraph = ControlGraph {cgNodes :: [ControlPath]} -- a list of nodes for each method
+
+
 instance IRNode LIRProgram where
     pp (LIRProgram label units) = pp label ++ ":\n" ++ unlines (map pp units)
     treeify (LIRProgram label units) = Node (pp label) (map treeify units)
@@ -216,7 +261,7 @@ instance IRNode LIRInst where
     pp (LIRLoadInst reg mem) = "LOAD " ++ pp reg ++ ", " ++ pp mem
     pp (LIREnterInst num) = "ENTER " ++ (show num)
     pp (LIRJumpLabelInst label) = "JMP " ++ pp label
-    pp (LIRIfInst expr label) = "IF " ++ pp expr ++ " JMP " ++ pp label
+    pp (LIRIfInst expr flab tlab) = "IF " ++ pp expr ++ " THEN " ++ pp tlab ++ " ELSE " ++ pp flab
     pp (LIRCallInst proc) = "call " ++ pp proc
     pp LIRRetInst = "RET"
     pp (LIRLabelInst label) = pp label
@@ -225,7 +270,7 @@ instance IRNode LIRInst where
     treeify (LIRStoreInst mem operand) = Node "STR" [treeify mem, treeify operand]
     treeify (LIRLoadInst reg mem) = Node "LD" [treeify reg, treeify mem]
     treeify (LIRJumpLabelInst label) = Node "JMP" [treeify label]
-    treeify (LIRIfInst expr label) = Node "IF" [treeify expr, treeify label]
+    treeify (LIRIfInst expr flab tlab) = Node "IF" [treeify expr, treeify flab, treeify tlab]
     treeify (LIRCallInst proc) = Node "CALL" [treeify proc]
     treeify LIRRetInst = Node "RET" []
     treeify (LIRLabelInst label) = Node (pp label) []
