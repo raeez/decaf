@@ -2,12 +2,14 @@
   , TypeSynonymInstances #-}
 
 module Decaf.IR.LIR where
-import Numeric
-import Data.Int
 import Decaf.IR.Class
 import Decaf.Data.Tree
-import Data.Typeable
 import Decaf.IR.SymbolTable
+
+import Numeric
+import Data.Int
+import Data.Typeable
+--import Loligoptl.Label
 
 byte :: LIRInt
 byte = 1
@@ -75,8 +77,8 @@ stringLabel c = "__string" ++ show c
 arrayLabel :: Int -> String
 arrayLabel c = "__array" ++ show c
 
-methodLabel :: String -> Int -> String
-methodLabel m c = "__proc" ++ show c ++ "__" ++ m
+methodLabel :: String -> Int -> LIRLabel
+methodLabel m c = LIRLabel ("__proc" ++ "__" ++ m) c
 
 loopLabel :: Int -> LIRLabel
 loopLabel l = LIRLabel "LLOOP" l
@@ -108,13 +110,14 @@ data LIRInst = LIRRegAssignInst LIRReg LIRExpr
              | LIREnterInst Int64
              | LIRJumpLabelInst LIRLabel
              | LIRIfInst LIRRelExpr LIRLabel LIRLabel -- false, then true
-             | LIRCallInst LIRProc
+             | LIRCallInst LIRLabel
+             | LIRCalloutInst String
              | LIRRetInst
              | LIRLabelInst LIRLabel
              deriving (Show, Eq, Typeable)
 
 
-data LIRProc = LIRProcLabel String
+data LIRProc = LIRProcLabel LIRLabel
              | LIRProcReg LIRReg
              deriving (Show, Eq, Typeable)
 
@@ -190,7 +193,14 @@ type LIROffset = LIRInt
 type LIRInt = Int64
 
 data LIRLabel = LIRLabel String Int
-              deriving (Show, Eq, Typeable)
+    deriving (Eq, Typeable)
+
+
+instance Show LIRLabel where
+  show (LIRLabel s n) = if n == -1 then s else s ++ (show n)
+
+uniqueID :: LIRLabel -> Int
+uniqueID (LIRLabel _ i) = i
 
 
 
@@ -277,9 +287,9 @@ instance IRNode LIRInst where
     pos _     = error "LIR has no associated position"
 
 instance IRNode LIRProc where
-    pp (LIRProcLabel label) = label
+    pp (LIRProcLabel label) = pp label
     pp (LIRProcReg reg) = pp reg
-    treeify (LIRProcLabel label) = Node label []
+    treeify (LIRProcLabel label) = Node (pp label) []
     treeify (LIRProcReg reg) = treeify reg
     pos _     = error "LIR has no associated position"
 
@@ -387,6 +397,6 @@ instance IRNode LIRInt where
     pos _     = error "LIR has no associated position"
 
 instance IRNode LIRLabel where
-    pp (LIRLabel s n) = if n == -1 then s else s++(show n)
+    pp l@(LIRLabel s n) = show l
     treeify s = Node (pp s) []
     pos _     = error "LIR has no associated position"

@@ -6,14 +6,14 @@ import Decaf.IR.Class
 import Decaf.IR.AST
 import Decaf.IR.LIR
 import Decaf.IR.SymbolTable
-import Decaf.IR.ControlFlowGraph
+--import Decaf.IR.ControlFlowGraph
 import Decaf.Data.Tree
 import Decaf.Data.Zipper
 
 data Namespace = Namespace
     { temp       :: Int
     , labels     :: Int
-    , scope      :: [Int]
+    , scope      :: [(LIRLabel, LIRLabel)]
     , encMethod  :: String
     , blockindex :: [Int]
     }
@@ -34,12 +34,13 @@ translate :: Translator a -> Namespace -> a
 translate comp ns = fst $ runTranslator comp ns
 
 incTemp :: Translator Int
-incTemp = Translator (\(Namespace t l s m b) -> (t, Namespace (t+1) l s m b))
+--incTemp = Translator (\(Namespace t l s m b) -> (t, Namespace (t+1) l s m b))
+incTemp = incLabel -- changed so that every label has a unique numeric id 
 
 incLabel :: Translator Int
 incLabel = Translator (\(Namespace t l s m b) -> (l, Namespace t (l+1) s m b))
 
-getScope :: Translator Int
+getScope :: Translator (LIRLabel, LIRLabel)
 getScope = Translator (\ns@(Namespace _ _ s _ _) -> (last s, ns))
 
 getBlock :: Translator Int
@@ -54,10 +55,12 @@ setMethod newMethod = Translator (\ns -> ((), ns{ encMethod = newMethod }))
 getNesting :: Translator [Int]
 getNesting = Translator (\ns@(Namespace _ _ _ _ b) -> (b, ns))
 
-withScope :: Int -> Translator a -> Translator a
-withScope label m = Translator (\(Namespace t l s me b) ->
-    let (a, Namespace t' l' _ me' b') = runTranslator m (Namespace t l (s ++ [label]) me b)
-    in (a, Namespace t' l' s me' b'))
+withScope :: LIRLabel -> LIRLabel -> Translator a -> Translator a
+withScope looplabel endlabel m 
+  = Translator 
+    (\(Namespace t l s me b) ->
+       let (a, Namespace t' l' _ me' b') = runTranslator m (Namespace t l [(looplabel, endlabel)] me b)
+       in (a, Namespace t' l' s me' b'))
 
 withBlock :: Translator a -> Translator a
 withBlock m = Translator (\(Namespace t l s me b) ->
@@ -81,13 +84,14 @@ translateMethod :: SymbolTree -> DecafMethod -> Translator CFGUnit
 translateMethod st method =
     do (case symLookup (methodID method) (table st) of
         Just (index, MethodRec _ (label, count)) ->
-            do oldMethod <- getMethod
+            do lab <- incLabel
+               oldMethod <- getMethod
                setMethod (methodID method)
                body <- translateBlock (st) (methodBody method)
                prologue <- translateMethodPrologue (st' index) method
                postcall <- translateMethodPostcall st method
                setMethod oldMethod
-               return $ CFGUnit (methodlabel count) (prologue
+               return $ CFGUnit (methodlabel lab) (prologue -- changed ml to take new lab instead of count
                                                   ++ body
                                                   ++ postcall)
         _ -> return $ CFGUnit (LIRLabel ("Translator.hs:translateMethod Invalid SymbolTable; could not find '" ++ methodID method ++ "' symbol") 0) [])
@@ -155,7 +159,7 @@ translateStm st (DecafMethodStm mc _) =
     do (instructions, operand) <- translateMethodCall st mc
        return instructions
 
-translateStm st (DecafIfStm expr block melse _) =
+{-translateStm st (DecafIfStm expr block melse _) =
      do (instructions, LIROperRelExpr relexpr) <- translateRelExpr st expr
         l <- incTemp
         trueblock <- translateBlock st block
@@ -165,30 +169,46 @@ translateStm st (DecafIfStm expr block melse _) =
         return (instructions
             ++ [CFGIf relexpr l -- numbering based on registers so that short-circuit evaluation doesn't clash (SCE takes new if label from expr number)
                 trueblock elseblock])
+-}
+
+translateStm st (DecafIfStm expr block melse _) = 
+  do (instructions, rexpr@(LIROperRelExpr relexpr)) <- translateRelExpr st expr
+     trueblock <- translateBlock st block
+     elseblock <- case melse of 
+                    Just b -> translateBlock st b
+                    Nothing -> return []
+     newif <- makeIf relexpr elseblock trueblock
+     return (instructions ++ newif)
 
 translateStm st (DecafForStm ident expr expr' block _) =
-    do  l <- incLabel
+    do  falselabel <- incLabel >>= return.falseLabel -- false
+        truelabel <- incLabel >>= return.trueLabel -- true
+        looplabel <- incLabel >>= return.loopLabel -- loop
+        endlabel <- incLabel >>= return.endLabel -- end label for while AND if; should work okay
         (instructions, operand) <- translateExpr st expr
         (instructions2, (LIROperRelExpr terminateoperand)) <- translateRelExpr st expr'
         bs <- getNesting -- can't use getBlock, it assumes you're in a new block
         let st' = select (last bs) st -- needed to lookup index variable correctly
-        forblock <- withScope l $ translateBlock st block
+        forblock <- withScope looplabel endlabel 
+                    $ translateBlock st block
         let ivarlabel = (case symLookup ident (table st') of
                             Just (_, (VarRec _ label)) -> (show label) -- stupid!
                             Nothing -> error ("Translator.hs:translateStm Invalid SymbolTable; could not find a valid symbol for'" ++ show ident ++ "'") )
             ivarlabelreg = SREG (read ivarlabel :: Int)
             lessThan = LIRBinRelExpr (LIRRegOperand ivarlabelreg) LLT terminateoperand
-        return (instructions
+        return $ instructions
             ++ [CFGLIRInst $ LIRRegAssignInst ivarlabelreg (LIROperExpr operand)]
-            ++ [CFGLIRInst $ LIRLabelInst (loopLabel l)]
+            ++ [CFGLIRInst $ LIRJumpLabelInst looplabel] -- necessary for hoopl I think
+            ++ [CFGLIRInst $ LIRLabelInst looplabel]
             ++ instructions2
-            ++ [CFGLIRInst $ LIRIfInst lessThan (trueLabel l)]
-            ++ [CFGLIRInst $ LIRJumpLabelInst (endLabel l)]
-            ++ [CFGLIRInst $ LIRLabelInst (trueLabel l)]
+            ++ [CFGLIRInst $ LIRIfInst lessThan falselabel truelabel]
+            ++ [CFGLIRInst $ LIRLabelInst falselabel]
+            ++ [CFGLIRInst $ LIRJumpLabelInst endlabel]
+            ++ [CFGLIRInst $ LIRLabelInst truelabel]
             ++ forblock
             ++ [CFGLIRInst $ LIRRegAssignInst ivarlabelreg (LIRBinExpr (LIRRegOperand ivarlabelreg) LADD (LIRIntOperand 1))]
-            ++ [CFGLIRInst $ LIRJumpLabelInst (loopLabel l)]
-            ++ [CFGLIRInst $ LIRLabelInst (endLabel l)])
+            ++ [CFGLIRInst $ LIRJumpLabelInst looplabel]
+            ++ [CFGLIRInst $ LIRLabelInst endlabel]
 
 translateStm st (DecafRetStm (Just expr) _) =
     do (instructions, operand) <- translateExpr st expr
@@ -204,12 +224,12 @@ translateStm st (DecafRetStm Nothing _) =
     return [CFGLIRInst $ LIRRetInst]
 
 translateStm st (DecafBreakStm _) =
-    do l <- getScope
-       return [CFGLIRInst $ LIRJumpLabelInst (endLabel l)]
+    do (_,el) <- getScope
+       return [CFGLIRInst $ LIRJumpLabelInst el]
 
 translateStm st (DecafContStm _) =
-    do l <- getScope
-       return [CFGLIRInst $ LIRJumpLabelInst (loopLabel l)]
+    do (ll,_) <- getScope
+       return [CFGLIRInst $ LIRJumpLabelInst ll]
 
 translateStm st (DecafBlockStm block _) =
     translateBlock st block
@@ -390,18 +410,23 @@ translateMethodCall :: SymbolTree -> DecafMethodCall -> Translator ([CFGInst], L
 translateMethodCall st mc =
     do (preinstructions, precall) <- translateMethodPrecall st mc
        t <- incTemp
+       l <- incLabel -- for method call return
        return (preinstructions
             ++ precall
-            ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr $ LIRIntOperand 0)]
-            ++ [CFGLIRInst $ LIRCallInst func]
-            ++ [CFGLIRInst $ LIRRegAssignInst (SREG t) (LIROperExpr $ LIRRegOperand $ LRAX)]
+            ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr $ LIRIntOperand 0)
+               , CFGLIRInst func
+--               , CFGLIRInst $ LIRCallInst func
+               , CFGLIRInst $ LIRLabelInst $ LIRLabel "METHODDONE" l
+               , CFGLIRInst $ LIRRegAssignInst (SREG t) (LIROperExpr $ LIRRegOperand $ LRAX)]
             , LIRRegOperand $ SREG $ t)
   where
     func = case mc of
-               (DecafPureMethodCall {}) -> LIRProcLabel (case globalSymLookup (methodCallID mc) st of
-                                                       Just (MethodRec _ (label, count)) -> methodLabel (methodCallID mc) count
-                                                       _ -> "Translator.hs:translateMethodCall Invalid SymbolTable; could not find a valid symbol for'" ++ (methodCallID mc) ++ "'")
-               (DecafMethodCallout {})-> LIRProcLabel (methodCalloutID mc)
+               DecafPureMethodCall {} -> 
+                 LIRCallInst $ 
+                   (case globalSymLookup (methodCallID mc) st of
+                      Just (MethodRec _ (label, count)) -> methodLabel (methodCallID mc) count
+                      _ -> methodLabel ("Translator.hs:translateMethodCall Invalid SymbolTable; could not find a valid symbol for'" ++ (methodCallID mc) ++ "'") (-1))
+               DecafMethodCallout {} ->  LIRCalloutInst (methodCalloutID mc)
 
 translateString :: SymbolTree -> DecafString -> Translator ([CFGInst], LIROperand)
 translateString st string =
@@ -430,13 +455,20 @@ translateLocation st loc =
 arrayBoundsCheck :: SymbolTree -> DecafArr -> LIROperand -> Translator [CFGInst]
 arrayBoundsCheck st (DecafArr _ _ len _) indexOperand =
     do method <- getMethod
-       l <- incTemp
-       return ([CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LLT (LIRIntOperand $ readDecafInteger len)) ((boundsLabel False l))] -- TODO check this
-           ++ (throwException outOfBounds st method)
-           ++ [CFGLIRInst $ LIRLabelInst $ (boundsLabel False l)]
-           ++ [CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LGTE (LIRIntOperand 0)) (boundsLabel True l)] -- TODO check this
-           ++ (throwException outOfBounds st method)
-           ++ [CFGLIRInst $ LIRLabelInst $ boundsLabel True l])
+       l1 <- incTemp -- false 1
+       l2 <- incTemp -- false 2
+       l3 <- incTemp -- true 1
+       l4 <- incTemp -- true 2
+             -- no end needed
+       
+       return ([CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LLT (LIRIntOperand $ readDecafInteger len)) (boundsLabel False l1) (boundsLabel True l3) ] -- TODO check this
+           ++ [CFGLIRInst $ LIRLabelInst $ (boundsLabel False l1)]
+           ++ (throwException outOfBounds st method) -- has a jump at the end
+           ++ [CFGLIRInst $ LIRLabelInst $ (boundsLabel True l3)]
+           ++ [CFGLIRInst $ LIRIfInst (LIRBinRelExpr indexOperand LGTE (LIRIntOperand 0)) (boundsLabel False l2) (boundsLabel True l4)] -- TODO check this
+           ++ [CFGLIRInst $ LIRLabelInst $ (boundsLabel False l2)]
+           ++ (throwException outOfBounds st method) -- has a jump at the end
+           ++ [CFGLIRInst $ LIRLabelInst $ boundsLabel True l4])
 
 symVar :: DecafVar -> SymbolTree -> LIRReg
 symVar var st =
@@ -481,7 +513,7 @@ missingRetHandler st =
           return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel st missingRetMessage]
                 ++ [CFGLIRInst $ LIRRegAssignInst LRDI (LIROperExpr (LIRRegOperand $ MEM $ exceptionString st missingRetMessage))]
                 ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr (LIRIntOperand 0))]
-                ++ [CFGLIRInst $ LIRCallInst (LIRProcLabel "printf")]
+                ++ [CFGLIRInst $ LIRCalloutInst "printf"]
                 ++ [CFGLIRInst LIRRetInst]
 
 outOfBoundsHandler :: SymbolTree -> Translator [CFGInst]
@@ -492,5 +524,21 @@ outOfBoundsHandler st =
           return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel st outOfBoundsMessage]
                ++ [CFGLIRInst $ LIRRegAssignInst LRDI (LIROperExpr (LIRRegOperand $ MEM $ exceptionString st outOfBoundsMessage))]
                ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr (LIRIntOperand 0))]
-               ++ [CFGLIRInst $ LIRCallInst (LIRProcLabel "printf")]
+               ++ [CFGLIRInst $ LIRCalloutInst "printf"]
                ++ [CFGLIRInst LIRRetInst]
+
+
+makeIf :: LIROperand -> [CFGInst] -> [CFGInst] -> Translator [CFGInst]
+makeIf expr falseblock trueblock = 
+  do falselabel <- incLabel >>= (return . falseLabel)
+     truelabel  <- incLabel >>= (return . trueLabel)
+     endlabel   <- incLabel >>= (return . endLabel)
+
+     return $
+      [ CFGLIRInst $ LIRIfInst (LIROperRelExpr expr) falselabel truelabel
+      , CFGLIRInst $ LIRLabelInst falselabel]
+      ++ falseblock ++
+      [ CFGLIRInst $ LIRJumpLabelInst endlabel
+      , CFGLIRInst $ LIRLabelInst truelabel]
+      ++ trueblock ++
+      [ CFGLIRInst $ LIRLabelInst endlabel]

@@ -196,7 +196,7 @@ mapDataDecl (StringRec str sl) =
     byteString = (map (ASMByte . fromIntegral . ord) (str ++ ['\0']))
 
 mapDataDecl (MethodRec m (_, i)) =
-    do declareSymbol $ methodLabel (methodID m) i
+    do declareSymbol $ show $ methodLabel (methodID m) i
        return Nothing
 
 ------------------- TEXT --------------------------------
@@ -289,28 +289,29 @@ mapInst (LIRLoadInst reg mem) =
 mapInst (LIRJumpLabelInst (LIRLabel l i)) =
         jmp (ASMLabel l i)
 
-mapInst (LIRIfInst (LIRBinRelExpr op1 binop op2) l) =
+-- following two functions only depend on true label (false block requires no immediate jump)
+mapInst (LIRIfInst (LIRBinRelExpr op1 binop op2) flab tlab) =
     do o1 <- asm op1
        o2 <- asm op2
        cmp' o1 o2
 
-       jumpType binop l
+       jumpType binop tlab -- not sure if this is right raeez
 
-mapInst (LIRIfInst (LIRNotRelExpr operand) (LIRLabel l i)) =
+mapInst (LIRIfInst (LIRNotRelExpr operand) _ (LIRLabel l i)) =
     do o <- asm operand
        cmp' o (lit litFalse)
 
        jl (ASMLabel l i)
 
-mapInst (LIRIfInst (LIROperRelExpr operand) (LIRLabel l i)) =
+mapInst (LIRIfInst (LIROperRelExpr operand) _ (LIRLabel l i)) =
     do o <- asm operand
        cmp' o (lit litFalse)
 
        jl (ASMLabel l i)
 
-mapInst (LIRCallInst (LIRProcLabel proc)) =
-    do useSymbol proc
-       call (ASMSym proc)
+mapInst (LIRCallInst lab) =
+    do useSymbol (show lab)
+       call (ASMSym (show lab))
 
 mapInst (LIREnterInst s) =
     do push rbp

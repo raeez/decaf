@@ -265,11 +265,17 @@ fixpoint dir lattice doBlock blocks initFBase
 -- | Could make this faster using folds
 forwardBlockList :: NonLocal n => [Label] -> LabelMap (Block n C C) -> [Block n C C]
 forwardBlockList entries body
-  = concatMap traverse entries -- only takes blocks reachable from entries
-  where traverse label = block : concatMap traverse (successors block)
-          where block = case (mapLookup label body) of 
-                          Just b -> b
-                          Nothing -> error "successors returned label not in graph body"
+  = map lookupBlock (reverse $ travHelp [] entries body) -- use cons, then reverse
+  where
+    travHelp :: [Label] -> [Label] -> LabelMap (Block n C C) -> [Label]
+    travHelp seen [] body = seen
+    travHelp seen (x:xs) body = 
+        if x `elem` seen
+          then travHelp seen xs body
+          else travHelp (x:seen) ((successors $ lookupBlock x) ++ xs) body
+    lookupBlock x = case (mapLookup x body) of 
+                      Just b -> b
+                      Nothing -> error "successors returned label not in graph body"
 
                                                    
 joinInFacts :: DataflowLattice f -> FactBase f -> FactBase f
@@ -281,11 +287,12 @@ joinInFacts (lattice @ DataflowLattice {factBottom = bot, factJoin = fj}) fb =
 
 
 class ShapeLifter e x where
- singletonDG   :: f -> n e x -> DG f n e x
- fwdEntryFact  :: NonLocal n => n e x -> f -> Fact e f
- fwdEntryLabel :: NonLocal n => n e x -> MaybeC e [Label]
- ftransfer :: FwdPass m n f -> n e x -> f -> Fact x f
- frewrite  :: FwdPass m n f -> n e x 
+  singletonG    ::      n e x -> Graph n e x
+  singletonDG   :: f -> n e x -> DG f n e x
+  fwdEntryFact  :: NonLocal n => n e x -> f -> Fact e f
+  fwdEntryLabel :: NonLocal n => n e x -> MaybeC e [Label]
+  ftransfer :: FwdPass m n f -> n e x -> f -> Fact x f
+  frewrite  :: FwdPass m n f -> n e x 
            -> f -> m (Maybe (FwdRev m n f e x))
 {- bwdEntryFact :: NonLocal n => DataflowLattice f -> n e x -> Fact e f -> f
  btransfer    :: BwdPass m n f -> n e x -> Fact x f -> f
@@ -293,6 +300,7 @@ class ShapeLifter e x where
               -> Fact x f -> m (Maybe (Graph n e x, BwdRewrite m n f))
 -}
 instance ShapeLifter C O where
+  singletonG = gUnitCO . BFirst
   singletonDG f = gUnitCO . DBlock f . BFirst
   fwdEntryFact     n f  = mapSingleton (entryLabel n) f
 --  bwdEntryFact lat n fb = getFact lat (entryLabel n) fb
@@ -303,6 +311,7 @@ instance ShapeLifter C O where
   fwdEntryLabel n = JustC [entryLabel n]
 
 instance ShapeLifter O O where
+  singletonG = gUnitOO . BMiddle
   singletonDG f = gUnitOO . DBlock f . BMiddle
   fwdEntryFact   _ f = f
   --bwdEntryFact _ _ f = f
@@ -313,6 +322,7 @@ instance ShapeLifter O O where
   fwdEntryLabel _ = NothingC
 
 instance ShapeLifter O C where
+  singletonG = gUnitOC . BLast
   singletonDG f = gUnitOC . DBlock f . BLast
   fwdEntryFact   _ f = f
 --  bwdEntryFact _ _ f = f
