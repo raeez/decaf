@@ -7,21 +7,10 @@ import Loligoptl.Dataflow
 import Loligoptl.Graph 
 import Loligoptl.Fuel 
 import Loligoptl.Label 
-
 import Data.Int
-
 
 -- Labels 
 type HooplLabel = Loligoptl.Label.Label
-
-
-
-
-
-
-
-
-
 
 -- nodes
 data Node e x where
@@ -40,16 +29,6 @@ data Node e x where
   LIRJumpLabelNode :: HooplLabel -> Node O C
   LIRCallNode      :: [LIRLabel] -> Node O C -- list of labels includes method label and label for next line
     
-  
-  -- these two not sure what they mean
-  -- LIRRegCmpAssignInst LIRReg LIRExpr LIRLabel 
-  -- LIRCondAssignInst LIRReg LIRReg LIROperand    -- ^ Conditional Assign
-
-  -- these three should not be in hoopl graph
-  -- LIRJumpRegInst LIRReg LIROffset
-  -- LIRCallInst LIRProc
-  -- LIRRetInst
-
 instance NonLocal Node where
   entryLabel (LIRLabelNode lab) = lab
   successors (LIRRetNode) = []
@@ -57,28 +36,11 @@ instance NonLocal Node where
   successors (LIRJumpLabelNode lab) = [lab]
   successors (LIRIfNode expr flab tlab) = [flab,tlab]
 
-
-
-
-
 -- node to G
 nodeToG :: forall e x. (ShapeLifter e x) => Node e x -> Graph Node e x
 nodeToG n = singletonG n
-
-
-
-
 
 -- join two change flag
 joinChangeFlag :: ChangeFlag -> ChangeFlag -> ChangeFlag 
 joinChangeFlag NoChange NoChange = NoChange
 joinChangeFlag _ _               = SomeChange                             
-
-
-
-
-  
-
-
-
-

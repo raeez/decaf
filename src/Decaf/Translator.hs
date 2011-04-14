@@ -19,7 +19,7 @@ data Namespace = Namespace
     }
 
 mkNamespace :: Int -> Namespace
-mkNamespace lastTemp= Namespace lastTemp 0 [] "null" [0]
+mkNamespace lastTemp = Namespace lastTemp 0 [] "null" [0]
 
 newtype Translator a = Translator
     { runTranslator :: Namespace -> (a, Namespace) }

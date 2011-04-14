@@ -74,7 +74,6 @@ analyzeAndFwdRewrite pass entryLabels g fb =
           case entryLabels of 
             [] -> error "closed graph not provided any entry points" -- This is an error I think
             otherwise -> JustC entryLabels
-                    
 
 normalizeGraph :: forall n f e x . NonLocal n => DG f n e x -> (Graph n e x, FactBase f)
 normalizeGraph g = (dropFacts g, facts g)
@@ -83,7 +82,9 @@ normalizeGraph g = (dropFacts g, facts g)
     dropFacts GNil = GNil
     dropFacts (GUnit (DBlock f b)) = GUnit b
     dropFacts (GMany e b x) = GMany (fmap dropFact e) (mapMap dropFact b) (fmap dropFact x)
-      where dropFact (DBlock _ b) = b
+      where
+        dropFact :: forall f n e x. DBlock f n e x -> Block n e x
+        dropFact (DBlock _ b) = b
 
     facts :: DG f n e x -> FactBase f
     facts GNil = mapEmpty

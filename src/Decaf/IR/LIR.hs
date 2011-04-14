@@ -124,7 +124,7 @@ data LIRInst = LIRRegAssignInst LIRReg LIRExpr
              | LIRRegOffAssignInst LIRReg LIRReg LIRSize LIROperand
              | LIRStoreInst LIRMemAddr LIROperand
              | LIRLoadInst LIRReg LIRMemAddr
-             | LIREnterInst Int64
+             | LIREnterInst LIRInt
              | LIRJumpLabelInst LIRLabel
              | LIRIfInst LIRRelExpr LIRLabel LIRLabel -- false, then true
              | LIRCallInst LIRLabel

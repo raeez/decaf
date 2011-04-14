@@ -75,16 +75,6 @@ instance NonLocal n => NonLocal (Block n) where
 
 addBlock :: NonLocal thing => thing C C -> LabelMap (thing C C) -> LabelMap (thing C C)
 addBlock block body = mapInsert (entryLabel block) block body
---bodyList = id
-{-  GNil  :: Graph' block n O O
-  GUnit :: block n O O -> Graph' block n O O 
-  GMany :: MaybeO e (block n O C)
-        -> LabelMap (block n C C)
-        -> MaybeO x (block n C O)
-        -> Graph' block n e x
--}
---addBlock GNil b = GUnit 
-
 
 -- | Decorated graphs
 type DG f = Graph' (DBlock f)
