@@ -26,10 +26,13 @@ compile debug source filename =
                then putStrLn formattedErrors >> exitFailure
                else do let (numberedTable, 
                             CounterState (LabelCounter rc _ _ _)) =
-                                runRegisterCounter (numberTree $ tree t) (CounterState mkCounter)
-                           (lir, _) = runTranslator (translateProgram (top numberedTable) p) (mkNamespace rc)
+                                runRegisterCounter (numberTree $ tree t)
+                                                   (CounterState mkCounter)
+                           (lir, _) = runTranslator (translateProgram
+                                                        (top numberedTable) p)
+                                                    (mkNamespace rc)
                        if debug
-                         then (putStrLn $ pp $ translateCFG . convertProgram $ lir)
+                         then (putStrLn . pp . translateCFG . convertProgram $ lir)
                          else putStrLn ""
                        let prog = (translateCFG . convertProgram) lir
                            (prog', _, _) = allocateRegisters t prog

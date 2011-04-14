@@ -14,20 +14,17 @@ type HooplLabel = Loligoptl.Label.Label
 
 -- nodes
 data Node e x where
-  LIRLabelNode     :: HooplLabel -> Node C O
-
-  LIRRegAssignNode :: LIRReg -> LIRExpr -> Node O O
-  LIRTempEnterNode :: Int -> Node O O   -- 
+  LIRLabelNode        :: HooplLabel -> Node C O
+  LIRRegAssignNode    :: LIRReg -> LIRExpr -> Node O O
   LIRRegOffAssignNode :: LIRReg -> LIRReg -> LIRSize -> LIROperand -> Node O O
-  LIRStoreNode     :: LIRMemAddr -> LIROperand -> Node O O
-  LIRLoadNode      :: LIRReg -> LIRMemAddr -> Node O O
-  LIRCalloutNode   :: String -> Node O O -- assume control falls through
-  LIREnterNode     :: Int64 -> Node O O
-
-  LIRRetNode       :: Node O C
-  LIRIfNode        :: LIRRelExpr -> HooplLabel -> HooplLabel -> Node O C  -- false, then true
-  LIRJumpLabelNode :: HooplLabel -> Node O C
-  LIRCallNode      :: [LIRLabel] -> Node O C -- list of labels includes method label and label for next line
+  LIRStoreNode        :: LIRMemAddr -> LIROperand -> Node O O
+  LIRLoadNode         :: LIRReg -> LIRMemAddr -> Node O O
+  LIRCalloutNode      :: String -> Node O O -- assume control falls through
+  LIREnterNode        :: LIRInt -> Node O O
+  LIRRetNode          :: Node O C
+  LIRIfNode           :: LIRRelExpr -> HooplLabel -> HooplLabel -> Node O C  -- false, then true
+  LIRJumpLabelNode    :: HooplLabel -> Node O C
+  LIRCallNode         :: [LIRLabel] -> Node O C -- list of labels includes method label and label for next line
     
 instance NonLocal Node where
   entryLabel (LIRLabelNode lab) = lab
