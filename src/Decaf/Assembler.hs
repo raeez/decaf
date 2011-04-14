@@ -176,21 +176,21 @@ mapDataSection (SymbolTable records _) =
 mapDataDecl :: SymbolRecord -> Assembler (Maybe ASMDataDecl)
 mapDataDecl (VarRec (DecafVar ty ident _) num) =
     do declareSymbol sym
-       return $ Just (ASMCommonSegment (ASMLabel sym) size)
+       return $ Just (ASMCommonSegment (ASMLabel "g" (-num -1)) size)
   where
     sym = "g" ++ show (-num - 1)
     size = 1
 
 mapDataDecl (ArrayRec (DecafArr ty ident len _) go) =
     do declareSymbol sym
-       return $ Just (ASMCommonSegment (ASMLabel sym) size)
+       return $ Just (ASMCommonSegment (ASMLabel "__array" go) size)
   where
     sym = arrayLabel go
     size = readDecafInteger len
 
 mapDataDecl (StringRec str sl) = 
     do declareSymbol sym
-       return $ Just (ASMDataSegment (ASMLabel sym) byteString)
+       return $ Just (ASMDataSegment (ASMLabel "__string" sl) byteString)
   where
     sym = stringLabel sl
     byteString = (map (ASMByte . fromIntegral . ord) (str ++ ['\0']))
@@ -202,26 +202,26 @@ mapDataDecl (MethodRec m (_, i)) =
 ------------------- TEXT --------------------------------
 
 mapTextSection :: LIRProgram -> Assembler ASMSection
-mapTextSection (LIRProgram (LIRLabel label) units) =
+mapTextSection (LIRProgram (LIRLabel label i) units) =
     do instructions <- mapM mapUnit units
-       let head = ASMCons (ASMLabelInst (ASMLabel label)) ASMNil
+       let head = ASMCons (ASMLabelInst (ASMLabel label i)) ASMNil
            instructions' = castAsmList instructions
        return $ ASMTextSection (asmConcat head instructions')
 
 mapUnit :: LIRUnit -> forall a. Assembler ASMInstructions
-mapUnit (LIRUnit (LIRLabel label) insts) =
+mapUnit (LIRUnit (LIRLabel label i) insts) =
     do instructions <- mapM labelFilter insts
        let head = unitLabel
            instructions' = castAsmList instructions
        return (asmConcat unitLabel instructions')
  where
     unitLabel = if (length label > 0)
-                  then ASMCons (ASMLabelInst (ASMLabel label)) ASMNil
+                  then ASMCons (ASMLabelInst (ASMLabel label i)) ASMNil
                   else ASMNil
 
     labelFilter x =
         case x of
-            LIRLabelInst (LIRLabel "") -> return ASMNil
+            LIRLabelInst (LIRLabel "" _) -> return ASMNil
             other                      -> do mapInst other
                                              return ASMNil
 
@@ -286,27 +286,27 @@ mapInst (LIRLoadInst reg mem) =
        m <- asm mem
        loadstore r m
 
-mapInst (LIRJumpLabelInst (LIRLabel l)) =
-        jmp (ASMLabel l)
+mapInst (LIRJumpLabelInst (LIRLabel l i)) =
+        jmp (ASMLabel l i)
 
-mapInst (LIRIfInst (LIRBinRelExpr op1 binop op2) (LIRLabel l)) =
+mapInst (LIRIfInst (LIRBinRelExpr op1 binop op2) l) =
     do o1 <- asm op1
        o2 <- asm op2
        cmp' o1 o2
 
        jumpType binop l
 
-mapInst (LIRIfInst (LIRNotRelExpr operand) (LIRLabel l)) =
+mapInst (LIRIfInst (LIRNotRelExpr operand) (LIRLabel l i)) =
     do o <- asm operand
        cmp' o (lit litFalse)
 
-       jl (ASMLabel l)
+       jl (ASMLabel l i)
 
-mapInst (LIRIfInst (LIROperRelExpr operand) (LIRLabel l)) =
+mapInst (LIRIfInst (LIROperRelExpr operand) (LIRLabel l i)) =
     do o <- asm operand
        cmp' o (lit litFalse)
 
-       jl (ASMLabel l)
+       jl (ASMLabel l i)
 
 mapInst (LIRCallInst (LIRProcLabel proc)) =
     do useSymbol proc
@@ -320,7 +320,7 @@ mapInst (LIREnterInst s) =
 mapInst LIRRetInst =
     do leave
        ret
-mapInst (LIRLabelInst (LIRLabel l)) = label (ASMLabel l)
+mapInst (LIRLabelInst (LIRLabel l i)) = label (ASMLabel l i)
 
 leave :: Assembler ()
 leave = do mov rsp rbp
@@ -374,10 +374,10 @@ mod' op =
     do mov r10 op
        div r10
 
-jumpType :: LIRRelOp -> String -> Assembler ()
-jumpType binop l' = opcode >> return ()
+jumpType :: LIRRelOp -> LIRLabel -> Assembler ()
+jumpType binop (LIRLabel l' i) = opcode >> return ()
   where
-    l = ASMLabel l'
+    l = ASMLabel l' i
     opcode = case binop of
                   LEQ -> je l
                   LNEQ -> jne l
@@ -442,26 +442,26 @@ genExpr reg expr =
 
                                        mov' rdx r9
 
-      LIRBinExpr op1' (LIRBinRelOp binop (LIRLabel l)) op2' ->
+      LIRBinExpr op1' (LIRBinRelOp binop lab@(LIRLabel l i)) op2' ->
         do op1 <- asm op1'
            op2 <- asm op2'
            cmp' op1 op2
 
-           jumpType binop l
+           jumpType binop lab
 
            op1 <- asm reg
            mov' op1 (lit litFalse)
 
            jmp endl
 
-           label (ASMLabel l)
+           label (ASMLabel l i)
 
            op1 <- asm reg
            mov' op1 (lit litTrue)
 
            label endl
         where
-          endl = ASMLabel (l ++ "_end")
+          endl = ASMLabel (l ++ "_end") i
 
 
 class ASMOper a where

@@ -175,7 +175,7 @@ r15 = ASMGenOperand $ ASMRegOperand R15 8
 
 newtype ASMSym = ASMSym String
 
-newtype ASMLabel = ASMLabel String
+data ASMLabel = ASMLabel String Int
 
 -- | 'gnuSuffix' calculates the opcode suffix for
 -- x86_64 instructions.
@@ -398,4 +398,4 @@ instance SymbolicAssembler ASMSym where
     nasm (ASMSym sym) = sym
 
 instance SymbolicAssembler ASMLabel where
-    nasm (ASMLabel label) = label
+    nasm (ASMLabel label i) = label ++ (show i)

@@ -15,6 +15,7 @@ runtime checks
 data CFGProgram = CFGProgram
     { cgProgLabel :: LIRLabel
     , cgProgUnits :: [CFGUnit]
+    , cgProgLastLabel :: Int
     } deriving (Show, Eq)
 
 data CFGUnit = CFGUnit
@@ -48,6 +49,8 @@ data ControlNode = BasicBlock [LIRInst]
 
 type ControlPath = [ControlNode]
 
+data ControlGraph = ControlGraph {cgNodes :: [ControlPath]} -- a list of nodes for each method
+
 mkBasicBlock :: [LIRInst] -> ControlNode
 mkBasicBlock = BasicBlock
 
@@ -57,21 +60,15 @@ mkBranch op num b1 b2 =
                (b2 ++ [BasicBlock [LIRJumpLabelInst $ endLabel num]]) 
 
 
-data ControlGraph = ControlGraph {cgNodes :: [ControlPath]} -- a list of nodes for each method
-
-
 -- CHANGE FROM LIRInst to new itermediate ' type
-convertLIRInsts :: [CFGInst] -> Graph Node C C
+convertLIRInsts :: [CFGInst] -> ControlPath
 convertLIRInsts insts = convHelp [] [] insts
   where
-    convHelp :: Graph Node C C -> Block Node C O -> [CFGInst] -> Graph Node C C
-    convHelp graph [] ((LIRLabelInst lab):is) = convHelp graph [
-     
-    convHelp graph [block] [] = graph `gSplice` singletonG block
---  convHelp graph block (inst:is) = 
+    convHelp :: ControlPath -> [LIRInst] -> [CFGInst] -> ControlPath
+    convHelp nodes body [] = nodes ++ [mkBasicBlock body]
     convHelp nodes body (inst:is) =
         case inst of
-          CFGLIRInst inst@(LIRCallInst{}) -> convHelp (graph `gSplice` (BCat block (BLast (Node inst)))) [] is -- fix this?
+          CFGLIRInst inst@(LIRCallInst{}) -> convHelp (nodes ++ (pushBlock' inst)) [] is -- fix this?
           CFGLIRInst inst@LIRRetInst -> convHelp (nodes ++ (pushBlock' inst)) [] is
           CFGIf reg label block eblock ->
               convHelp (nodes ++ pushBlock ++ [mkBranch reg label (convHelp [] [] block) (convHelp [] [] eblock)]) [] is
@@ -116,9 +113,14 @@ convertProgram prog =
   where g (CFGUnit lab insts) = (CFGLIRInst $ LIRLabelInst lab) : insts
 
 translateCFG :: ControlGraph -> LIRProgram
-translateCFG g = LIRProgram (LIRLabel "prog") $ map ((LIRUnit (LIRLabel "")).concatMap h) (cgNodes g)
+translateCFG g = LIRProgram (LIRLabel "prog" 0) $ map ((LIRUnit (LIRLabel "" 0)).concatMap h) (cgNodes g)
   where 
     h :: ControlNode -> [LIRInst]
     h (BasicBlock insts) = insts
     h (Branch {condReg = reg, trueBlock = tb, falseBlock = fb, branchNumber = num}) = 
         [(LIRIfInst (LIROperRelExpr reg) (trueLabel num))] ++ (concatMap h fb) ++ (concatMap h tb)
+
+
+{-CFTtoLOLG :: ControlGraph -> LolGraph
+CFTtoLOLG (ControlGraph paths) = foldl dgSplice GNil (map (h  paths)
+  where-}

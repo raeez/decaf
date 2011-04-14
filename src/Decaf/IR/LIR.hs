@@ -13,6 +13,9 @@ type LIRInt    = Int64
 type LIRSize   = LIRInt
 type LIROffset = LIRInt
 
+data LIRLabel = LIRLabel String Int
+              deriving (Show, Eq, Typeable)
+
 data LIRProgram = LIRProgram
     { lirProgLabel :: LIRLabel
     , lirProgUnits :: [LIRUnit]
@@ -104,9 +107,6 @@ data LIRReg = LRAX
             | MEM String
             deriving (Show, Eq, Typeable)
 
-data LIRLabel = LIRLabel String
-              deriving (Show, Eq, Typeable)
-
 byte :: LIRInt
 byte = 1
 
@@ -148,7 +148,7 @@ exception code
       | otherwise = error "LIR.hs:exception called with invalid exception code [" ++ show code ++ "]"
 
 exceptionHeader :: LIRLabel
-exceptionHeader = LIRLabel "__exceptionhandlers"
+exceptionHeader = LIRLabel "__exceptionhandlers" 0
 
 exceptionString :: SymbolTree -> String -> String
 exceptionString st msg =
@@ -158,19 +158,19 @@ exceptionString st msg =
           error $ "LIR.hs:exceptionString could not find symbol for :" ++msg 
 
 exceptionLabel :: SymbolTree -> String -> LIRLabel
-exceptionLabel st msg =
-    case globalSymLookup ('.':msg) st of
-        Just (StringRec _ l) ->  LIRLabel $ "__exception" ++ show l
-        _ -> error $ "LIR.hs:exceptionLabel could not find symbol for :" ++ msg
+exceptionLabel st msg  = case globalSymLookup ('.':msg) st of
+                           Just (StringRec _ l) ->  LIRLabel "__exception" l
+                           _ -> error $ "LIR.hs:exceptionLabel could not find symbol for :" ++ msg
 
 boundsLabel :: Bool -> Int -> LIRLabel
-boundsLabel t c = if t
-                    then (LIRLabel $ "__boundscheck" ++ show c)
-                    else (LIRLabel $ "__boundscheck" ++ show c ++ "__positive")
+boundsLabel t c = if t then (LIRLabel  "__boundscheck" c) 
+                  else (LIRLabel "__boundscheck_positive" c)
 
 compareLabel :: Int -> LIRLabel
-compareLabel c = LIRLabel $  "__cmp" ++ show c
+compareLabel c = LIRLabel  "__cmp" c
 
+
+-- following three are not labels in the LIRLabel sense
 stringLabel :: Int -> String
 stringLabel c = "__string" ++ show c
 
@@ -181,14 +181,13 @@ methodLabel :: String -> Int -> String
 methodLabel m c = "__proc" ++ show c ++ "__" ++ m
 
 loopLabel :: Int -> LIRLabel
-loopLabel l = LIRLabel $ "LLOOP" ++ show l
+loopLabel l = LIRLabel "LLOOP" l
 
 endLabel :: Int -> LIRLabel
-endLabel l = LIRLabel $ "LEND" ++ show l
+endLabel l = LIRLabel "LEND"  l
 
 trueLabel :: Int -> LIRLabel
-trueLabel l = LIRLabel $ "LTRUE" ++ show l
-
+trueLabel l = LIRLabel "LTRUE" l
 
 instance IRNode LIRProgram where
     pp (LIRProgram label units) = pp label ++ ":\n" ++ unlines (map pp units)
@@ -337,5 +336,5 @@ instance IRNode LIRInt where
     treeify i = Node (pp i) []
 
 instance IRNode LIRLabel where
-    pp (LIRLabel s) = s
+    pp (LIRLabel s n) = if n == -1 then s else s++(show n)
     treeify s = Node (pp s) []
