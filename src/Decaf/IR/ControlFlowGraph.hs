@@ -1,5 +1,6 @@
 module Decaf.IR.ControlFlowGraph where
-import Decaf.IR.Class
+import Data.Int
+import Decaf.IR.IRNode
 import Decaf.IR.AST
 import Decaf.IR.LIR
 import Decaf.IR.SymbolTable
@@ -14,6 +15,7 @@ runtime checks
 data CFGProgram = CFGProgram
     { cgProgLabel :: LIRLabel
     , cgProgUnits :: [CFGUnit]
+    , cgProgLastLabel :: Int
     } deriving (Show, Eq)
 
 data CFGUnit = CFGUnit
@@ -47,6 +49,8 @@ data ControlNode = BasicBlock [LIRInst]
 
 type ControlPath = [ControlNode]
 
+data ControlGraph = ControlGraph {cgNodes :: [ControlPath]} -- a list of nodes for each method
+
 mkBasicBlock :: [LIRInst] -> ControlNode
 mkBasicBlock = BasicBlock
 
@@ -54,9 +58,6 @@ mkBranch :: LIROperand -> Int -> ControlPath -> ControlPath -> ControlNode
 mkBranch op num b1 b2 = 
     Branch op num ((BasicBlock [LIRLabelInst (trueLabel num)]):b1++[BasicBlock [LIRLabelInst $ endLabel num]])
                (b2 ++ [BasicBlock [LIRJumpLabelInst $ endLabel num]]) 
-
-
-data ControlGraph = ControlGraph {cgNodes :: [ControlPath]} -- a list of nodes for each method
 
 
 -- CHANGE FROM LIRInst to new itermediate ' type
@@ -112,9 +113,14 @@ convertProgram prog =
   where g (CFGUnit lab insts) = (CFGLIRInst $ LIRLabelInst lab) : insts
 
 translateCFG :: ControlGraph -> LIRProgram
-translateCFG g = LIRProgram (LIRLabel "prog") $ map ((LIRUnit (LIRLabel "")).concatMap h) (cgNodes g)
+translateCFG g = LIRProgram (LIRLabel "prog" 0) $ map ((LIRUnit (LIRLabel "" 0)).concatMap h) (cgNodes g)
   where 
     h :: ControlNode -> [LIRInst]
     h (BasicBlock insts) = insts
     h (Branch {condReg = reg, trueBlock = tb, falseBlock = fb, branchNumber = num}) = 
         [(LIRIfInst (LIROperRelExpr reg) (trueLabel num))] ++ (concatMap h fb) ++ (concatMap h tb)
+
+
+{-CFTtoLOLG :: ControlGraph -> LolGraph
+CFTtoLOLG (ControlGraph paths) = foldl dgSplice GNil (map (h  paths)
+  where-}

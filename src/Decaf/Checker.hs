@@ -1,7 +1,7 @@
 module Decaf.Checker where
 import Decaf.Data.Zipper
 import Decaf.Util.Report
-import Decaf.IR.Class
+import Decaf.IR.IRNode
 import Decaf.IR.AST
 import Decaf.IR.SymbolTable
 import Decaf.IR.LIR -- just for exception messages
@@ -18,6 +18,7 @@ data CheckerState = CST
     , cstTable :: SymbolTree
     }
 
+mkCheckerState :: CheckerState
 mkCheckerState = CST [] mkSymbolTree
 
 -- | Semantic checking monad
@@ -40,16 +41,19 @@ pushError (l,c) str = Checker (\s@(CST{cstErrors = e}) -> (False, s{cstErrors = 
     err = SemanticError str (l, c)
 
 addSymbol :: SymbolRecord -> Checker Bool
-addSymbol sr@(StringRec s l) = 
+addSymbol sr@(StringRec {}) = 
     Checker (\s@(CST{cstTable = t}) -> 
                  let cont = context t
                  in 
-                   (True,  s{cstTable = setContext cont (modifyContent (addtobegtable sr) (root t))}))
+                   (True,  s{cstTable = setContext cont (modifyContent (addToBegTable sr) (root t))}))
 
-addSymbol sr = Checker (\s@(CST{cstTable = t}) -> (True, s{cstTable = modifyContent (addtoendtable sr)t}))
+addSymbol sr = Checker (\s@(CST{cstTable = t}) -> (True, s{cstTable = modifyContent (addToEndTable sr)t}))
 
-addtoendtable sr (SymbolTable rs bt) = SymbolTable (rs ++ [sr]) bt -- this order of adding symbols is important!
-addtobegtable sr (SymbolTable rs bt) = SymbolTable (sr : rs) bt -- this order of adding symbols is important!
+addToEndTable :: SymbolRecord -> SymbolTable -> SymbolTable
+addToEndTable sr (SymbolTable rs bt) = SymbolTable (rs ++ [sr]) bt -- this order of adding symbols is important!
+
+addToBegTable :: SymbolRecord -> SymbolTable -> SymbolTable
+addToBegTable sr (SymbolTable rs bt) = SymbolTable (sr : rs) bt -- this order of adding symbols is important!
 
 local :: BlockType -> Checker a -> Checker a
 local tp m = Checker (\s@(CST{cstTable = t}) ->
@@ -132,10 +136,6 @@ checkStm (DecafAssignStm loc op expr p) =
                    do case loc of
                         arr@(DecafArrLoc {}) ->
                             checkExpr (DecafLocExpr arr p) >> return True
-{-                            do indT <- checkExpr ind
-                               if indT == DecafInteger
-                                 then return True
-                                 else pushError (pos ind) "Array index must be an integer"-}
                         _ -> return True
 
                       t2 <- checkExpr expr
@@ -265,6 +265,7 @@ checkProgram :: DecafProgram -> Checker Bool
 checkProgram (DecafProgram fields methods) =
     do addSymbol $ StringRec missingRetMessage  0
        addSymbol $ StringRec outOfBoundsMessage 0  -- needed for translator
+       mapM addMethodNameString methods
        foldl (>>) (return False) (map checkFieldDec fields)
        foldl (>>) (return False) (map checkMethodDec methods)
        b <- lookNear "main"
@@ -274,6 +275,8 @@ checkProgram (DecafProgram fields methods) =
             then return True
             else pushError p "Method \"main\" must have empty parameter list"
          _ -> pushError (0, 0) "Must define method main"
+  where
+    addMethodNameString m@DecafMethod {} = do addSymbol $ StringRec (methodID m) 0
 
 -- Type checking
 
@@ -300,6 +303,7 @@ checkExpr (DecafLocExpr (DecafArrLoc id ind _) pos) =
                  Nothing -> pushError pos ("Undefined variable "++id) >> return DecafVoid
                  Just (ArrayRec arr _) -> return $ arrayType arr
                  Just (VarRec var _) -> pushError pos (id++ " is not an array") >> return DecafVoid
+                 _ -> error "Checker.hs:checkExpr:lookupID SymbolTable lookup returned invalid record"
 
 checkExpr (Expr _ _ _) = error "AST has not had expression tree rewrite; concrete tree still present"
 

@@ -16,6 +16,8 @@ type TokenD = Token
 -- |The 'scanner' function takes and generates a corresponding list of Token
 scanner :: String -> [TokenD]
 scanner = eatFirst
+
+scannerQc :: String -> Bool
 scannerQc = (\s -> (length s == 0) || (length (scanner s) > 0))
 
 
@@ -83,8 +85,8 @@ ws = skipMany whitespace
 -- literals
 --------------------------------------------
 --
-literal :: Parser Token
-literal = chrLiteral
+genliteral :: Parser Token
+genliteral = chrLiteral
        <|> strLiteral
        <|> numLiteral
        <?> "literal"
@@ -320,7 +322,7 @@ posCount input p = let line = head $ lines input in
 singleToken :: Parser Token
 singleToken = do
                 ws
-                t <- (operator <|> literal <|> identifier <|> terminal <|> end)
+                t <- (operator <|> genliteral <|> identifier <|> terminal <|> end)
                 ws
                 return t
 

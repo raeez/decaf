@@ -1,8 +1,6 @@
 module Main where
 import Decaf
-import Decaf.Util.InteractiveGrapher
 import Decaf.RegisterAllocator
-import Decaf.IR.ASM
 import System.Environment
 import System.Exit
 
@@ -21,16 +19,25 @@ compile debug source filename =
   do case check source filename of
       RError s -> putStrLn s
       RSuccess (e, p, t, formattedTree, formattedErrors) ->
-          do if length e > 0
+          do if debug
+                then (putStrLn $ "formattedTree: " ++ formattedTree)
+                else (return ())
+             if length e > 0
                then putStrLn formattedErrors >> exitFailure
-               else do let (numberedTable, CounterState (LabelCounter rc _ _ _)) = runRegisterCounter (numberTree $ tree t) (CounterState mkCounter)
+               else do let (numberedTable, 
+                            CounterState (LabelCounter rc _ _ _)) =
+                                runRegisterCounter (numberTree $ tree t) (CounterState mkCounter)
                            (lir, _) = runTranslator (translateProgram (top numberedTable) p) (mkNamespace rc)
                        if debug
                          then (putStrLn $ pp $ translateCFG . convertProgram $ lir)
                          else putStrLn ""
                        let prog = (translateCFG . convertProgram) lir
-                           (prog', c, results) = allocateRegisters t prog 
-                           asm =  ((intelasm . content) numberedTable) ++ (intelasm prog')
-                       writeFile ((fst $ break (=='.') filename) ++ ".asm") asm
-                       putStrLn asm
+                           (prog', _, _) = allocateRegisters t prog
+                           assembler = programAssembler (content numberedTable) prog'
+                           (prog'', _) = runAssembler assembler mkAssemblerState
+                           asmout = nasm prog''
+                       writeFile newFile asmout
+                       putStrLn asmout
                        exitSuccess
+  where
+    newFile = (fst $ break (=='.') filename) ++ ".asm"

@@ -5,7 +5,7 @@
 
 module Decaf.RegisterAllocator where
 import Decaf.IR.SymbolTable
-import Decaf.IR.Class
+import Decaf.IR.IRNode
 import Decaf.IR.AST
 import Decaf.IR.LIR
 import Decaf.Translator
@@ -48,29 +48,13 @@ instance Data LIRExpr where
      return (LIROperExpr a'1)
 
 instance Data LIRMemAddr where
- gmapM f (LIRRegMemAddr a1 a2) =
-  do 
-     a'1 <- f a1
-     a'2 <- f a2
-     return (LIRRegMemAddr a'1 a'2)
- gmapM f (LIRRegPlusMemAddr a1 a2 a3) =
+ gmapM f (LIRMemAddr a1 a2 a3 a4) =
   do 
      a'1 <- f a1
      a'2 <- f a2
      a'3 <- f a3
-     return (LIRRegPlusMemAddr a'1 a'2 a'3)
- gmapM f (LIRRegOffMemAddr a1 a2 a3) =
-  do 
-     a'1 <- f a1
-     a'2 <- f a2
-     a'3 <- f a3
-     return (LIRRegOffMemAddr a'1 a'2 a'3)
-
-instance Data LIRInt where
- gmapM f (LIRInt a1) =
-  do 
-     a'1 <- f a1
-     return (LIRInt a'1)
+     a'4 <- f a4
+     return (LIRMemAddr a'1 a'2 a'3 a'4)
 
 instance Data LIRRelExpr where
  gmapM f (LIRBinRelExpr a1 a2 a3) =
@@ -92,10 +76,8 @@ instance Data LIRRelExpr where
 instance Data LIRInst where
  gmapT f (LIRRegAssignInst a1 a2) = LIRRegAssignInst (f a1) (f a2)
  gmapT f (LIRRegOffAssignInst a1 a2 a3 a4) = LIRRegOffAssignInst (f a1) (f a2) (f a3) (f a4)
- gmapT f (LIRCondAssignInst a1 a2 a3) = LIRCondAssignInst (f a1) (f a2) (f a3)
  gmapT f (LIRStoreInst a1 a2) = LIRStoreInst (f a1) (f a2)
  gmapT f (LIRLoadInst a1 a2) = LIRLoadInst (f a1) (f a2)
- gmapT f (LIRJumpRegInst a1 a2) = LIRJumpRegInst (f a1) (f a2)
  gmapT f (LIRJumpLabelInst a1) = LIRJumpLabelInst (f a1)
  gmapT f (LIRIfInst a1 a2) = LIRIfInst (f a1) (f a2)
  gmapT f (LIRRetInst) = LIRRetInst
@@ -106,12 +88,6 @@ instance Data LIRInst where
      a'1 <- f a1
      a'2 <- f a2
      return (LIRRegAssignInst a'1 a'2)
- gmapM f (LIRRegCmpAssignInst a1 a2 a3) =
-  do 
-     a'1 <- f a1
-     a'2 <- f a2
-     a'3 <- f a3
-     return (LIRRegCmpAssignInst a'1 a'2 a'3)
  gmapM f (LIRRegOffAssignInst a1 a2 a3 a4) =
   do 
      a'1 <- f a1
@@ -119,12 +95,6 @@ instance Data LIRInst where
      a'3 <- f a3
      a'4 <- f a4
      return (LIRRegOffAssignInst a'1 a'2 a'3 a'4)
- gmapM f (LIRCondAssignInst a1 a2 a3) =
-  do 
-     a'1 <- f a1
-     a'2 <- f a2
-     a'3 <- f a3
-     return (LIRCondAssignInst a'1 a'2 a'3)
  gmapM f (LIRStoreInst a1 a2) =
   do 
      a'1 <- f a1
@@ -135,15 +105,10 @@ instance Data LIRInst where
      a'1 <- f a1
      a'2 <- f a2
      return (LIRLoadInst a'1 a'2)
- gmapM f (LIRTempEnterInst a1) = 
+ gmapM f (LIREnterInst a1) = 
   do 
      a'1 <- f a1
-     return (LIRTempEnterInst a'1)
- gmapM f (LIRJumpRegInst a1 a2) =
-  do 
-     a'1 <- f a1
-     a'2 <- f a2
-     return (LIRJumpRegInst a'1 a'2)
+     return (LIREnterInst a'1)
  gmapM f (LIRJumpLabelInst a1) =
   do 
      a'1 <- f a1
@@ -243,54 +208,54 @@ instance Data LIRProc where
      a'1 <- f a1
      return (LIRProcReg a'1)
 instance Data LIRReg where
- gmapM f (RAX) =
+ gmapM f (LRAX) =
   do 
-     return (RAX)
- gmapM f (RBX) =
+     return (LRAX)
+ gmapM f (LRBX) =
   do 
-     return (RBX)
- gmapM f (RCX) =
+     return (LRBX)
+ gmapM f (LRCX) =
   do 
-     return (RCX)
- gmapM f (RDX) =
+     return (LRCX)
+ gmapM f (LRDX) =
   do 
-     return (RDX)
- gmapM f (RBP) =
+     return (LRDX)
+ gmapM f (LRBP) =
   do 
-     return (RBP)
- gmapM f (RSP) =
+     return (LRBP)
+ gmapM f (LRSP) =
   do 
-     return (RSP)
- gmapM f (RSI) =
+     return (LRSP)
+ gmapM f (LRSI) =
   do 
-     return (RSI)
- gmapM f (RDI) =
+     return (LRSI)
+ gmapM f (LRDI) =
   do 
-     return (RDI)
- gmapM f (R8) =
+     return (LRDI)
+ gmapM f (LR8) =
   do 
-     return (R8)
- gmapM f (R9) =
+     return (LR8)
+ gmapM f (LR9) =
   do 
-     return (R9)
- gmapM f (R10) =
+     return (LR9)
+ gmapM f (LR10) =
   do 
-     return (R10)
- gmapM f (R11) =
+     return (LR10)
+ gmapM f (LR11) =
   do 
-     return (R11)
- gmapM f (R12) =
+     return (LR11)
+ gmapM f (LR12) =
   do 
-     return (R12)
- gmapM f (R13) =
+     return (LR12)
+ gmapM f (LR13) =
   do 
-     return (R13)
- gmapM f (R14) =
+     return (LR13)
+ gmapM f (LR14) =
   do 
-     return (R14)
- gmapM f (R15) =
+     return (LR14)
+ gmapM f (LR15) =
   do 
-     return (R15)
+     return (LR15)
  gmapM f (GI a1) =
   do 
      a'1 <- f a1
@@ -313,10 +278,10 @@ instance Data LIROperand where
   do 
      a'1 <- f a1
      return (LIRIntOperand a'1)
- gmapM f (LIRStringOperand a1) =
+ gmapM f (LIRStrOperand a1) =
   do 
      a'1 <- f a1
-     return (LIRStringOperand a'1)
+     return (LIRStrOperand a'1)
 
 
 {- END DECLARATIONS -}
@@ -440,7 +405,6 @@ getMethods st =
     in 
       concatMap pullMethod recs
 
-
 allocateRegisters :: SymbolTree -> LIRProgram -> (LIRProgram, Int, [RegCounterState])
 allocateRegisters st prog = 
     let initUnits = lirProgUnits prog 
@@ -463,7 +427,9 @@ allocateRegisters st prog =
         appendEnter (i, u) = 
             let insts = lirUnitInstructions u
             in
-              u{lirUnitInstructions = (head insts) : ((LIRTempEnterInst i):(tail insts))}
+              u{lirUnitInstructions = (head insts) : ((LIREnterInst lirsize):(tail insts))}
+          where
+            lirsize = fromIntegral i :: LIRInt
 
 
         fixOffset :: (DecafMethod, LIRUnit) -> LIRUnit
@@ -476,7 +442,7 @@ allocateRegisters st prog =
                 help c (rec:rs) = 
                     case rec of 
                       VarRec {} -> help (c+1) rs
-                      ArrayRec r@(DecafArr{}) _ -> help (c+(readDecafInteger $ arrayLength r)) rs
+                      ArrayRec r@(DecafArr{}) _ -> help (c+(fromIntegral $ readDecafInteger $ arrayLength r :: Int)) rs
                       otherwise -> help c rs
                     
 

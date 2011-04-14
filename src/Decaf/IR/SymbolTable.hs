@@ -58,6 +58,8 @@ symType :: SymbolRecord -> DecafType
 symType (VarRec v _) = varType v
 symType (MethodRec m _) = methodType m
 symType (ArrayRec a _) = arrayType a
+symType _ =
+    error "SymbolTable.hs:symType called on a SymbolRecord container not holding a type"
 
 table :: SymbolTree -> SymbolTable
 table = content . tree
@@ -86,7 +88,7 @@ mkSymbolTree :: SymbolTree
 mkSymbolTree = mkZipper (SymbolTable [] GlobalBlock)
 
 data LabelCounter = LabelCounter
-    { regCount :: Int
+    { regCount    :: Int
     , globalCount :: Int
     , methodCount :: Int
     , stringCount :: Int
@@ -106,19 +108,21 @@ instance Monad RegisterCounter where
     m >>= f = RegisterCounter(\s ->
                   let (x, s') = runRegisterCounter m s
                   in runRegisterCounter (f x) s')
-
+getRegCount :: RegisterCounter Int
 getRegCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
                       let n = regCount c
                       in (n, s{csCounter=c{regCount = n+1}}))
 
+getGlobalCount :: Int -> RegisterCounter Int
 getGlobalCount i = RegisterCounter (\s@(CounterState{csCounter=c}) ->
                          let n = globalCount c
                          in (n, s{csCounter=c{globalCount = n+i}}))
-
+getMethodCount :: RegisterCounter Int
 getMethodCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
                          let n = methodCount c
                          in (n, s{csCounter=c{methodCount = n+1}}))
 
+getStringCount :: RegisterCounter Int
 getStringCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
                          let n = stringCount c
                          in (n, s{csCounter=c{stringCount = n+1}}))
@@ -144,16 +148,21 @@ numberTreeH t =
 numberRec :: SymbolRecord -> RegisterCounter SymbolRecord
 numberRec (VarRec a _) = do c <- getRegCount
                             return $ VarRec a c
+
 numberRec (MethodRec a _) = do c <- getMethodCount
                                return $ MethodRec a ("meth", c)
+
 numberRec (ArrayRec {}) = error "Tried to number locally defined array in SymbolTable.hs: numberRec"
 numberRec (StringRec a _) = do c <- getStringCount
                                return $ StringRec a c
 
-numberGlobal (ArrayRec a _) = do c <- getGlobalCount (readDecafInteger (arrayLength a))
+numberGlobal :: SymbolRecord -> RegisterCounter SymbolRecord
+numberGlobal (ArrayRec a _) = do c <- getGlobalCount (fromIntegral $ readDecafInteger $ arrayLength a :: Int)
                                  return $ ArrayRec a (c)
+
 numberGlobal (VarRec a _ ) =  do c <- getGlobalCount 1
                                  return $ VarRec a (-c-1)
+
 numberGlobal m@(MethodRec {}) = return m
 numberGlobal (StringRec a _) = do c <- getStringCount
                                   return $ StringRec a c

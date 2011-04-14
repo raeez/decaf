@@ -2,12 +2,16 @@ module Decaf.Parser
 where
 import Text.ParserCombinators.Parsec
 import Decaf.Tokens
-import Decaf.IR.Class
+import Decaf.IR.IRNode
 import Decaf.IR.AST
 import Decaf.Scanner
 import Decaf.Util.Report
 import Test.QuickCheck
 
+--tests
+parserQcTest :: IO ()
+parserQcTest = do
+	   quickCheck ((\x -> x==x) :: Char -> Bool)
 
 -- |DecafParser defines a Parser type for DecafToken
 type DecafParser a = GenParser Token () a
@@ -371,42 +375,61 @@ methodcall = (do
                 let p'' = morphPos p'
                 return $ DecafPureMethodCall i p p'')
 
-
+-- |The 'rewriteWithMinus' function morphs a generic expression tree into one 
+-- where subtraction is represented as the negation of the terms of addition.
+-- A schematic of the tree-rewrite is as follows:
+--    -                    +
+-- x    y         --->   x   - y
+--
+--
+--   -                     +
+-- x    -         --->   x   +
+--    y   z                 -y + z
+-- special care is taken to preserve a minimal placement of DecafMinOps, as
+-- indicated by the conditional swtich on 'parentPlus'
+rewriteWithMinus :: Bool -> DecafExpr -> DecafExpr
 rewriteWithMinus parentPlus (DecafBinExpr
                               x
                               (DecafBinArithOp (DecafMinOp p3) p2)
-                              (DecafBinExpr y (DecafBinArithOp (DecafPlusOp p3') p2') z p')
-                              p) =
+                                (DecafBinExpr
+                                  y
+                                  (DecafBinArithOp (DecafPlusOp p3') p2')
+                                  z
+                                  p')
+                                p) =
     DecafBinExpr (if parentPlus then (rewriteWithMinus True x) else (rewriteExpr x))
                  (DecafBinArithOp (DecafPlusOp p3) p2)
-                 (DecafBinExpr (rewriteWithMinus True y) (DecafBinArithOp (DecafPlusOp p3') p2') (rewriteExpr z) p') -- note the rewriteExpr z
+                 (DecafBinExpr
+                    (rewriteWithMinus True y)
+                    (DecafBinArithOp (DecafPlusOp p3') p2')
+                    (rewriteExpr z)
+                    p') -- note the rewriteExpr z
                  p
-
 
                  
 rewriteWithMinus parentPlus (DecafBinExpr
                               x
-                              (DecafBinArithOp (DecafMinOp p3) p2)
-                              (DecafBinExpr y (DecafBinArithOp (DecafMinOp p3') p2') z p')
-                              p) =
+                                (DecafBinArithOp (DecafMinOp p3) p2)
+                                (DecafBinExpr y (DecafBinArithOp (DecafMinOp p3') p2') z p')
+                                p) =
     DecafBinExpr (if parentPlus then (rewriteWithMinus True x) else (rewriteExpr x))
                  (DecafBinArithOp (DecafPlusOp p3) p2)
-                 (DecafBinExpr (rewriteWithMinus True y) (DecafBinArithOp (DecafPlusOp p3') p2') (rewriteWithMinus True z) p')
+                 (DecafBinExpr
+                    (rewriteWithMinus True y)
+                    (DecafBinArithOp (DecafPlusOp p3') p2')
+                    (rewriteWithMinus True z)
+                    p')
                  p
-
-
 
 rewriteWithMinus parentPlus (DecafBinExpr
                               x
-                              (DecafBinArithOp (DecafMinOp p3) p2)
-                              y
-                              p) =
+                                (DecafBinArithOp (DecafMinOp p3) p2)
+                                y
+                                p) =
     DecafBinExpr (if parentPlus then (rewriteWithMinus True x) else (rewriteExpr x))
                  (DecafBinArithOp (DecafPlusOp p3) p2)
                  (rewriteWithMinus True y)
                  p
-
-
 
 rewriteWithMinus parentPlus (DecafBinExpr
                               x
@@ -418,24 +441,14 @@ rewriteWithMinus parentPlus (DecafBinExpr
                  y
                  p
 
-rewriteWithMinus parentPlus e = DecafMinExpr e (pos e)
+rewriteWithMinus _ e = DecafMinExpr e (pos e)
                  
-                 --    -                    +
-                 -- x    y         --->   x   - y
-                 --
-                 --
-                 --                         +
-                 -- x    -         --->   x   +
-                 --    y   z                 -y + z
---rewriteWithMinus p e =  e
--- |'rewriteExpr' rewrites a parsed concrete expression tree into an abstract syntax expression tree
--- This function utilizes the recursive rewriteExprTail, rewriteTerm, rewriteTermTail and rewriteFactor to rewrite the entire tree in-place.
 rewriteExpr :: DecafExpr -> DecafExpr
 rewriteExpr e@(DecafLocExpr _ _)     = e
 rewriteExpr e@(DecafMethodExpr _ _)  = e
 rewriteExpr e@(DecafLitExpr _ _)     = e
 
-rewriteExpr efinal@(DecafBinExpr e1 (DecafBinArithOp (DecafMinOp p3) p2) e2 p) =
+rewriteExpr efinal@(DecafBinExpr _ (DecafBinArithOp (DecafMinOp _) _) _ _) =
     rewriteWithMinus False efinal
 
 rewriteExpr (DecafBinExpr e1 o e2 p) =
@@ -600,7 +613,7 @@ rewriteFactor (DecafParenExpr' expr p)
 rewriteFactor (DecafNotExpr' expr p)
   = DecafNotExpr (rewriteExpr . rewriteExpr $ expr) p
 
-rewriteFactor (DecafMinExpr' expr p)
+rewriteFactor (DecafMinExpr' expr _)
   = rewriteExpr . rewriteExpr $ expr
 
 rewriteFactor (DecafLocExpr' loc p)
@@ -718,7 +731,7 @@ term' = do
 factor :: DecafParser Factor
 factor = (try methodcall >>= \o -> fmap (DecafMethodExpr' o . morphPos) getPosition)
       <|> (location >>= \o -> fmap (DecafLocExpr' o . morphPos) getPosition)
-      <|> (lit >>= \o -> fmap (DecafLitExpr' o . morphPos) getPosition)
+      <|> (literal >>= \o -> fmap (DecafLitExpr' o . morphPos) getPosition)
       <|> (opnot >> smallexpr >>= \o -> fmap (DecafNotExpr' o . morphPos) getPosition)
       <|> do
             opmin
@@ -738,7 +751,7 @@ factor = (try methodcall >>= \o -> fmap (DecafMethodExpr' o . morphPos) getPosit
 smallexpr :: DecafParser DecafExpr
 smallexpr = (try methodcall >>= \o -> fmap (rewriteFactor . DecafMethodExpr' o . morphPos) getPosition)
          <|> (location >>= \o -> fmap (rewriteFactor . DecafLocExpr' o . morphPos) getPosition)
-         <|> (lit >>= \o -> fmap (rewriteFactor . DecafLitExpr' o . morphPos) getPosition)
+         <|> (literal >>= \o -> fmap (rewriteFactor . DecafLitExpr' o . morphPos) getPosition)
          <|> (opnot >> ((try smallexpr) <|> expr) >>= \o -> fmap (rewriteFactor . DecafNotExpr' o . morphPos) getPosition)
          <|> do
                 opmin
@@ -754,32 +767,14 @@ smallexpr = (try methodcall >>= \o -> fmap (rewriteFactor . DecafMethodExpr' o .
                 e <- (try smallexpr) <|> expr
                 rparen
                 fmap (rewriteFactor . DecafParenExpr' e . morphPos) getPosition
-{-
 
-expr = buildExpressionParser table term
-    <?> "expression"
-
-term = parens expr 
-    <|> natural
-     <?> "simple expression"
-
-  table   = [ [binary orop _ AssocLeft]
-            , [binary andop _ AssocLeft]
-            , [binary eqop _ AssocLeft]
-            , [binary relop _ AssocLeft]
-            , [prefix minop _, prefix plusop _]
-            , [prefix opnot DecafNotExpr]
-            , [prefix opmin DecafMinExpr]
-            , [postfix "++" (+1)]
-            , [binary "*" (*) AssocLeft, binary "/" (div) AssocLeft ]
-            , [binary "+" (+) AssocLeft, binary "-" (-)   AssocLeft ]
-            ]
-          
-  binary  name fun assoc = Infix (do{ reservedOp name; return fun }) assoc
-  prefix  name fun       = Prefix (do{ reservedOp name; return fun })
-  postfix name fun       = Postfix (do{ reservedOp name; return fun })
--}
-firstlevelop, secondlevelop, thirdlevelop, fourthlevelop, fifthlevelop, sixthlevelop :: DecafParser DecafBinOp
+firstlevelop,
+  secondlevelop,
+  thirdlevelop,
+  fourthlevelop,
+  fifthlevelop,
+  sixthlevelop,
+  seventhlevelop :: DecafParser DecafBinOp
 firstlevelop = condop
 secondlevelop = eqop
 thirdlevelop = relop
@@ -827,8 +822,8 @@ aseq = assign >> fmap (DecafEq . morphPos) getPosition
 mineq = minusassign >> fmap (DecafMinusEq . morphPos) getPosition
 pluseq = plusassign >> fmap (DecafPlusEq . morphPos) getPosition
 
-lit :: DecafParser DecafLiteral
-lit = ilit <|> clit  <|> blit
+literal :: DecafParser DecafLiteral
+literal = ilit <|> clit  <|> blit
 
 slit :: DecafParser DecafString
 slit = strlit
@@ -861,15 +856,3 @@ arrlocation = do
 calloutarg :: DecafParser DecafCalloutArg
 calloutarg = (expr >>= (\o -> fmap (DecafCalloutArgExpr o . morphPos) getPosition))
           <|> (slit >>= (\o -> fmap (DecafCalloutArgStr o . morphPos) getPosition))
-
-
-
-
-
---tests
-parserQcTest :: IO ()
-parserQcTest = do
-	   quickCheck ((\x -> x==x) :: Char -> Bool)
-
-
-

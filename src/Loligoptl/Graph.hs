@@ -17,7 +17,6 @@ where
 import Loligoptl.Label
 import qualified Data.Map as Map
 
-
 data O
 data C
 
@@ -37,7 +36,6 @@ instance Functor (MaybeC ex) where
   fmap f (JustC a) = JustC (f a)
   fmap f NothingC = NothingC
 
-
 data Block n e x where
   BFirst  :: n C O -> Block n C O
   BMiddle :: n O O -> Block n O O
@@ -45,16 +43,13 @@ data Block n e x where
 
   BCat    :: Block n e O -> Block n O x -> Block n e x
 
-  BHead   :: Block n C O -> n O O       -> Block n C O
+  BHead   :: Block n C O -> n O O       -> Block n C O -- the zipper
   BTail   :: n O O       -> Block n O C -> Block n O C  
-  BClosed :: Block n C O -> Block n O C -> Block n C C -- the zipper
-
-
+  BClosed :: Block n C O -> Block n O C -> Block n C C 
 
 type Body n = LabelMap (Block n C C)
 emptyBody :: LabelMap (thing C C)
 emptyBody = mapEmpty
-
 
 data Graph' block n e x where
   GNil  :: Graph' block n O O
@@ -65,7 +60,6 @@ data Graph' block n e x where
         -> Graph' block n e x
 
 type Graph = Graph' Block
-
 
 class NonLocal thing where
   entryLabel :: thing C x -> Label
@@ -79,11 +73,17 @@ instance NonLocal n => NonLocal (Block n) where
   successors (BTail _ t)   = successors t
   successors (BClosed _ t) = successors t
 
-
-
 addBlock :: NonLocal thing => thing C C -> LabelMap (thing C C) -> LabelMap (thing C C)
 addBlock block body = mapInsert (entryLabel block) block body
 --bodyList = id
+  GNil  :: Graph' block n O O
+  GUnit :: block n O O -> Graph' block n O O 
+  GMany :: MaybeO e (block n O C)
+        -> LabelMap (block n C C)
+        -> MaybeO x (block n C O)
+        -> Graph' block n e x
+
+addBlock GNil b = GUnit 
 
 
 -- | Decorated graphs
@@ -161,4 +161,3 @@ cat    (BCat b1 b2) b3@(BLast{})    = b1 `cat` (b2 `cat` b3)
 cat    (BCat b1 b2) b3@(BTail{})    = b1 `cat` (b2 `cat` b3)
 cat b1@(BCat {})    b2@(BCat{})     = BCat    b1 b2
 cat b1@(BCat {})    b2@(BMiddle{})  = BCat    b1 b2
-

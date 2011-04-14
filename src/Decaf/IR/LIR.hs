@@ -1,67 +1,20 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable
+  , TypeSynonymInstances #-}
 
 module Decaf.IR.LIR where
 import Numeric
-import Decaf.IR.Class
+import Data.Int
+import Decaf.IR.IRNode
 import Decaf.Data.Tree
 import Data.Typeable
 import Decaf.IR.SymbolTable
 
-asmTrue = LIRInt (-1)
-asmFalse = LIRInt 0
+type LIRInt    = Int64
+type LIRSize   = LIRInt
+type LIROffset = LIRInt
 
-missingRetMessage :: String
-missingRetMessage = "EXCEPTION: ARRAY OUT OF BOUNDS\n"
-
-missingRet :: Int
-missingRet = 1
-
-outOfBoundsMessage :: String
-outOfBoundsMessage = "EXCEPTION: MISSING RETURN STATEMENT\n"
-
-outOfBounds :: Int
-outOfBounds = 0
-
-exception code
-      | code == 1 = outOfBoundsMessage
-      | code == 0 = missingRetMessage
-
-exceptionHeader :: LIRLabel
-exceptionHeader = LIRLabel "__exceptionhandlers"
-
-exceptionString :: SymbolTree -> String -> String
-exceptionString st msg  = case globalSymLookup ('.':msg) st of
-                           Just (StringRec _ l) ->  "__string" ++ show l
-                           _ -> error $ "LIR.hs:exceptionString could not find symbol for :" ++msg 
-
-exceptionLabel :: SymbolTree -> String -> LIRLabel
-exceptionLabel st msg  = case globalSymLookup ('.':msg) st of
-                           Just (StringRec _ l) ->  LIRLabel $ "__exception" ++ show l
-                           _ -> error $ "LIR.hs:exceptionLabel could not find symbol for :" ++ msg
-
-boundsLabel :: Bool -> Int -> LIRLabel
-boundsLabel t c = if t then (LIRLabel $ "__boundscheck" ++ show c) else (LIRLabel $ "__boundscheck" ++ show c ++ "__positive")
-
-compareLabel :: Int -> LIRLabel
-compareLabel c = LIRLabel $  "__cmp" ++ show c
-
-stringLabel :: Int -> String
-stringLabel c = "__string" ++ show c
-
-arrayLabel :: Int -> String
-arrayLabel c = "__array" ++ show c
-
-methodLabel :: String -> Int -> String
-methodLabel m c = "__proc" ++ show c ++ "__" ++ m
-
-loopLabel :: Int -> LIRLabel
-loopLabel l = LIRLabel $ "LLOOP" ++ show l
-
-endLabel :: Int -> LIRLabel
-endLabel l = LIRLabel $ "LEND" ++ show l
-
-trueLabel :: Int -> LIRLabel
-trueLabel l = LIRLabel $ "LTRUE" ++ show l
+data LIRLabel = LIRLabel String Int
+              deriving (Show, Eq, Typeable)
 
 data LIRProgram = LIRProgram
     { lirProgLabel :: LIRLabel
@@ -74,20 +27,16 @@ data LIRUnit = LIRUnit
     } deriving (Show, Eq, Typeable)
 
 data LIRInst = LIRRegAssignInst LIRReg LIRExpr
-             | LIRRegCmpAssignInst LIRReg LIRExpr LIRLabel
-             | LIRRegOffAssignInst LIRReg LIRReg LIRSize LIROperand  -- ^ Element-wise Assign
-             | LIRCondAssignInst LIRReg LIRReg LIROperand    -- ^ Conditional Assign
+             | LIRRegOffAssignInst LIRReg LIRReg LIRSize LIROperand
              | LIRStoreInst LIRMemAddr LIROperand
              | LIRLoadInst LIRReg LIRMemAddr
-             | LIRTempEnterInst Int
-             | LIRJumpRegInst LIRReg LIROffset
+             | LIREnterInst Int64
              | LIRJumpLabelInst LIRLabel
              | LIRIfInst LIRRelExpr LIRLabel
              | LIRCallInst LIRProc
              | LIRRetInst
              | LIRLabelInst LIRLabel
              deriving (Show, Eq, Typeable)
-
 
 data LIRProc = LIRProcLabel String
              | LIRProcReg LIRReg
@@ -129,64 +78,120 @@ data LIRRelOp = LEQ
               | LLTE
               deriving (Show, Eq, Typeable)
 
-data LIRMemAddr = LIRRegMemAddr LIRReg LIRSize
-                | LIRRegPlusMemAddr LIRReg LIRReg LIRSize
-                | LIRRegOffMemAddr LIRReg LIROffset LIRSize
+data LIRMemAddr = LIRMemAddr LIRReg (Maybe LIRReg) LIROffset LIRSize
                 deriving (Show, Eq, Typeable)
 
 data LIROperand = LIRRegOperand LIRReg
                 | LIRIntOperand LIRInt
-                | LIRStringOperand String
+                | LIRStrOperand String
                 deriving (Show, Eq, Typeable)
 
-data LIRReg = RAX
-            | RBX
-            | RCX
-            | RDX
-            | RBP
-            | RSP
-            | RSI
-            | RDI
-            | R8
-            | R9
-            | R10
-            | R11
-            | R12
-            | R13
-            | R14
-            | R15
-            | IP
+data LIRReg = LRAX
+            | LRBX
+            | LRCX
+            | LRDX
+            | LRBP
+            | LRSP
+            | LRSI
+            | LRDI
+            | LR8
+            | LR9
+            | LR10
+            | LR11
+            | LR12
+            | LR13
+            | LR14
+            | LR15
             | GI Int
             | SREG Int
             | MEM String
             deriving (Show, Eq, Typeable)
 
-type LIRSize = LIRInt
-
 byte :: LIRInt
-byte = LIRInt 1
+byte = 1
 
 word :: LIRInt
-word = LIRInt 2
+word = 2
 
 dword :: LIRInt
-dword = LIRInt 4
+dword = 4
 
 qword :: LIRInt
-qword = LIRInt 8
+qword = 8
 
-type LIROffset = LIRInt
+asmTrue, asmFalse :: LIRInt
+asmTrue = (-1)
+asmFalse = 0
 
-data LIRInt = LIRInt Int
-            deriving (Show, Eq, Typeable)
+litTrue, litFalse :: LIRInt
+litTrue = -1
+litFalse = 0
 
-data LIRLabel = LIRLabel String
-              deriving (Show, Eq, Typeable)
+missingRetMessage :: String
+missingRetMessage =
+    "*** RUNTIME ERROR ***: Missing return statement in method \"%s\"\n"
+
+missingRet :: Int
+missingRet = 0
+
+outOfBoundsMessage :: String
+outOfBoundsMessage =
+    "*** RUNTIME ERROR ***: Array out of Bounds access in method \"%s\"\n"
+
+outOfBounds :: Int
+outOfBounds = 1
+
+exception :: Int -> String
+exception code
+      | code == 1 = outOfBoundsMessage
+      | code == 0 = missingRetMessage
+      | otherwise = error "LIR.hs:exception called with invalid exception code [" ++ show code ++ "]"
+
+exceptionHeader :: LIRLabel
+exceptionHeader = LIRLabel "__exceptionhandlers" 0
+
+exceptionString :: SymbolTree -> String -> String
+exceptionString st msg =
+  case globalSymLookup ('.':msg) st of
+      Just (StringRec _ l) ->  "__string" ++ show l
+      _                    ->
+          error $ "LIR.hs:exceptionString could not find symbol for :" ++msg 
+
+exceptionLabel :: SymbolTree -> String -> LIRLabel
+exceptionLabel st msg  = case globalSymLookup ('.':msg) st of
+                           Just (StringRec _ l) ->  LIRLabel "__exception" l
+                           _ -> error $ "LIR.hs:exceptionLabel could not find symbol for :" ++ msg
+
+boundsLabel :: Bool -> Int -> LIRLabel
+boundsLabel t c = if t then (LIRLabel  "__boundscheck" c) 
+                  else (LIRLabel "__boundscheck_positive" c)
+
+compareLabel :: Int -> LIRLabel
+compareLabel c = LIRLabel  "__cmp" c
+
+
+-- following three are not labels in the LIRLabel sense
+stringLabel :: Int -> String
+stringLabel c = "__string" ++ show c
+
+arrayLabel :: Int -> String
+arrayLabel c = "__array" ++ show c
+
+methodLabel :: String -> Int -> String
+methodLabel m c = "__proc" ++ show c ++ "__" ++ m
+
+loopLabel :: Int -> LIRLabel
+loopLabel l = LIRLabel "LLOOP" l
+
+endLabel :: Int -> LIRLabel
+endLabel l = LIRLabel "LEND"  l
+
+trueLabel :: Int -> LIRLabel
+trueLabel l = LIRLabel "LTRUE" l
 
 instance IRNode LIRProgram where
     pp (LIRProgram label units) = pp label ++ ":\n" ++ unlines (map pp units)
     treeify (LIRProgram label units) = Node (pp label) (map treeify units)
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRUnit where
     pp (LIRUnit label insts) =
@@ -198,61 +203,60 @@ instance IRNode LIRUnit where
                                     _ -> "    " ++ pp x
                         in (repr:indentMap xs)
     treeify (LIRUnit label insts) = Node ("LIRUnit: " ++ pp label) (map treeify insts)
-    pos _     = error "LIR has no associated position"
 
 
 
 instance IRNode LIRInst where
     pp (LIRRegAssignInst reg expr) = pp reg ++ " <- " ++ pp expr
-    pp (LIRRegCmpAssignInst reg expr label) = pp reg ++ " <- " ++ pp expr ++ " [" ++ pp label ++ "]"
-    pp (LIRRegOffAssignInst reg offset size operand) = pp reg ++ "(" ++ pp offset ++ ", " ++ pp size ++ ") <- " ++ pp operand
-    pp (LIRCondAssignInst reg reg' operand) = pp reg ++ " <- (" ++ pp reg' ++ ") " ++ pp operand
+    pp (LIRRegOffAssignInst reg offset size operand) =
+        pp reg ++ "(" ++ pp offset ++ ", " ++ pp size ++ ") <- " ++ pp operand
     pp (LIRStoreInst mem operand) = "STORE " ++ pp mem ++ ", " ++ pp operand
     pp (LIRLoadInst reg mem) = "LOAD " ++ pp reg ++ ", " ++ pp mem
-    pp (LIRTempEnterInst num) = "ENTER " ++ (show num)
-    pp (LIRJumpRegInst reg offset) = "JMP " ++ pp reg ++ "[" ++ show offset ++ "]"
+    pp (LIREnterInst num) = "ENTER " ++ (show num)
     pp (LIRJumpLabelInst label) = "JMP " ++ pp label
     pp (LIRIfInst expr label) = "IF " ++ pp expr ++ " JMP " ++ pp label
     pp (LIRCallInst proc) = "call " ++ pp proc
     pp LIRRetInst = "RET"
     pp (LIRLabelInst label) = pp label
-    treeify (LIRRegAssignInst reg expr) = Node "ASSIGN" [treeify reg, treeify expr]
-    treeify (LIRRegOffAssignInst reg offset size operand) = Node "ASSIGN" [treeify reg, treeify offset, treeify size, treeify operand]
-    treeify (LIRCondAssignInst reg reg' operand) = Node "CONDASSIGN" [treeify reg, treeify reg', treeify operand]
-    treeify (LIRStoreInst mem operand) = Node "STR" [treeify mem, treeify operand]
+    treeify (LIRRegAssignInst reg expr) =
+        Node "ASSIGN" [treeify reg, treeify expr]
+    treeify (LIRRegOffAssignInst reg offset size operand) =
+        Node "ASSIGN" $ [treeify reg, treeify offset, treeify size, treeify operand]
+    treeify (LIRStoreInst mem operand) =
+        Node "STR" [treeify mem, treeify operand]
     treeify (LIRLoadInst reg mem) = Node "LD" [treeify reg, treeify mem]
-    treeify (LIRJumpRegInst reg offset) = Node "JMP" [treeify reg, treeify offset]
+    treeify (LIREnterInst bytes) = Node ("Enter[" ++ pp bytes ++ "]") []
     treeify (LIRJumpLabelInst label) = Node "JMP" [treeify label]
     treeify (LIRIfInst expr label) = Node "IF" [treeify expr, treeify label]
     treeify (LIRCallInst proc) = Node "CALL" [treeify proc]
     treeify LIRRetInst = Node "RET" []
     treeify (LIRLabelInst label) = Node (pp label) []
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRProc where
     pp (LIRProcLabel label) = label
     pp (LIRProcReg reg) = pp reg
     treeify (LIRProcLabel label) = Node label []
     treeify (LIRProcReg reg) = treeify reg
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRExpr where
-    pp (LIRBinExpr operand binop operand') = pp operand ++ " " ++ pp binop ++ " " ++ pp operand'
+    pp (LIRBinExpr operand binop operand') =
+        pp operand ++ " " ++ pp binop ++ " " ++ pp operand'
     pp (LIRUnExpr unop operand) = pp unop ++ pp operand
     pp (LIROperExpr operand) = pp operand
-    treeify (LIRBinExpr operand binop operand') = Node (pp binop) [treeify operand, treeify operand']
+    treeify (LIRBinExpr operand binop operand') =
+        Node (pp binop) [treeify operand, treeify operand']
     treeify (LIRUnExpr unop operand) = Node (pp unop) [treeify operand]
     treeify (LIROperExpr operand) = Node (pp operand) []
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRRelExpr where
-    pp (LIRBinRelExpr operand relop operand') = pp operand ++ " " ++ pp relop ++ " " ++ pp operand'
+    pp (LIRBinRelExpr operand relop operand') =
+        pp operand ++ " " ++ pp relop ++ " " ++ pp operand'
     pp (LIRNotRelExpr operand) = "!" ++ pp operand
     pp (LIROperRelExpr operand) = pp operand
-    treeify (LIRBinRelExpr operand relop operand') = Node (pp relop) [treeify operand, treeify operand']
+    treeify (LIRBinRelExpr operand relop operand') =
+        Node (pp relop) [treeify operand, treeify operand']
     treeify (LIRNotRelExpr operand) = Node "!" [treeify operand]
     treeify (LIROperRelExpr operand) = Node (pp operand) []
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRBinOp where
     pp (LADD) = "ADD"
@@ -266,16 +270,14 @@ instance IRNode LIRBinOp where
     pp (LSHL) = "SHL"
     pp (LSHR) = "SHR"
     pp (LSHRA) = "SHRA"
-    pp (LIRBinRelOp relop label) = pp relop
-    treeify (LIRBinRelOp relop label) = treeify relop
+    pp (LIRBinRelOp relop _) = pp relop
+    treeify (LIRBinRelOp relop _) = treeify relop
     treeify a = Node (pp a) []
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRUnOp where
     pp (LNEG) = "-"
     pp (LNOT) = "!"
     treeify a = Node (pp a) []
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRRelOp where
     pp (LEQ) = "=="
@@ -285,53 +287,54 @@ instance IRNode LIRRelOp where
     pp (LLT) = "<"
     pp (LLTE) = "<="
     treeify a = Node (pp a) []
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRMemAddr where
-    pp (LIRRegMemAddr reg size) = "[" ++ pp reg ++ "] (" ++ pp size ++ ")"
-    pp (LIRRegPlusMemAddr reg reg' size) = "[" ++ pp reg ++ " + " ++ pp reg'++ "] (" ++ pp size ++ ")"
-    pp (LIRRegOffMemAddr reg offset size) = "[" ++ pp reg ++ " + " ++ pp offset++ "] (" ++ pp size ++ ")"
-    treeify (LIRRegMemAddr reg size) = Node "MEM" [treeify reg, treeify size]
-    treeify (LIRRegPlusMemAddr reg reg' size) = Node "MEMPLUS" [treeify reg, treeify reg', treeify size]
-    treeify (LIRRegOffMemAddr reg offset size) = Node "MEMMOFF" [treeify reg, treeify offset, treeify size]
-    pos _     = error "LIR has no associated position"
+    pp (LIRMemAddr base reg offset _) =
+        "[" ++ pp base ++ " + " ++ reg' ++ " + " ++ pp offset ++ "]"
+      where
+        reg' = case reg of
+                  Just r -> pp r
+                  Nothing -> ""
+
+    treeify (LIRMemAddr base reg offset size) =
+        Node "MemAddr" $ [treeify base] ++ reg' ++ [treeify offset, treeify size]
+      where
+        reg' = case reg of
+                  Just r -> [treeify r]
+                  Nothing -> []
 
 instance IRNode LIROperand where
     pp (LIRRegOperand reg) = pp reg
     pp (LIRIntOperand i) = pp i
-    pp (LIRStringOperand s) = s
+    pp (LIRStrOperand s) = s
     treeify a = Node (pp a) []
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRReg where
-    pp (RAX) = "RAX"
-    pp (RBX) = "RBX"
-    pp (RCX) = "RCX"
-    pp (RDX) = "RDX"
-    pp (RBP) = "RBP"
-    pp (RSP) = "RSP"
-    pp (RSI) = "RSI"
-    pp (RDI) = "RDI"
-    pp (R8)  = "R8"
-    pp (R9)  = "R9"
-    pp (R10) = "R10"
-    pp (R11) = "R11"
-    pp (R12) = "R12"
-    pp (R13) = "R13"
-    pp (R14) = "R14"
-    pp (R15) = "R15"
+    pp (LRAX) = "RAX"
+    pp (LRBX) = "RBX"
+    pp (LRCX) = "RCX"
+    pp (LRDX) = "RDX"
+    pp (LRBP) = "RBP"
+    pp (LRSP) = "RSP"
+    pp (LRSI) = "RSI"
+    pp (LRDI) = "RDI"
+    pp (LR8)  = "R8"
+    pp (LR9)  = "R9"
+    pp (LR10) = "R10"
+    pp (LR11) = "R11"
+    pp (LR12) = "R12"
+    pp (LR13) = "R13"
+    pp (LR14) = "R14"
+    pp (LR15) = "R15"
     pp (GI i) = "g"++(show i)
     pp (MEM s)  = s
     pp (SREG i) = "s" ++ (show i)
     treeify a = Node (pp a) []
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRInt where
-    pp (LIRInt i) = (if i < 0 then "-" else "") ++ "0x" ++ showHex (abs i) ""
+    pp i = (if i < 0 then "-" else "") ++ "0x" ++ showHex (abs i) ""
     treeify i = Node (pp i) []
-    pos _     = error "LIR has no associated position"
 
 instance IRNode LIRLabel where
-    pp (LIRLabel s) = s
+    pp (LIRLabel s n) = if n == -1 then s else s++(show n)
     treeify s = Node (pp s) []
-    pos _     = error "LIR has no associated position"

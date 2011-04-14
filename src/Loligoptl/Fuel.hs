@@ -3,10 +3,8 @@ module Loligoptl.Fuel
   , LolMonad
   , withFuel
   )
-where 
-
+where
 import Control.Monad
-
 
 type Fuel = Int
 class Monad m => FuelMonad m where
@@ -15,10 +13,10 @@ class Monad m => FuelMonad m where
 
 withFuel :: FuelMonad m => Maybe a -> m (Maybe a)
 withFuel Nothing = return Nothing
-withFuel (Just a) = do { f <- getFuel
-                       ; if f == 0
+withFuel (Just a) = do f <- getFuel
+                       if f == 0
                          then return Nothing
-                         else setFuel (f-1) >> return (Just a) }
+                         else setFuel (f-1) >> return (Just a)
 
 
 data LolState = LS { fuel :: Fuel }
