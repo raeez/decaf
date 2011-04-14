@@ -1,0 +1,80 @@
+We modelled our dataflow analysis framework on Hoopl, the "higher
+order optimization library" recently developed by Ramsey, Dias, and
+Peyton-Jones [1].  The user provides a lattice, a set of transfer
+functions, and rewrite functions, while hoopl provides an abstract
+dataflow equation solver, a control flow graph representation, and a
+set of combinators for dataflow passes.
+
+Hoopl has many structural features which make it easier on the
+programmer to work with, and to help write correct dataflow passes.
+
+Shapes
+
+Most basic is the type structure of Graphs, Blocks, (basic blocks) and
+nodes (lines of our LIR).  Each has a "shape", which is either
+Closed-Open, Open-Open, Open-Closed, or Closed-Closed (only graphs and
+blocks can be Closed-Closed, and basic blocks can only be
+Closed-Closed).  Being closed on entry means that that element can be
+the target of a jump; such nodes are starts of basic blocks.  Being
+closed on exit means that the element ends in a jump.  Open,
+conversely, implies that control simply falls through into or out of
+the element.  All operations on blocks observe type constraints; for
+instance, two nodes can only be concatenated in a block if the first
+is open on exit and the second open on entry.  Similarly, a rewrite
+function must map a block of a given shape to a graph of the same
+shape.  All of these invariants are statically checked at compile
+time.
+
+
+Graph Representation
+
+The graph is implemented in an entirely functional way.  It is fully
+polymorphic over the type of a block and a node.  It consists of an
+integer map from block labels to blocks.  In order to traverse the
+graph, methods are provided (through a type class) to retrieve the
+label from a block and find all the possible successors of a block.
+Methods are provided to splice and manipulate the graphs.
+
+Interleaved Analysis and Rewriting
+
+We use a new algorithm due to Lerner, Grove, and Chambers which
+speculatively rewrites nodes as it performs analysis.  Whenever the
+dataflow analysis gets to a node, it checks to see whether the rewrite
+function would rewrite it, given the current facts.  If so, it
+analyzes the new graph and propagates the output fact to the node
+following the original node.  The rewrite is thrown away, and if the
+dataflow analysis returns to this point of the graph, the original
+node is still there.  Thus the procedure still performs correctly, but
+it is more flexible in the transformations it can perform.  For
+instance, it makes it very easy to combine transformations: the fixed
+point solver can use potential transformations given by one
+optimization while analyzing the dataflow equations for another
+optimization.  This allows transformations that are impossible when
+the optimizations are only allowed to be run in sequence.  It also
+leads to some automatic dead code elimination.
+
+
+Some Implementation Details
+
+The complexities of the fixed point solver are very clearly delimited
+into four functions: node, block, body, graph.  node is responsible
+for rewrite functions, body finds fixed points, and the functions
+block and graph basically map node and body over their contents.
+
+Optimization Fuel
+
+Finally, the authors of Hoopl had a clever idea for debugging their
+transformations.  They make hoopl use up a quantity of "optimization
+fuel."  Every rewrite uses up one unit, and if the function runs out,
+it stops rewriting entirely.  Normally, it would be given infinite
+fuel, but if a bug is found, it is possible to do a binary search on
+information fuel in order to find the exact transformation which
+introduces the bug.
+
+
+
+
+
+References
+ [1] Hoopl: A Modular, Reusable Library for Dataflow Analysis and Transformation
+     http://www.cs.tufts.edu/~nr/pubs/hoopl-abstract.html
