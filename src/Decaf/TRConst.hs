@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables #-}
+{-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables, NoMonomorphismRestriction #-}
 
 
 module Decaf.TRConst where
@@ -124,13 +124,30 @@ deepFwdRw rw = FwdRewrite3 { getFwdRewrite3 = (rw', rw', rw') }
                     Just x' -> return $ Just $ FwdRev x' $ deepFwdRw rw
                     
 
+shallowFwdRw :: forall m e x n f . (Monad m) => (forall e x . (ShapeLifter e x) => n e x -> f -> m (Maybe (Graph n e x))) -> FwdRewrite m n f
+shallowFwdRw rw = FwdRewrite3 { getFwdRewrite3 = (rw', rw', rw') }
+                  where
+                    rw' :: forall e x . (ShapeLifter e x) => n e x -> f -> m (Maybe (FwdRev m n f e x))
+                    rw' n f = do
+                      x <- rw n f
+                      case x of
+                        Nothing -> return Nothing
+                        Just x' -> return $ Just $ FwdRev x' emptyRw
+                    
+                    emptyRw :: forall m n f . (Monad m) => FwdRewrite m n f
+                    emptyRw = FwdRewrite3 { getFwdRewrite3 = (rw'', rw'', rw'') }
+                    
+                    rw'' :: forall m n f e x . (Monad m) => n e x -> f -> m (Maybe (FwdRev m n f e x))
+                    rw'' _ _ = return Nothing
+
+
 
 
 -- define constant folding rewrites
-simplify :: Monad m => FwdRewrite m n f
-simplify = deepFwdRw simp
+simplify :: Monad m => FwdRewrite m Node Lattice
+simplify = shallowFwdRw simp
   where
-    simp :: forall e x m n f . (Monad m, ShapeLifter e x) => n e x -> f -> m (Maybe (Graph n e x))
+    simp :: forall e x m f . (Monad m, ShapeLifter e x) => Node e x -> f -> m (Maybe (Graph Node e x))
     simp node _ = return $ liftM nodeToG $ s_node node
   
     s_node :: forall e x . Node e x -> Maybe (Node e x)
@@ -192,12 +209,12 @@ simplify = deepFwdRw simp
 
 -- define constant prop rewrites, replace operand x with lit if Map.lookup x f == lit
 constProp :: Monad m => FwdRewrite m Node Lattice
-constProp = deepFwdRw cp   -- shallowFwdRw is not defined
+constProp = shallowFwdRw cp   -- shallowFwdRw is not defined
   where
-    cp :: forall e x m n f. (ShapeLifter e x, Monad m) => n e x -> Lattice -> m (Maybe (Graph n e x))    
+    cp :: forall e x m f. (ShapeLifter e x, Monad m) => Node e x -> Lattice -> m (Maybe (Graph Node e x))    
     cp node f  = return $ liftM nodeToG $ map_node node
       where 
-        map_node :: forall e x . Node e x -> Maybe (Node e x)
+        map_node :: forall e x . (ShapeLifter e x) => Node e x -> Maybe (Node e x)
         -- operand in assignment expr
         map_node (LIRRegAssignNode x (LIRBinExpr opr1 op opr2)) = 
                   Just $ LIRRegAssignNode x (LIRBinExpr (propOperand opr1) op (propOperand opr2))  -- always rewrite
@@ -242,6 +259,7 @@ constProp = deepFwdRw cp   -- shallowFwdRw is not defined
 
 
 -- combines two FwdRewrte3
+{-
 wrapFR2
   :: (forall e x . (n1 e x -> f1 -> m1 (Maybe (Graph n1 e x, FwdRewrite m1 n1 f1))) ->
                    (n2 e x -> f2 -> m2 (Maybe (Graph n2 e x, FwdRewrite m2 n2 f2))) ->
@@ -253,7 +271,25 @@ wrapFR2
      -> FwdRewrite m2 n2 f2
      -> FwdRewrite m3 n3 f3      -- see Note [Respects Fuel]                                
 wrapFR2 wrap2 (FwdRewrite3 (f1, m1, l1)) (FwdRewrite3 (f2, m2, l2)) =
-  FwdRewrite3 (wrap2 f1 f2, wrap2 m1 m2, wrap2 l1 l2)
+    FwdRewrite3 (tuple2rev' $ wrap2 (rev2tuple' f1) (rev2tuple' f2), 
+                 tuple2rev' $ wrap2 (rev2tuple' m1) (rev2tuple' m2), 
+                 tuple2rev' $ wrap2 (rev2tuple' l1) (rev2tuple' l2))
+  where
+    rev2tuple' :: forall m n f e x. (n e x -> f -> m (Maybe (FwdRev m n f e x))) -> 
+                                    (n e x -> f -> m (Maybe (Graph n e x, FwdRewrite m n f)))
+    rev2tuple' f = (fmap rev2tuple) . f
+    rev2tuple :: forall m n f e x. FwdRev m n f e x -> (Graph n e x, FwdRewrite m n f)
+    rev2tuple (FwdRev g rw) = (g, rw)
+                            
+    tuple2rev' :: forall m n f e x . (n e x -> f -> m (Maybe (Graph n e x, FwdRewrite m n f))) ->
+                                     (n e x -> f -> m (Maybe (FwdRev m n f e x))) 
+    tuple2rev' f = (fmap tuple2rev) . f                                     
+    tuple2rev :: forall m n f e x. (Graph n e x, FwdRewrite m n f) -> FwdRev m n f e x
+    tuple2rev (g, rw) = FwdRev g rw
+                                     
+
+
+
 
 
 
@@ -261,29 +297,78 @@ wrapFR2 wrap2 (FwdRewrite3 (f1, m1, l1)) (FwdRewrite3 (f2, m2, l2)) =
 thenFwdRw :: forall m n f. Monad m
           => FwdRewrite m n f
           -> FwdRewrite m n f
-          -> FwdRewrite m n f
-thenFwdRw rw3 rw3' = wrapFR2 thenrw rw3 rw3'
+          -> FwdRewrite m n f                       -- proposition
+thenFwdRw rw3 rw3' = wrapFR2 thenrw rw3 rw3'        -- proof 
  where
   thenrw :: forall m1 e x t t1 m n f.
             Monad m1 =>
-            (t -> t1 -> m1 (Maybe (Graph n e x, FwdRewrite m n f)))
-            -> (t -> t1 -> m1 (Maybe (Graph n e x, FwdRewrite m n f)))
-            -> t
-            -> t1
-            -> m1 (Maybe (Graph n e x, FwdRewrite m n f))
+            (t -> t1 -> m1 (Maybe (Graph n e x, FwdRewrite m n f))) ->
+            (t -> t1 -> m1 (Maybe (Graph n e x, FwdRewrite m n f))) ->
+            t -> t1 -> m1 (Maybe (Graph n e x, FwdRewrite m n f))
   thenrw rw rw' n f = rw n f >>= fwdRes
-     where fwdRes Nothing   = rw' n f
-           fwdRes (Just gr) = return $ Just $ fadd_rw rw3' gr
+     where fwdRes Nothing   = rw' n f     -- if rw does not rewrite anything, then apply rw'
+           fwdRes (Just gr) = return $ Just $ fadd_rw rw3' gr    -- otherwise, apply rw', then the rw returned by rw n f 
 
 
-
-
--- | Function inspired by 'add' in the paper                                                                        
-fadd_rw :: forall e x m n f . Monad m
-           => FwdRewrite m n f
-           -> (Graph n e x, FwdRewrite m n f)
-           -> (Graph n e x, FwdRewrite m n f)
+-- | Function inspired by 'add' in the paper
+fadd_rw :: Monad m
+       => FwdRewrite m n f
+       -> (Graph n e x, FwdRewrite m n f)
+       -> (Graph n e x, FwdRewrite m n f)
 fadd_rw rw2 (g, rw1) = (g, rw1 `thenFwdRw` rw2)
+-}
+
+
+
+
+
+    
+    
+                                     
+
+
+-- combines two FwdRewrite
+thenFwdRw :: forall m n f e x. Monad m
+          => FwdRewrite m n f
+          -> FwdRewrite m n f
+          -> FwdRewrite m n f                       -- proposition
+thenFwdRw rw3 rw3' = wrapFR2 rw3 rw3'        -- proof 
+  where
+  -- wrap two FwdRewrite together
+    wrapFR2 ::  FwdRewrite m n f
+             -> FwdRewrite m n f
+             -> FwdRewrite m n f      -- see Note [Respects Fuel] 
+    wrapFR2 (FwdRewrite3 (f1, m1, l1)) (FwdRewrite3 (f2, m2, l2)) =
+        FwdRewrite3 (thenrw f1 f2, thenrw m1 m2, thenrw l1 l2)
+
+    thenrw :: forall e x.
+            --Monad m =>
+            (n e x -> f -> m (Maybe (FwdRev m n f e x))) ->
+            (n e x -> f -> m (Maybe (FwdRev m n f e x))) ->
+            n e x -> f -> m (Maybe (FwdRev m n f e x))   
+    thenrw rw rw' n f = rw n f >>= fwdRes
+     where 
+       fwdRes :: --forall m n f e x . 
+                 -- Monad m => 
+                 --forall e x.
+                 (Maybe (FwdRev m n f e x)) -> m (Maybe (FwdRev m n f e x)) 
+       -- if rw does not rewrite anything, then apply rw'
+       fwdRes Nothing  = rw' n f     
+       -- otherwise, apply rw', then the rw returned by rw n f 
+       fwdRes (Just gr) = return $ Just $ fadd_rw rw3' gr    
+
+    
+
+
+-- | Function inspired by 'add' in the paper
+-- combine a FwdRewrite with a FwdRev
+fadd_rw :: forall m n f e x . Monad m
+       => FwdRewrite m n f
+       -> FwdRev m n f e x 
+       -> FwdRev m n f e x
+fadd_rw rw2 (FwdRev g rw1) = FwdRev g (rw1 `thenFwdRw` rw2)
+
+
 
 
 
@@ -293,7 +378,7 @@ fadd_rw rw2 (g, rw1) = (g, rw1 `thenFwdRw` rw2)
 constPropPass = FwdPass
   { fpLattice = constLattice
   , fpTransfer = varHasLit
-  , fpRewrite = constProp `thenFwdRw` simplify }
+  , fpRewrite = constProp }    -- `thenFwdRw` simplify }
 
 
 
