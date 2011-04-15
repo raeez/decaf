@@ -36,7 +36,7 @@ compile debug source filename =
                            mainlab = LIRLabel "main" (-1)
                            gProg' :: DecafGraph C C
                            gProg' = fst.fst $ runLFM (analyzeAndFwdRewrite csePass [mainlab]
-                                                 gProg (mapSingleton mainlab (factBottom.fpLattice $ (csePass :: FwdPass LolMonad Node CSELattice))))
+                                                gProg (mapSingleton mainlab (factBottom.fpLattice $ (csePass :: FwdPass LolMonad Node CSEFact))))
                                                 mkInfiniteFuel
                            prog = LIRProgram (LIRLabel "" 0) [LIRUnit (LIRLabel "" 0) (graphToLIR gProg')]
                            assembler = programAssembler (content numberedTable) prog

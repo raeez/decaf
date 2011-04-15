@@ -235,6 +235,8 @@ fixpoint dir lattice doBlock blocks initFBase
              else successors b)
     iterBlocks :: [((Label, Block n C C), [Label])]
                -> FixState n f -> m (FixState n f)
+    iterBlocks [] fs 
+      = return fs
     iterBlocks (((l, b), entries):bs) fs 
       = iterBlock l b entries fs >>= iterBlocks bs
 
@@ -255,12 +257,6 @@ fixpoint dir lattice doBlock blocks initFBase
                            , fsLabels = labels' } }
         where
           labels' = labels `setUnion` setFromList inLabels
-      
-
-
-
-          
-       
 
 -- | Orders the blocks in a graph for data flow analysis.
 -- | Could make this faster using folds
