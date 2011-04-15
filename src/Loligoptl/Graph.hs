@@ -47,6 +47,9 @@ data Block n e x where
   BTail   :: n O O       -> Block n O C -> Block n O C  
   BClosed :: Block n C O -> Block n O C -> Block n C C 
 
+instance Show (Block n e x) where
+  show x = "Block"
+
 type Body n = LabelMap (Block n C C)
 emptyBody :: LabelMap (thing C C)
 emptyBody = mapEmpty

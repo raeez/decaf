@@ -99,3 +99,6 @@ instance IsSet LabelSet where
   setEmpty = LS S.empty
   setFromList list = LS (S.fromList (map unLabel list))
   setMember a (LS s) = S.member (unLabel a) s
+
+instance Show a => Show (LabelMap a) where
+  show = show.mapToList
