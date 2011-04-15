@@ -119,9 +119,11 @@ graphToLIR (GNil) = []
 graphToLIR (GUnit unit) = blockToLIR unit
 graphToLIR (GMany entry labels exit) = mapEntry ++ mapLabel ++ mapExit
   where
+    mapEntry :: [LIRInst]
     mapEntry = case entry of
                   JustO v  -> blockToLIR v
                   NothingO -> []
+    mapExit :: [LIRInst]
     mapExit = case exit of
                   JustO v  -> blockToLIR v
                   NothingO -> []
