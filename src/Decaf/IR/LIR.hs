@@ -38,7 +38,7 @@ data LIRInst = LIRRegAssignInst LIRReg LIRExpr
              | LIRIfInst LIRRelExpr LIRLabel LIRLabel -- false, then true
              | LIRCallInst LIRLabel LIRLabel -- method label, return label
              | LIRCalloutInst String
-             | LIRRetInst
+             | LIRRetInst [LIRLabel] String -- list of successors, and the name of the method returning from
              | LIRLabelInst LIRLabel
              deriving (Show, Eq, Typeable)
 
@@ -263,7 +263,7 @@ instance IRNode LIRInst where
     pp (LIRIfInst expr flab tlab) = "IF " ++ pp expr ++ " THEN " ++ pp tlab ++ " ELSE " ++ pp flab
     pp (LIRCallInst proc ret) = "call " ++ pp proc
     pp (LIRCalloutInst proc) = "call " ++ proc
-    pp LIRRetInst = "RET"
+    pp (LIRRetInst _ _) = "RET"
     pp (LIRLabelInst label) = "LABEL: " ++ pp label
     treeify (LIRRegAssignInst reg expr) =
         Node "ASSIGN" [treeify reg, treeify expr]
@@ -276,7 +276,7 @@ instance IRNode LIRInst where
     treeify (LIRJumpLabelInst label) = Node "JMP" [treeify label]
     treeify (LIRIfInst expr flab tlab) = Node "IF" [treeify expr, treeify flab, treeify tlab]
     treeify (LIRCallInst proc ret) = Node "CALL" [treeify proc]
-    treeify LIRRetInst = Node "RET" []
+    treeify (LIRRetInst _ _) = Node "RET" []
     treeify (LIRLabelInst label) = Node (pp label) []
 
 instance IRNode LIRProc where

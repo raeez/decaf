@@ -323,7 +323,7 @@ mapInst (LIREnterInst s) =
        mov rbp rsp
        sub rsp (lit $ s * 8)
 
-mapInst LIRRetInst =
+mapInst (LIRRetInst _ _) =
     do leave
        ret
 mapInst (LIRLabelInst (LIRLabel l i)) = label (ASMLabel l i)

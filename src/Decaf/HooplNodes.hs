@@ -25,13 +25,13 @@ data Node e x where
   LIRCallNode         :: LIRLabel -> LIRLabel -> Node O C -- method label and label for next line
   LIRCalloutNode      :: String -> Node O O -- assume control falls through
   LIREnterNode        :: LIRInt -> Node O O
-  LIRRetNode          :: Node O C
+  LIRRetNode          :: [LIRLabel] -> String -> Node O C
   LIRIfNode           :: LIRRelExpr -> HooplLabel -> HooplLabel -> Node O C  -- false, then true
   LIRJumpLabelNode    :: HooplLabel -> Node O C
     
 instance NonLocal Node where
   entryLabel (LIRLabelNode lab) = lab
-  successors (LIRRetNode) = []
+  successors (LIRRetNode labels _) = labels
   successors (LIRCallNode l1 l2) = [l1, l2]
   successors (LIRJumpLabelNode lab) = [lab]
   successors (LIRIfNode expr flab tlab) = [flab, tlab]

@@ -2,6 +2,7 @@ module Decaf.Translator where
 import Data.Char
 import Data.Int
 import Data.List
+import qualified Data.Map as Map
 import Decaf.IR.IRNode
 import Decaf.IR.AST
 import Decaf.IR.LIR
@@ -11,15 +12,16 @@ import Decaf.Data.Tree
 import Decaf.Data.Zipper
 
 data Namespace = Namespace
-    { temp       :: Int
-    , labels     :: Int
-    , scope      :: [(LIRLabel, LIRLabel)]
-    , encMethod  :: String
-    , blockindex :: [Int]
+    { temp         :: Int
+    , labels       :: Int
+    , scope        :: [(LIRLabel, LIRLabel)]
+    , encMethod    :: String
+    , blockindex   :: [Int]
+    , successorMap :: Map.Map String [LIRLabel]
     }
 
 mkNamespace :: Int -> Namespace
-mkNamespace lastTemp = Namespace 0 lastTemp [] "null" [0]
+mkNamespace lastTemp = Namespace 0 lastTemp [] "null" [0] Map.empty
 
 newtype Translator a = Translator
     { runTranslator :: Namespace -> (a, Namespace) }
@@ -30,6 +32,14 @@ instance Monad Translator where
         let (a, s') = runTranslator m s
         in runTranslator (f a) s')
 
+addSuccessor :: String -> LIRLabel -> Translator ()
+addSuccessor meth label =
+    Translator (\ns@(Namespace{ successorMap = sm }) ->
+        let updatedSuccessors = case Map.lookup meth sm of
+                                  Just a  -> (label:a)
+                                  Nothing -> [label] -- create the key/val
+        in ((), ns{ successorMap = Map.insert meth updatedSuccessors sm }))
+
 translate :: Translator a -> Namespace -> a
 translate comp ns = fst $ runTranslator comp ns
 
@@ -38,13 +48,13 @@ incTemp :: Translator Int
 incTemp = incLabel -- changed so that every label has a unique numeric id 
 
 incLabel :: Translator Int
-incLabel = Translator (\(Namespace t l s m b) -> (l, Namespace t (l+1) s m b))
+incLabel = Translator (\ns@(Namespace{ labels = l }) -> (l, ns{ labels = (l+1) }))
 
 getScope :: Translator (LIRLabel, LIRLabel)
-getScope = Translator (\ns@(Namespace _ _ s _ _) -> (last s, ns))
+getScope = Translator (\ns@(Namespace{ scope = s }) -> (last s, ns))
 
 getBlock :: Translator Int
-getBlock = Translator (\ns@(Namespace _ _ _ _ b) -> ((last . init) b, ns))
+getBlock = Translator (\ns@(Namespace{ blockindex = b }) -> ((last . init) b, ns))
 
 getMethod :: Translator String
 getMethod = Translator (\ns -> (encMethod ns, ns))
@@ -53,20 +63,20 @@ setMethod :: String -> Translator ()
 setMethod newMethod = Translator (\ns -> ((), ns{ encMethod = newMethod }))
 
 getNesting :: Translator [Int]
-getNesting = Translator (\ns@(Namespace _ _ _ _ b) -> (b, ns))
+getNesting = Translator (\ns@(Namespace{ blockindex = b }) -> (b, ns))
 
 withScope :: LIRLabel -> LIRLabel -> Translator a -> Translator a
 withScope looplabel endlabel m 
   = Translator 
-    (\(Namespace t l s me b) ->
-       let (a, Namespace t' l' _ me' b') = runTranslator m (Namespace t l [(looplabel, endlabel)] me b)
-       in (a, Namespace t' l' s me' b'))
+    (\(Namespace t l s me b sm) ->
+       let (a, Namespace t' l' _ me' b' sm') = runTranslator m (Namespace t l [(looplabel, endlabel)] me b sm)
+       in (a, Namespace t' l' s me' b' sm'))
 
 withBlock :: Translator a -> Translator a
-withBlock m = Translator (\(Namespace t l s me b) ->
+withBlock m = Translator (\(Namespace t l s me b sm) ->
     let b' = init b ++ [last b + 1]
-        (a, Namespace t' l' s' me' _) = runTranslator m (Namespace t l s me (b ++ [0]))
-    in (a, Namespace t' l' s' me' b'))
+        (a, Namespace t' l' s' me' _ sm') = runTranslator m (Namespace t l s me (b ++ [0]) sm)
+    in (a, Namespace t' l' s' me' b' sm'))
 
 -- | Given a SymbolTree, Translate a DecafProgram into an LIRProgram
 translateProgram :: SymbolTree -> DecafProgram -> Translator CFGProgram
@@ -200,16 +210,18 @@ translateStm st (DecafForStm ident expr expr' block _) =
 
 translateStm st (DecafRetStm (Just expr) _) =
     do (instructions, operand) <- translateExpr st expr
+       meth <- getMethod
        (case operand of
           LIRIntOperand int -> return (instructions
                                    ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr $ LIRIntOperand int) ]
-                                   ++ [CFGLIRInst $ LIRRetInst])
+                                   ++ [CFGLIRInst $ LIRRetInst [] meth])
           LIRRegOperand reg -> return (instructions
                                    ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr $ LIRRegOperand reg)]
-                                   ++ [CFGLIRInst $ LIRRetInst]))
+                                   ++ [CFGLIRInst $ LIRRetInst [] meth]))
 
 translateStm st (DecafRetStm Nothing _) =
-    return [CFGLIRInst $ LIRRetInst]
+    do meth <- getMethod
+       return [CFGLIRInst $ LIRRetInst [] meth]
 
 translateStm st (DecafBreakStm _) =
     do (_,el) <- getScope
@@ -349,10 +361,10 @@ translateLiteral _ (DecafCharLit c _) = return $ LIRIntOperand (fromIntegral $ o
 
 translateMethodPostcall :: SymbolTree -> DecafMethod -> Translator [CFGInst]
 translateMethodPostcall st (DecafMethod ty ident _ _ _) =
-    do method <- getMethod
+    do meth <- getMethod
        return (if mustRet
-                then throwException missingRet st method
-                else [CFGLIRInst $ LIRRetInst])
+                then throwException missingRet st meth
+                else [CFGLIRInst $ LIRRetInst [] meth])
   where
     mustRet = case ty of
                   DecafVoid -> False
@@ -399,23 +411,26 @@ translateMethodCall st mc =
     do (preinstructions, precall) <- translateMethodPrecall st mc
        t <- incTemp
        l <- incLabel -- for method call return
+       func <- calcFunc l
        return (preinstructions
             ++ precall
             ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr $ LIRIntOperand 0)]
-            ++ func l
+            ++ func
             ++ [CFGLIRInst $ LIRRegAssignInst (SREG t) (LIROperExpr $ LIRRegOperand $ LRAX)]
                , LIRRegOperand $ SREG $ t)
   where
-    func l = case mc of
-               DecafPureMethodCall {} -> 
-                 [CFGLIRInst $ LIRCallInst 
-                     (case globalSymLookup (methodCallID mc) st of
-                        Just (MethodRec _ (label, count)) -> methodLabel (methodCallID mc) count
-                        _ -> methodLabel ("Translator.hs:translateMethodCall Invalid SymbolTable; could not find a valid symbol for'" ++ (methodCallID mc) ++ "'") (-1))
-                     (retLabel l)
-                 , CFGLIRInst $ LIRLabelInst $  retLabel l]
+    calcFunc :: Int -> Translator [CFGInst]
+    calcFunc l = case mc of
+               DecafPureMethodCall {} ->
+                  do addSuccessor (methodCallID mc) (retLabel l)
+                     return [CFGLIRInst $ LIRCallInst 
+                         (case globalSymLookup (methodCallID mc) st of
+                            Just (MethodRec _ (label, count)) -> methodLabel (methodCallID mc) count
+                            _ -> methodLabel ("Translator.hs:translateMethodCall Invalid SymbolTable; could not find a valid symbol for'" ++ (methodCallID mc) ++ "'") (-1))
+                         (retLabel l)
+                         , CFGLIRInst $ LIRLabelInst $  retLabel l]
 
-               DecafMethodCallout {} ->  [CFGLIRInst $ LIRCalloutInst (methodCalloutID mc)]
+               DecafMethodCallout {} -> return [CFGLIRInst $ LIRCalloutInst (methodCalloutID mc)]
     retLabel l = LIRLabel "RETURNADDRESS" l
 
 translateString :: SymbolTree -> DecafString -> Translator ([CFGInst], LIROperand)
@@ -502,7 +517,7 @@ missingRetHandler st =
                  [CFGLIRInst $ LIRRegAssignInst LRDI (LIROperExpr (LIRRegOperand $ MEM $ exceptionString st missingRetMessage))]
                 ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr (LIRIntOperand 0))]
                 ++ [CFGLIRInst $ LIRCalloutInst "printf"]
-                ++ [CFGLIRInst LIRRetInst]
+                ++ [CFGLIRInst $ LIRRetInst [] ""]
 
 outOfBoundsHandler :: SymbolTree -> Translator [CFGInst]
 outOfBoundsHandler st =
@@ -513,7 +528,7 @@ outOfBoundsHandler st =
                [CFGLIRInst $ LIRRegAssignInst LRDI (LIROperExpr (LIRRegOperand $ MEM $ exceptionString st outOfBoundsMessage))]
                ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr (LIRIntOperand 0))]
                ++ [CFGLIRInst $ LIRCalloutInst "printf"]
-               ++ [CFGLIRInst LIRRetInst]
+               ++ [CFGLIRInst $ LIRRetInst [] ""]
 
 
 makeIf :: LIROperand -> [CFGInst] -> [CFGInst] -> Translator [CFGInst]

@@ -35,6 +35,7 @@ import qualified Data.Map as M
 data CSEKey = CSEKey LIROperand LIRBinOp LIROperand
                deriving (Show, Eq)
 type CSEData = LIRReg
+<<<<<<< HEAD:src/Decaf/TRCSE.hs
 
 
 type CSEValue = Int
@@ -66,6 +67,16 @@ setMaps m' = SM(\(c,m) -> ((),(c,m')))
 getCount   = SM(\(c,m) -> (c, (c+1,m)))
 
 mkState i = (i, bottom)
+
+{-
+type CSERecord = (CSEKey, CSEData)
+type CSEFact = [CSERecord]
+
+-- join two CSE lattices : fix me!     (right now, the joined results is always empty, CSE is completely local to basic block)
+joinCSEFact :: CSEFact -> CSEFact -> (ChangeFlag, CSEFact)
+joinCSEFact [] (x:xs) = (SomeChange, (x:xs))
+--joinCSEFact x (y:ys) = (SomeChange, (x:xs))
+joinCSEFact x _ = (NoChange, x)-}
 
 
 -- define const lattice
