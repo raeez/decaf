@@ -4,6 +4,7 @@
 module Decaf.IR.ControlFlowGraph where
 --import Decaf.IR.Class
 import Data.Int
+import qualified Data.Map as Map
 import Decaf.IR.IRNode
 import Decaf.IR.AST
 import Decaf.IR.LIR
@@ -59,21 +60,25 @@ symToInt  reg = error "attempted to label if using non-symbolic register"
 -- | Main function.  Takes HIR and turns it into Hoopl graph
 graphProgram :: SymbolTree -> DecafProgram -> Int -> DecafGraph C C
 graphProgram st dp rc =
-  let g (CFGUnit lab insts) = (CFGLIRInst $ LIRLabelInst lab) : insts 
-      (res, Namespace _ _ _ _ _ sm) = -- grab the successor map
-          runTranslator (do prog <- translateProgram st dp
-                            mapM (shortCircuit.g) (cgProgUnits prog) 
-                                   >>= (return . (map stripCFG)))
-                        (mkNamespace rc)
-      resProg = LIRProgram (LIRLabel "" 0) (map (LIRUnit (LIRLabel "" 0)) res) 
-      (res', _, _) = trace ("successorMap: " ++ show sm) $ allocateRegisters st resProg
-      instructions = (concat . (map lirUnitInstructions) . lirProgUnits) res'
-      blocks = makeBlocks instructions
-        where
-          -- inserts labels for function jumps
+    let g (CFGUnit lab insts) = (CFGLIRInst $ LIRLabelInst lab) : insts 
+        (res, Namespace _ _ _ _ _ sm) = -- grab the successor map
+            runTranslator (do prog <- translateProgram st dp
+                              mapM (shortCircuit.g) (cgProgUnits prog) 
+                                     >>= (return . (map stripCFG)))
+                          (mkNamespace rc)
+        resProg = LIRProgram (LIRLabel "" 0) (map (LIRUnit (LIRLabel "" 0)) res) 
+        (res', _, _) = allocateRegisters st resProg
+        instructions = ((mapRet sm) . (concatMap lirUnitInstructions) . lirProgUnits) res'
+        blocks = makeBlocks instructions
 
-      
-  in GMany NothingO (mapFromList (zip (map entryLabel blocks) blocks)) NothingO
+    in GMany NothingO (mapFromList (zip (map entryLabel blocks) blocks)) NothingO
+  where
+    mapRet sm = map (fillret sm)
+    fillret sm (LIRRetInst [] meth) = LIRRetInst (smLookup sm meth) meth
+    fillret sm other = other
+    smLookup sm meth = case Map.lookup meth sm of
+                          Just v  -> trace ("fillret [" ++ meth ++ "]: " ++ show v) v
+                          Nothing -> []
 
 makeBlocks :: [LIRInst] -> [Block Node C C]
 makeBlocks insts = startBlock [] insts
@@ -91,17 +96,16 @@ makeBlocks insts = startBlock [] insts
     buildBlock bs b (inst:is) = 
       case inst of
         -- Open Closed nodes
-        LIRRetInst -> 
-          startBlock ((b `BClosed` (BLast LIRRetNode)) : bs) is
+        LIRRetInst labels meth -> 
+          startBlock ((b `BClosed` (BLast $ LIRRetNode labels meth)) : bs) is
         LIRIfInst expr falselabel truelabel -> 
           startBlock ((b `BClosed` (BLast $ LIRIfNode expr falselabel truelabel)) : bs) is
         LIRCallInst lab ret ->
           startBlock ((b `BClosed` (BLast $ LIRCallNode lab ret)) : bs) is -- add another label hopefully
         LIRJumpLabelInst lab ->
           startBlock ((b `BClosed` (BLast $ LIRJumpLabelNode lab)) : bs) is
-
         LIRCalloutInst name -> -- this one is borderline...
-          buildBlock bs (b `BHead` ( LIRCalloutNode name)) is
+          buildBlock bs (b `BHead` (LIRCalloutNode name)) is
         LIRRegAssignInst reg expr ->
           buildBlock bs (b `BHead` (LIRRegAssignNode reg expr)) is
         LIRRegOffAssignInst reg reg' size oper ->
@@ -112,22 +116,6 @@ makeBlocks insts = startBlock [] insts
           buildBlock bs (b `BHead` (LIRLoadNode reg mem)) is
         LIREnterInst int ->
           buildBlock bs (b `BHead` (LIREnterNode int)) is
-        -- Open Open nodes
-{-        LIRCalloutInst name -> -- this one is borderline...
-          buildBlock bs (b `BCat` (BMiddle $ LIRCalloutNode name)) is
-        LIRRegAssignInst reg expr ->
-          buildBlock bs (b `BCat` (BMiddle $ LIRRegAssignNode reg expr)) is
-        LIRRegOffAssignInst reg reg' size oper ->
-          buildBlock bs (b `BCat` (BMiddle $ LIRRegOffAssignNode reg reg' size oper)) is
-        LIRStoreInst mem oper ->
-          buildBlock bs (b `BCat` (BMiddle $ LIRStoreNode mem oper)) is
-        LIRLoadInst reg mem ->
-          buildBlock bs (b `BCat` (BMiddle $ LIRLoadNode reg mem)) is
-        LIREnterInst int ->
-          buildBlock bs (b `BCat` (BMiddle $ LIREnterNode int)) is -}
-
---      LIRRegCmpAssignInst LIRReg LIRExpr LIRLabel  -- needed?
---    where toLabel = Label . uniqueID -- not needed hopefully
 
 graphToLIR :: Graph' Block Node e x -> [LIRInst]
 graphToLIR (GNil) =  []
@@ -161,7 +149,7 @@ nodeToLIR (LIRStoreNode m o)              = [LIRStoreInst m o]
 nodeToLIR (LIRLoadNode r m)               = [LIRLoadInst r m]
 nodeToLIR (LIRCalloutNode s)              = [LIRCalloutInst s]
 nodeToLIR (LIREnterNode i)                = [LIREnterInst i]
-nodeToLIR (LIRRetNode )                   = [LIRRetInst]
+nodeToLIR (LIRRetNode l m)                = [LIRRetInst l m]
 nodeToLIR (LIRIfNode e fl tl)             = [LIRIfInst e fl tl]
 nodeToLIR (LIRJumpLabelNode l)            = [LIRJumpLabelInst l]
 nodeToLIR (LIRCallNode l1 l2)             = [LIRCallInst l1 l2]

@@ -210,16 +210,18 @@ translateStm st (DecafForStm ident expr expr' block _) =
 
 translateStm st (DecafRetStm (Just expr) _) =
     do (instructions, operand) <- translateExpr st expr
+       meth <- getMethod
        (case operand of
           LIRIntOperand int -> return (instructions
                                    ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr $ LIRIntOperand int) ]
-                                   ++ [CFGLIRInst $ LIRRetInst])
+                                   ++ [CFGLIRInst $ LIRRetInst [] meth])
           LIRRegOperand reg -> return (instructions
                                    ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr $ LIRRegOperand reg)]
-                                   ++ [CFGLIRInst $ LIRRetInst]))
+                                   ++ [CFGLIRInst $ LIRRetInst [] meth]))
 
 translateStm st (DecafRetStm Nothing _) =
-    return [CFGLIRInst $ LIRRetInst]
+    do meth <- getMethod
+       return [CFGLIRInst $ LIRRetInst [] meth]
 
 translateStm st (DecafBreakStm _) =
     do (_,el) <- getScope
@@ -359,10 +361,10 @@ translateLiteral _ (DecafCharLit c _) = return $ LIRIntOperand (fromIntegral $ o
 
 translateMethodPostcall :: SymbolTree -> DecafMethod -> Translator [CFGInst]
 translateMethodPostcall st (DecafMethod ty ident _ _ _) =
-    do method <- getMethod
+    do meth <- getMethod
        return (if mustRet
-                then throwException missingRet st method
-                else [CFGLIRInst $ LIRRetInst])
+                then throwException missingRet st meth
+                else [CFGLIRInst $ LIRRetInst [] meth])
   where
     mustRet = case ty of
                   DecafVoid -> False
@@ -515,7 +517,7 @@ missingRetHandler st =
                  [CFGLIRInst $ LIRRegAssignInst LRDI (LIROperExpr (LIRRegOperand $ MEM $ exceptionString st missingRetMessage))]
                 ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr (LIRIntOperand 0))]
                 ++ [CFGLIRInst $ LIRCalloutInst "printf"]
-                ++ [CFGLIRInst LIRRetInst]
+                ++ [CFGLIRInst $ LIRRetInst [] ""]
 
 outOfBoundsHandler :: SymbolTree -> Translator [CFGInst]
 outOfBoundsHandler st =
@@ -526,7 +528,7 @@ outOfBoundsHandler st =
                [CFGLIRInst $ LIRRegAssignInst LRDI (LIROperExpr (LIRRegOperand $ MEM $ exceptionString st outOfBoundsMessage))]
                ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr (LIRIntOperand 0))]
                ++ [CFGLIRInst $ LIRCalloutInst "printf"]
-               ++ [CFGLIRInst LIRRetInst]
+               ++ [CFGLIRInst $ LIRRetInst [] ""]
 
 
 makeIf :: LIROperand -> [CFGInst] -> [CFGInst] -> Translator [CFGInst]

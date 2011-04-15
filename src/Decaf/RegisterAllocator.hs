@@ -80,7 +80,7 @@ instance Data LIRInst where
  gmapT f (LIRLoadInst a1 a2) = LIRLoadInst (f a1) (f a2)
  gmapT f (LIRJumpLabelInst a1) = LIRJumpLabelInst (f a1)
  gmapT f (LIRIfInst a1 a2 a3) = LIRIfInst (f a1) (f a2) (f a3)
- gmapT f (LIRRetInst) = LIRRetInst
+ gmapT f (LIRRetInst a1 a2) = LIRRetInst (f a1) (f a2)
  gmapT f (LIRLabelInst a1) = LIRLabelInst (f a1)
 
  gmapM f (LIRRegAssignInst a1 a2) =
@@ -128,9 +128,11 @@ instance Data LIRInst where
   do 
      a'1 <- f a1
      return (LIRCalloutInst a'1)
- gmapM f (LIRRetInst) =
+ gmapM f (LIRRetInst a1 a2) =
   do 
-     return (LIRRetInst)
+     a'1 <- f a1
+     a'2 <- f a2
+     return (LIRRetInst a'1 a'2)
  gmapM f (LIRLabelInst a1) =
   do 
      a'1 <- f a1
@@ -321,7 +323,6 @@ everywhereM f x = do x' <- gmapM (everywhereM f) x
 
 data RealRegister = Register LIRReg
                   | StackOffset Int
-
 
 data RegCounterState
     = RCState 
