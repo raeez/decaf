@@ -63,12 +63,11 @@ compile debug optopts source filename =
                        let gProg = graphProgram (top numberedTable) p (rc + mc)
                            mainlab = LIRLabel "main" (-1)
                            gProg' :: DecafGraph C C
-                           gProg' = fst.fst $ runLFM (analyzeAndFwdRewrite csePass [mainlab]
+                           gProg' = if (or optopts)
+                                              then (fst.fst $ runLFM (analyzeAndFwdRewrite csePass [mainlab]
                                                 gProg (mapSingleton mainlab (factBottom.fpLattice $ (csePass :: FwdPass LolMonad Node CSEFact))))
-                                                mkInfiniteFuel
-                           --optimized = if or optopts
-                                        --then optimize gProg
-                                        --else gProg
+                                                mkInfiniteFuel)
+                                              else gProg
                            prog = LIRProgram (LIRLabel "" 0) [LIRUnit (LIRLabel "" 0) (graphToLIR gProg')]
                            assembler = programAssembler (content numberedTable) prog
                            (prog', _) = runAssembler assembler mkAssemblerState
