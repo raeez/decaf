@@ -56,16 +56,16 @@ symToInt  reg = error "attempted to label if using non-symbolic register"
 --symToInt (LIRIntOperand x) = error "attempted to label if using int literal"
 
 -- | Main function.  Takes HIR and turns it into Hoopl graph
-graphProgram :: Int -> SymbolTree -> DecafProgram -> DecafGraph C C
-graphProgram rc st dp =
+graphProgram :: SymbolTree -> DecafProgram -> DecafGraph C C
+graphProgram st dp =
   let g (CFGUnit lab insts) = (CFGLIRInst $ LIRLabelInst lab) : insts 
       (res, _) = runTranslator (do prog <- translateProgram st dp
                                    mapM (shortCircuit.g) (cgProgUnits prog) 
                                           >>= (return . (map stripCFG)))
-                               (mkNamespace rc)
+                               (mkNamespace 0)
       resProg = LIRProgram (LIRLabel "" 0) (map (LIRUnit (LIRLabel "" 0)) res) 
       (res', _, _) = allocateRegisters st resProg
-      instructions = (concat . (map lirUnitInstructions) . lirProgUnits) resProg
+      instructions = (concat . (map lirUnitInstructions) . lirProgUnits) res'
       blocks = makeBlocks instructions
         where
           -- inserts labels for function jumps
@@ -117,7 +117,7 @@ makeBlocks insts = startBlock [] insts
 graphToLIR :: Graph' Block Node e x -> [LIRInst]
 graphToLIR (GNil) = []
 graphToLIR (GUnit unit) = blockToLIR unit
-graphToLIR (GMany entry labels exit) = mapEntry ++ mapExit
+graphToLIR (GMany entry labels exit) = mapEntry ++ mapLabel ++ mapExit
   where
     mapEntry = case entry of
                   JustO v  -> blockToLIR v
@@ -125,6 +125,7 @@ graphToLIR (GMany entry labels exit) = mapEntry ++ mapExit
     mapExit = case exit of
                   JustO v  -> blockToLIR v
                   NothingO -> []
+    mapLabel = concatMap (blockToLIR.snd) (mapToList labels)
 
 blockToLIR :: Block Node e x -> [LIRInst]
 blockToLIR (BFirst node)   = nodeToLIR node

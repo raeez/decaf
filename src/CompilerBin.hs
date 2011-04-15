@@ -28,8 +28,7 @@ compile debug source filename =
                             CounterState (LabelCounter rc _ _ _)) =
                                 runRegisterCounter (numberTree $ tree t)
                                                    (CounterState mkCounter)
-                       let 
-                           gProg = graphProgram rc (top numberedTable) p
+                       let gProg = graphProgram (top numberedTable) p
                            prog = LIRProgram (LIRLabel "" 0) [LIRUnit (LIRLabel "" 0) (graphToLIR gProg)]
                            assembler = programAssembler (content numberedTable) prog
                            (prog', _) = runAssembler assembler mkAssemblerState
