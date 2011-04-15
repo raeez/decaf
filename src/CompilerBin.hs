@@ -10,22 +10,17 @@ import Decaf.HooplNodes
 
 import System.Console.GetOpt
 import Data.Maybe
+import Debug.Trace
 
 data Flag = Debug
-          | Opt String
+          | Opt
           deriving (Eq, Show)
 
 options :: [OptDescr Flag]
 options =
  [ Option ['v']     ["debug"] (NoArg Debug)       "output debug information"
- , Option ['a']     ["opt"]  (OptArg allOpt "opt all")  "enable optimization [all|cse]"
- , Option ['c']     ["opt"]  (OptArg cseOpt "opt cse")  "enable optimization [all|cse]"
+ , Option ['o']     ["opt"]  (NoArg Opt)  "enable optimization [all|cse]"
  ]
-
-cseOpt, allOpt :: Maybe String -> Flag
-cseOpt = Opt . fromMaybe "cse"
-allOpt = Opt . fromMaybe "all"
-
 compilerOpts :: [String] -> IO ([Flag], [String])
 compilerOpts argv = 
    case getOpt Permute options argv of
@@ -39,8 +34,14 @@ main = do args <- getArgs
           case argv of
               (o, n) -> do let file = last n
                                debug = Debug `elem` o
-                               allopt = Opt "all" `elem` o
-                               cseopt = Opt "cse" `elem` o
+                               allopt = Opt `elem` o
+                               cseopt = Opt `elem` o
+                           if allopt
+                             then putStrLn "optimizations on"
+                             else putStrLn "no optimizations active"
+                           if debug
+                             then putStrLn "debug on"
+                             else putStrLn "no debug output active"
                            str <- readFile file
                            compile debug [allopt, cseopt] str file
               _ -> putStrLn "Invalid command line input" >> exitFailure
