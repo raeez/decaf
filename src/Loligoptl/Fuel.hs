@@ -1,7 +1,8 @@
 module Loligoptl.Fuel
   ( FuelMonad
-  , LolMonad
+  , LolMonad(..)
   , withFuel
+  , mkInfiniteFuel, mkFuel
   )
 where
 import Control.Monad
@@ -20,6 +21,8 @@ withFuel (Just a) = do f <- getFuel
 
 
 data LolState = LS { fuel :: Fuel }
+mkInfiniteFuel = LS (-1)
+mkFuel i = LS i
 newtype LolMonad a = LM { runLFM :: LolState -> (a, LolState) }
 
 instance Monad LolMonad where

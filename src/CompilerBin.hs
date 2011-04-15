@@ -4,6 +4,10 @@ import Decaf.RegisterAllocator
 import System.Environment
 import System.Exit
 
+import Loligoptl
+import Decaf.TRCSE
+import Decaf.HooplNodes
+
 main :: IO ()
 main = do args <- getArgs
           case args of
@@ -29,7 +33,12 @@ compile debug source filename =
                                 runRegisterCounter (numberTree $ tree t)
                                                    (CounterState mkCounter)
                        let gProg = graphProgram (top numberedTable) p (rc + mc)
-                           prog = LIRProgram (LIRLabel "" 0) [LIRUnit (LIRLabel "" 0) (graphToLIR gProg)]
+                           mainlab = LIRLabel "main" (-1)
+                           gProg' :: DecafGraph C C
+                           gProg' = fst.fst $ runLFM (analyzeAndFwdRewrite csePass [mainlab]
+                                                 gProg (mapSingleton mainlab (factBottom.fpLattice $ (csePass :: FwdPass LolMonad Node CSELattice))))
+                                                mkInfiniteFuel
+                           prog = LIRProgram (LIRLabel "" 0) [LIRUnit (LIRLabel "" 0) (graphToLIR gProg')]
                            assembler = programAssembler (content numberedTable) prog
                            (prog', _) = runAssembler assembler mkAssemblerState
                            asmout = nasm prog'

@@ -41,7 +41,7 @@ type CSELattice = [CSERecord]
 
 -- join two CSE lattices : fix me!     (right now, the joined results is always empty, CSE is completely local to basic block)
 joinCSELattice :: CSELattice -> CSELattice -> (ChangeFlag, CSELattice)
-joinCSELattice _ _ = (NoChange, [])
+joinCSELattice x _ = (NoChange, x)
         
 
   
@@ -138,8 +138,8 @@ cse = shallowFwdRw simp
 
 
 -- define fwd pass
-csePass = FwdPass
+csePass = FwdPass 
   { fpLattice = constLattice
   , fpTransfer = exprIsAvail
-  , fpRewrite = cse }
+  , fpRewrite = cse } -- :: FwdRewrite LolMonad Node CSELattice}
 
