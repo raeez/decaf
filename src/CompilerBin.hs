@@ -25,10 +25,10 @@ compile debug source filename =
              if length e > 0
                then putStrLn formattedErrors >> exitFailure
                else do let (numberedTable, 
-                            CounterState (LabelCounter rc _ _ _)) =
+                            CounterState (LabelCounter rc _ mc _)) =
                                 runRegisterCounter (numberTree $ tree t)
                                                    (CounterState mkCounter)
-                       let gProg = graphProgram (top numberedTable) p
+                       let gProg = graphProgram (top numberedTable) p (rc + mc)
                            prog = LIRProgram (LIRLabel "" 0) [LIRUnit (LIRLabel "" 0) (graphToLIR gProg)]
                            assembler = programAssembler (content numberedTable) prog
                            (prog', _) = runAssembler assembler mkAssemblerState

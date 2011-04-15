@@ -158,25 +158,3 @@ executable compiler
         build-depends:  QuickCheck < 2
         ghc-options:    -Werror
 
-executable runtests
-    hs-source-dirs:     testsuite/
-
-    main-is:            runtests.hs
-    other-modules:      Decaf
-
-    Hs-Source-Dirs:     src
-
-
-
-    Build-Depends:      base > 4, parsec, regex-posix, graphviz, HUnit, process, containers, QuickCheck
-    ghc-options:        -Wall -fno-warn-name-shadowing -fno-warn-unused-do-bind
-
-
-    ghc-prof-options:   -prof -auto-all
-
-    if flag(testing)
-        cpp-options:    -DTESTING
-        hs-source-dirs: . tests/
-        build-depends:  QuickCheck < 2
-        ghc-options:    -Werror
-

@@ -119,10 +119,15 @@ instance Data LIRInst where
      a'2 <- f a2
      a'3 <- f a3
      return (LIRIfInst a'1 a'2 a'3)
- gmapM f (LIRCallInst a1) =
+ gmapM f (LIRCallInst a1 a2) =
   do 
      a'1 <- f a1
-     return (LIRCallInst a'1)
+     a'2 <- f a2
+     return (LIRCallInst a'1 a'2)
+ gmapM f (LIRCalloutInst a1) =
+  do 
+     a'1 <- f a1
+     return (LIRCalloutInst a'1)
  gmapM f (LIRRetInst) =
   do 
      return (LIRRetInst)
@@ -419,10 +424,9 @@ allocateRegisters st prog =
 
         methods = getMethods st
 
-        units' = (map appendEnter $ zip (map rcCount counters) 
-                                        (map fixOffset $ zip methods (init units))) 
-                 ++ [last $ units]
-
+        units' = (map appendEnter $ zip (map rcCount counters)
+                                        (map fixOffset $ zip methods units))
+                 ++ [last units, last . init $ units]
 
         appendEnter :: (Int, LIRUnit) -> LIRUnit
         appendEnter (i, u) = 
@@ -431,7 +435,6 @@ allocateRegisters st prog =
               u{lirUnitInstructions = (head insts) : ((LIREnterInst lirsize):(tail insts))}
           where
             lirsize = fromIntegral i :: LIRInt
-
 
         fixOffset :: (DecafMethod, LIRUnit) -> LIRUnit
         fixOffset (m,u) = (fst $ runAllocator (everywhereM (mkM (fixStackOffset nargs')) u) (mkRCState st)) 
@@ -448,7 +451,7 @@ allocateRegisters st prog =
                     
 
     in
-      if (length methods) /= (length units - 1)
+      if (length methods) /= (length units - 2) -- 2 extra units for exceptions
 
         then error ("number of methods does not equal number of units" 
                     ++ show (length methods) ++ show (length units))

@@ -398,4 +398,4 @@ instance SymbolicAssembler ASMSym where
     nasm (ASMSym sym) = sym
 
 instance SymbolicAssembler ASMLabel where
-    nasm (ASMLabel label i) = label ++ (show i)
+    nasm (ASMLabel label i) = if i == -1 then label else label ++ (show . abs $ i)

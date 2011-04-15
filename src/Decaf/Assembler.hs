@@ -290,28 +290,33 @@ mapInst (LIRJumpLabelInst (LIRLabel l i)) =
         jmp (ASMLabel l i)
 
 -- following two functions only depend on true label (false block requires no immediate jump)
-mapInst (LIRIfInst (LIRBinRelExpr op1 binop op2) flab tlab) =
+mapInst (LIRIfInst (LIRBinRelExpr op1 binop op2) (LIRLabel fll fli) tlab@(LIRLabel tll tli)) =
     do o1 <- asm op1
        o2 <- asm op2
        cmp' o1 o2
-
        jumpType binop tlab -- not sure if this is right raeez
+       jmp (ASMLabel fll fli)
 
-mapInst (LIRIfInst (LIRNotRelExpr operand) _ (LIRLabel l i)) =
+mapInst (LIRIfInst (LIRNotRelExpr operand) (LIRLabel fll fli) (LIRLabel tll tli)) =
     do o <- asm operand
        cmp' o (lit litFalse)
+       jl (ASMLabel tll tli)
+       jmp (ASMLabel fll fli)
 
-       jl (ASMLabel l i)
-
-mapInst (LIRIfInst (LIROperRelExpr operand) _ (LIRLabel l i)) =
+mapInst (LIRIfInst (LIROperRelExpr operand) (LIRLabel fll fli) (LIRLabel tll tli)) =
     do o <- asm operand
        cmp' o (lit litFalse)
+       jl (ASMLabel tll tli)
+       jmp (ASMLabel fll fli)
 
-       jl (ASMLabel l i)
-
-mapInst (LIRCallInst lab) =
+mapInst (LIRCallInst lab (LIRLabel l i)) =
     do useSymbol (show lab)
        call (ASMSym (show lab))
+       jmp (ASMLabel l i)
+
+mapInst (LIRCalloutInst lab) =
+    do useSymbol lab
+       call (ASMSym lab)
 
 mapInst (LIREnterInst s) =
     do push rbp
@@ -459,6 +464,7 @@ genExpr reg expr =
 
            op1 <- asm reg
            mov' op1 (lit litTrue)
+           jmp endl
 
            label endl
         where

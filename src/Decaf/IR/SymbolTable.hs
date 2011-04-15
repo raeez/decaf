@@ -126,10 +126,6 @@ getStringCount :: RegisterCounter Int
 getStringCount = RegisterCounter (\s@(CounterState{csCounter=c}) ->
                          let n = stringCount c
                          in (n, s{csCounter=c{stringCount = n+1}}))
-
-
-
-
 numberTree :: Tree SymbolTable -> RegisterCounter (Tree SymbolTable)
 numberTree t = 
     let table' = content t
@@ -163,7 +159,8 @@ numberGlobal (ArrayRec a _) = do c <- getGlobalCount (fromIntegral $ readDecafIn
 numberGlobal (VarRec a _ ) =  do c <- getGlobalCount 1
                                  return $ VarRec a (-c-1)
 
-numberGlobal m@(MethodRec {}) = return m
+numberGlobal m@(MethodRec {}) = numberRec m
+
 numberGlobal (StringRec a _) = do c <- getStringCount
                                   return $ StringRec a c
 

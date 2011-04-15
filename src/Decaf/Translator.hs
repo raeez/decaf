@@ -19,7 +19,7 @@ data Namespace = Namespace
     }
 
 mkNamespace :: Int -> Namespace
-mkNamespace lastTemp = Namespace lastTemp 0 [] "null" [0]
+mkNamespace lastTemp = Namespace 0 lastTemp [] "null" [0]
 
 newtype Translator a = Translator
     { runTranslator :: Namespace -> (a, Namespace) }
@@ -72,26 +72,27 @@ withBlock m = Translator (\(Namespace t l s me b) ->
 translateProgram :: SymbolTree -> DecafProgram -> Translator CFGProgram
 translateProgram st program =
   do units <- mapM (translateMethod st) (methods program)
-     eUnits <- mapM ($st) exceptionHandlers
+     e1 <- missingRetHandler st
+     e2 <- outOfBoundsHandler st
      last <- incLabel
-     return $ CFGProgram (LIRLabel "START" 0) 
-                         (units ++ [CFGUnit exceptionHeader (concat eUnits)])
+     return $ CFGProgram (LIRLabel "START" 0)
+                         (units
+                    ++ [CFGUnit (exceptionLabel st outOfBoundsMessage) (e2)]
+                    ++ [CFGUnit (exceptionLabel st missingRetMessage) (e1)])
                          last
-                         
 
 -- | Given a SymbolTree, Translate a DecafMethod into an LIRUnit
 translateMethod :: SymbolTree -> DecafMethod -> Translator CFGUnit
 translateMethod st method =
     do (case symLookup (methodID method) (table st) of
         Just (index, MethodRec _ (label, count)) ->
-            do lab <- incLabel
-               oldMethod <- getMethod
+            do oldMethod <- getMethod
                setMethod (methodID method)
-               body <- translateBlock (st) (methodBody method)
+               body <- translateBlock st (methodBody method)
                prologue <- translateMethodPrologue (st' index) method
                postcall <- translateMethodPostcall st method
                setMethod oldMethod
-               return $ CFGUnit (methodlabel lab) (prologue -- changed ml to take new lab instead of count
+               return $ CFGUnit (methodlabel count) (prologue -- changed ml to take new lab instead of count
                                                   ++ body
                                                   ++ postcall)
         _ -> return $ CFGUnit (LIRLabel ("Translator.hs:translateMethod Invalid SymbolTable; could not find '" ++ methodID method ++ "' symbol") 0) [])
@@ -104,8 +105,7 @@ translateMethod st method =
 
     methodlabel c = if methodname == "main"
                       then LIRLabel methodname (-1) -- minus 1 so that not displayed
-                      else LIRLabel ("__" ++ methodname ++ "__proc") c
---                      else LIRLabel (methodLabel methodname c) c
+                      else (methodLabel methodname c)
       where
         methodname = methodID method
 
@@ -158,18 +158,6 @@ translateStm st (DecafAssignStm loc op expr _) =
 translateStm st (DecafMethodStm mc _) =
     do (instructions, operand) <- translateMethodCall st mc
        return instructions
-
-{-translateStm st (DecafIfStm expr block melse _) =
-     do (instructions, LIROperRelExpr relexpr) <- translateRelExpr st expr
-        l <- incTemp
-        trueblock <- translateBlock st block
-        elseblock <- case melse of 
-                       Just b -> translateBlock st b
-                       Nothing -> return []
-        return (instructions
-            ++ [CFGIf relexpr l -- numbering based on registers so that short-circuit evaluation doesn't clash (SCE takes new if label from expr number)
-                trueblock elseblock])
--}
 
 translateStm st (DecafIfStm expr block melse _) = 
   do (instructions, rexpr@(LIROperRelExpr relexpr)) <- translateRelExpr st expr
@@ -413,20 +401,22 @@ translateMethodCall st mc =
        l <- incLabel -- for method call return
        return (preinstructions
             ++ precall
-            ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr $ LIRIntOperand 0)
-               , CFGLIRInst func
---               , CFGLIRInst $ LIRCallInst func
-               , CFGLIRInst $ LIRLabelInst $ LIRLabel "METHODDONE" l
-               , CFGLIRInst $ LIRRegAssignInst (SREG t) (LIROperExpr $ LIRRegOperand $ LRAX)]
-            , LIRRegOperand $ SREG $ t)
+            ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr $ LIRIntOperand 0)]
+            ++ func l
+            ++ [CFGLIRInst $ LIRRegAssignInst (SREG t) (LIROperExpr $ LIRRegOperand $ LRAX)]
+               , LIRRegOperand $ SREG $ t)
   where
-    func = case mc of
+    func l = case mc of
                DecafPureMethodCall {} -> 
-                 LIRCallInst $ 
-                   (case globalSymLookup (methodCallID mc) st of
-                      Just (MethodRec _ (label, count)) -> methodLabel (methodCallID mc) count
-                      _ -> methodLabel ("Translator.hs:translateMethodCall Invalid SymbolTable; could not find a valid symbol for'" ++ (methodCallID mc) ++ "'") (-1))
-               DecafMethodCallout {} ->  LIRCalloutInst (methodCalloutID mc)
+                 [CFGLIRInst $ LIRCallInst 
+                     (case globalSymLookup (methodCallID mc) st of
+                        Just (MethodRec _ (label, count)) -> methodLabel (methodCallID mc) count
+                        _ -> methodLabel ("Translator.hs:translateMethodCall Invalid SymbolTable; could not find a valid symbol for'" ++ (methodCallID mc) ++ "'") (-1))
+                     (retLabel l)
+                 , CFGLIRInst $ LIRLabelInst $  retLabel l]
+
+               DecafMethodCallout {} ->  [CFGLIRInst $ LIRCalloutInst (methodCalloutID mc)]
+    retLabel l = LIRLabel "RETURNADDRESS" l
 
 translateString :: SymbolTree -> DecafString -> Translator ([CFGInst], LIROperand)
 translateString st string =
@@ -503,15 +493,13 @@ throwException code st method =
              ++ [CFGLIRInst $ LIRJumpLabelInst $ exceptionLabel st (exception code)]
             other -> error $ "Translate.hs:throwException could not find symbol for :" ++ method
 
-exceptionHandlers = [missingRetHandler, outOfBoundsHandler]
-
-missingRetHandler :: SymbolTree ->Translator [CFGInst]
+missingRetHandler :: SymbolTree -> Translator [CFGInst]
 missingRetHandler st =
        do let var = case globalSymLookup ('.':missingRetMessage) st of
                       Just (StringRec _ l) ->  l
                       _ -> error $ "Translate.hs:missingRetHandler could not find symbol for :" ++ missingRetMessage
-          return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel st missingRetMessage]
-                ++ [CFGLIRInst $ LIRRegAssignInst LRDI (LIROperExpr (LIRRegOperand $ MEM $ exceptionString st missingRetMessage))]
+          return $ --[CFGLIRInst $ LIRLabelInst $ exceptionLabel st missingRetMessage]
+                 [CFGLIRInst $ LIRRegAssignInst LRDI (LIROperExpr (LIRRegOperand $ MEM $ exceptionString st missingRetMessage))]
                 ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr (LIRIntOperand 0))]
                 ++ [CFGLIRInst $ LIRCalloutInst "printf"]
                 ++ [CFGLIRInst LIRRetInst]
@@ -521,8 +509,8 @@ outOfBoundsHandler st =
        do let var = case globalSymLookup ('.':outOfBoundsMessage) st of
                       Just (StringRec _ l) -> l
                       _ -> error $ "Translate.hs:outOfBoundsHandler could not find symbol for :" ++ outOfBoundsMessage
-          return $ [CFGLIRInst $ LIRLabelInst $ exceptionLabel st outOfBoundsMessage]
-               ++ [CFGLIRInst $ LIRRegAssignInst LRDI (LIROperExpr (LIRRegOperand $ MEM $ exceptionString st outOfBoundsMessage))]
+          return $ --[CFGLIRInst $ LIRLabelInst $ exceptionLabel st outOfBoundsMessage]
+               [CFGLIRInst $ LIRRegAssignInst LRDI (LIROperExpr (LIRRegOperand $ MEM $ exceptionString st outOfBoundsMessage))]
                ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr (LIRIntOperand 0))]
                ++ [CFGLIRInst $ LIRCalloutInst "printf"]
                ++ [CFGLIRInst LIRRetInst]
@@ -541,4 +529,5 @@ makeIf expr falseblock trueblock =
       [ CFGLIRInst $ LIRJumpLabelInst endlabel
       , CFGLIRInst $ LIRLabelInst truelabel]
       ++ trueblock ++
-      [ CFGLIRInst $ LIRLabelInst endlabel]
+      [CFGLIRInst $ LIRJumpLabelInst endlabel]
+      ++ [CFGLIRInst $ LIRLabelInst endlabel]

@@ -36,7 +36,7 @@ data LIRInst = LIRRegAssignInst LIRReg LIRExpr
              | LIREnterInst LIRInt
              | LIRJumpLabelInst LIRLabel
              | LIRIfInst LIRRelExpr LIRLabel LIRLabel -- false, then true
-             | LIRCallInst LIRLabel
+             | LIRCallInst LIRLabel LIRLabel -- method label, return label
              | LIRCalloutInst String
              | LIRRetInst
              | LIRLabelInst LIRLabel
@@ -198,12 +198,12 @@ exceptionString st msg =
 
 exceptionLabel :: SymbolTree -> String -> LIRLabel
 exceptionLabel st msg  = case globalSymLookup ('.':msg) st of
-                           Just (StringRec _ l) ->  LIRLabel "__exception" l
+                           Just (StringRec _ l) ->  LIRLabel "__exception" (-l-100) -- if it's not negative, we'll clash with the universe of labels
                            _ -> error $ "LIR.hs:exceptionLabel could not find symbol for :" ++ msg
 
 boundsLabel :: Bool -> Int -> LIRLabel
 boundsLabel t c = if t then (LIRLabel  "__boundscheck" c) 
-                  else (LIRLabel "__boundscheck_positive" c)
+                  else (LIRLabel "__boundscheck_fail" c)
 
 compareLabel :: Int -> LIRLabel
 compareLabel c = LIRLabel  "__cmp" c
@@ -261,9 +261,10 @@ instance IRNode LIRInst where
     pp (LIREnterInst num) = "ENTER " ++ (show num)
     pp (LIRJumpLabelInst label) = "JMP " ++ pp label
     pp (LIRIfInst expr flab tlab) = "IF " ++ pp expr ++ " THEN " ++ pp tlab ++ " ELSE " ++ pp flab
-    pp (LIRCallInst proc) = "call " ++ pp proc
+    pp (LIRCallInst proc ret) = "call " ++ pp proc
+    pp (LIRCalloutInst proc) = "call " ++ proc
     pp LIRRetInst = "RET"
-    pp (LIRLabelInst label) = pp label
+    pp (LIRLabelInst label) = "LABEL: " ++ pp label
     treeify (LIRRegAssignInst reg expr) =
         Node "ASSIGN" [treeify reg, treeify expr]
     treeify (LIRRegOffAssignInst reg offset size operand) =
@@ -274,7 +275,7 @@ instance IRNode LIRInst where
     treeify (LIREnterInst bytes) = Node ("Enter[" ++ pp bytes ++ "]") []
     treeify (LIRJumpLabelInst label) = Node "JMP" [treeify label]
     treeify (LIRIfInst expr flab tlab) = Node "IF" [treeify expr, treeify flab, treeify tlab]
-    treeify (LIRCallInst proc) = Node "CALL" [treeify proc]
+    treeify (LIRCallInst proc ret) = Node "CALL" [treeify proc]
     treeify LIRRetInst = Node "RET" []
     treeify (LIRLabelInst label) = Node (pp label) []
 
