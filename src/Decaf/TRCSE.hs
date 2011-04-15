@@ -41,6 +41,7 @@ type CSELattice = [CSERecord]
 
 -- join two CSE lattices : fix me!     (right now, the joined results is always empty, CSE is completely local to basic block)
 joinCSELattice :: CSELattice -> CSELattice -> (ChangeFlag, CSELattice)
+joinCSELattice [] x = (SomeChange, x)
 joinCSELattice x _ = (NoChange, x)
         
 
