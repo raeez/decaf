@@ -60,12 +60,13 @@ symToInt  reg = error "attempted to label if using non-symbolic register"
 graphProgram :: SymbolTree -> DecafProgram -> Int -> DecafGraph C C
 graphProgram st dp rc =
   let g (CFGUnit lab insts) = (CFGLIRInst $ LIRLabelInst lab) : insts 
-      (res, _) = runTranslator (do prog <- translateProgram st dp
-                                   mapM (shortCircuit.g) (cgProgUnits prog) 
-                                          >>= (return . (map stripCFG)))
-                               (mkNamespace rc)
+      (res, Namespace _ _ _ _ _ sm) = -- grab the successor map
+          runTranslator (do prog <- translateProgram st dp
+                            mapM (shortCircuit.g) (cgProgUnits prog) 
+                                   >>= (return . (map stripCFG)))
+                        (mkNamespace rc)
       resProg = LIRProgram (LIRLabel "" 0) (map (LIRUnit (LIRLabel "" 0)) res) 
-      (res', _, _) = trace (pp resProg) $ allocateRegisters st resProg
+      (res', _, _) = trace ("successorMap: " ++ show sm) $ allocateRegisters st resProg
       instructions = (concat . (map lirUnitInstructions) . lirProgUnits) res'
       blocks = makeBlocks instructions
         where
