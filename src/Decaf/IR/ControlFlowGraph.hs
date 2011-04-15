@@ -69,7 +69,7 @@ graphProgram st dp rc =
         resProg = LIRProgram (LIRLabel "" 0) (map (LIRUnit (LIRLabel "" 0)) res) 
         (res', _, _) = allocateRegisters st resProg
         instructions = ((mapRet sm) . (concatMap lirUnitInstructions) . lirProgUnits) res'
-        blocks = makeBlocks instructions
+        blocks = makeBlocks (trace (unlines $ map pp instructions) instructions)
 
     in GMany NothingO (mapFromList (zip (map entryLabel blocks) blocks)) NothingO
   where
@@ -77,7 +77,7 @@ graphProgram st dp rc =
     fillret sm (LIRRetInst [] meth) = LIRRetInst (smLookup sm meth) meth
     fillret sm other = other
     smLookup sm meth = case Map.lookup meth sm of
-                          Just v  -> trace ("fillret [" ++ meth ++ "]: " ++ show v) v
+                          Just v  -> v
                           Nothing -> []
 
 makeBlocks :: [LIRInst] -> [Block Node C C]

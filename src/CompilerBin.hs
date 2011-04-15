@@ -74,6 +74,7 @@ compile debug optopts source filename =
                            asmout = nasm prog'
                        writeFile newFile asmout
                        putStrLn asmout
+                       putStrLn $ pp prog
                        exitSuccess
   where
     newFile = (fst $ break (=='.') filename) ++ ".asm"

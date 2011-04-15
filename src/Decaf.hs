@@ -14,6 +14,7 @@ module Decaf
     , module Decaf.IR.ControlFlowGraph
     , module Decaf.IR.SymbolTable
     , module Decaf.Util.Report
+    , module Decaf.TRCSE
     ) where
 
 import Decaf.Util.Report
@@ -31,3 +32,4 @@ import Decaf.Parser
 import Decaf.Checker
 import Decaf.Translator
 import Decaf.Assembler
+import Decaf.TRCSE

@@ -42,6 +42,7 @@ Library
                       Decaf.IR.IRNode,
                       Decaf.IR.ControlFlowGraph,
                       Decaf.Translator,
+                      Decaf.TRCSE
                       Loligoptl,
                       Loligoptl.Combinators,
                       Loligoptl.Fuel,
