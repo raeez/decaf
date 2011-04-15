@@ -41,7 +41,14 @@ Library
                       Decaf.Util.Report,
                       Decaf.IR.IRNode,
                       Decaf.IR.ControlFlowGraph,
-                      Decaf.Translator
+                      Decaf.Translator,
+                      Loligoptl,
+                      Loligoptl.Combinators,
+                      Loligoptl.Fuel,
+                      Loligoptl.Graph,
+                      Loligoptl.Label,
+                      Loligoptl.Dataflow
+
 
     Other-Modules: Decaf.Data.ContextTree
 
