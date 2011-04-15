@@ -1,14 +1,14 @@
 module Decaf.Util.Prelude where
 
-manyList :: Integer -> a -> [a]
-manyList n x = map (\_ -> x) [1..n]
+import Control.Monad
+import Control.Monad.State
 
--- EQUIVALENT TO Prelude.sequence
-bindAccum :: (Monad m) => [m a] -> (m [a])
-bindAccum ms = bahelp [] ms
-    where 
-      bahelp res ms =
-          case ms of
-            [] -> return res
-            _ -> do t <- (head ms)
-                    bahelp (res++[t]) (tail ms)
+data StateMonad s a = SM {runSM :: s -> (a,s)}
+
+instance Monad (StateMonad s) where
+  m >>= f = SM ( \s -> let (a,s') = runSM m s
+                       in runSM (f a) s')
+  return f = SM (\s -> (f,s))
+
+getST = SM (\s -> (s,s))
+putST st = SM (\s -> ((),st))
