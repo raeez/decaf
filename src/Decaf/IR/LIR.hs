@@ -12,103 +12,12 @@ import Data.Int
 import Data.Typeable
 --import Loligoptl.Label
 
-byte :: LIRInt
-byte = 1
-
-word :: LIRInt
-word = 2
-
-dword :: LIRInt
-dword = 4
-
-qword :: LIRInt
-qword = 8
-
-asmTrue, asmFalse :: LIRInt
-asmTrue = (-1)
-asmFalse = 0
-
-litTrue, litFalse :: LIRInt
-litTrue = -1
-litFalse = 0
-
-missingRetMessage :: String
-missingRetMessage = "*** RUNTIME ERROR ***: Missing return statement in method \"%s\"\n"
-
-missingRet :: Int
-missingRet = 0
-
-outOfBoundsMessage :: String
-outOfBoundsMessage = "*** RUNTIME ERROR ***: Array out of Bounds access in method \"%s\"\n"
-
-outOfBounds :: Int
-outOfBounds = 1
-
-exception code
-      | code == 1 = outOfBoundsMessage
-      | code == 0 = missingRetMessage
-
-exceptionHeader :: LIRLabel
-exceptionHeader = LIRLabel "__exceptionhandlers" 0
-
-exceptionString :: SymbolTree -> String -> String
-exceptionString st msg =
-  case globalSymLookup ('.':msg) st of
-      Just (StringRec _ l) ->  "__string" ++ show l
-      _                    ->
-          error $ "LIR.hs:exceptionString could not find symbol for :" ++msg 
-
-exceptionLabel :: SymbolTree -> String -> LIRLabel
-exceptionLabel st msg  = case globalSymLookup ('.':msg) st of
-                           Just (StringRec _ l) ->  LIRLabel "__exception" l
-                           _ -> error $ "LIR.hs:exceptionLabel could not find symbol for :" ++ msg
-
-boundsLabel :: Bool -> Int -> LIRLabel
-boundsLabel t c = if t then (LIRLabel  "__boundscheck" c) 
-                  else (LIRLabel "__boundscheck_positive" c)
-
-compareLabel :: Int -> LIRLabel
-compareLabel c = LIRLabel  "__cmp" c
-
-
--- following three are not labels in the LIRLabel sense
-stringLabel :: Int -> String
-stringLabel c = "__string" ++ show c
-
-arrayLabel :: Int -> String
-arrayLabel c = "__array" ++ show c
-
-methodLabel :: String -> Int -> LIRLabel
-methodLabel m c = LIRLabel ("__proc" ++ "__" ++ m) c
-
-loopLabel :: Int -> LIRLabel
-loopLabel l = LIRLabel "LLOOP" l
-
-endLabel :: Int -> LIRLabel
-endLabel l = LIRLabel "LEND"  l
-
-trueLabel :: Int -> LIRLabel
-trueLabel l = LIRLabel "LTRUE" l
-
-
 type LIRInt    = Int64
 type LIRSize   = LIRInt
 type LIROffset = LIRInt
 
-
-falseLabel :: Int -> LIRLabel
-falseLabel l = LIRLabel "LFalse" l
-
-
 data LIRLabel = LIRLabel String Int
     deriving (Eq, Typeable)
-
-instance Show LIRLabel where
-  show (LIRLabel s n) = if n == -1 then s else s ++ (show n)
-
-uniqueID :: LIRLabel -> Int
-uniqueID (LIRLabel _ i) = i
-
 
 data LIRProgram = LIRProgram
     { lirProgLabel :: LIRLabel
@@ -203,9 +112,6 @@ data LIRReg = LRAX
             | MEM String
             deriving (Show, Eq, Typeable)
 
-
-
-
 -- | (very) Intermediate control flow graph representation
 data CFGProgram = CFGProgram
     { cgProgLabel :: LIRLabel
@@ -244,6 +150,92 @@ type ControlPath = [ControlNode]
 
 data ControlGraph = ControlGraph {cgNodes :: [ControlPath]} -- a list of nodes for each method
 
+byte :: LIRInt
+byte = 1
+
+word :: LIRInt
+word = 2
+
+dword :: LIRInt
+dword = 4
+
+qword :: LIRInt
+qword = 8
+
+asmTrue, asmFalse :: LIRInt
+asmTrue = (-1)
+asmFalse = 0
+
+litTrue, litFalse :: LIRInt
+litTrue = -1
+litFalse = 0
+
+missingRetMessage :: String
+missingRetMessage = "*** RUNTIME ERROR ***: Missing return statement in method \"%s\"\n"
+
+missingRet :: Int
+missingRet = 0
+
+outOfBoundsMessage :: String
+outOfBoundsMessage = "*** RUNTIME ERROR ***: Array out of Bounds access in method \"%s\"\n"
+
+outOfBounds :: Int
+outOfBounds = 1
+
+exception code
+      | code == 1 = outOfBoundsMessage
+      | code == 0 = missingRetMessage
+
+exceptionHeader :: LIRLabel
+exceptionHeader = LIRLabel "__exceptionhandlers" 0
+
+exceptionString :: SymbolTree -> String -> String
+exceptionString st msg =
+  case globalSymLookup ('.':msg) st of
+      Just (StringRec _ l) ->  "__string" ++ show l
+      _                    ->
+          error $ "LIR.hs:exceptionString could not find symbol for :" ++msg 
+
+exceptionLabel :: SymbolTree -> String -> LIRLabel
+exceptionLabel st msg  = case globalSymLookup ('.':msg) st of
+                           Just (StringRec _ l) ->  LIRLabel "__exception" l
+                           _ -> error $ "LIR.hs:exceptionLabel could not find symbol for :" ++ msg
+
+boundsLabel :: Bool -> Int -> LIRLabel
+boundsLabel t c = if t then (LIRLabel  "__boundscheck" c) 
+                  else (LIRLabel "__boundscheck_positive" c)
+
+compareLabel :: Int -> LIRLabel
+compareLabel c = LIRLabel  "__cmp" c
+
+
+-- following three are not labels in the LIRLabel sense
+stringLabel :: Int -> String
+stringLabel c = "__string" ++ show c
+
+arrayLabel :: Int -> String
+arrayLabel c = "__array" ++ show c
+
+methodLabel :: String -> Int -> LIRLabel
+methodLabel m c = LIRLabel ("__proc" ++ "__" ++ m) c
+
+loopLabel :: Int -> LIRLabel
+loopLabel l = LIRLabel "LLOOP" l
+
+endLabel :: Int -> LIRLabel
+endLabel l = LIRLabel "LEND"  l
+
+trueLabel :: Int -> LIRLabel
+trueLabel l = LIRLabel "LTRUE" l
+
+uniqueID :: LIRLabel -> Int
+uniqueID (LIRLabel _ i) = i
+
+instance Show LIRLabel where
+  show (LIRLabel s n) = if n == -1 then s else s ++ (show n)
+
+falseLabel :: Int -> LIRLabel
+falseLabel l = LIRLabel "LFalse" l
 
 instance IRNode LIRProgram where
     pp (LIRProgram label units) = pp label ++ ":\n" ++ unlines (map pp units)
@@ -259,8 +251,6 @@ instance IRNode LIRUnit where
                                     _ -> "    " ++ pp x
                         in (repr:indentMap xs)
     treeify (LIRUnit label insts) = Node ("LIRUnit: " ++ pp label) (map treeify insts)
-
-
 
 instance IRNode LIRInst where
     pp (LIRRegAssignInst reg expr) = pp reg ++ " <- " ++ pp expr

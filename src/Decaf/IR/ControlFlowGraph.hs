@@ -1,4 +1,5 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE MultiParamTypeClasses
+  , GADTs #-}
 
 module Decaf.IR.ControlFlowGraph where
 --import Decaf.IR.Class
@@ -8,30 +9,17 @@ import Decaf.IR.AST
 import Decaf.IR.LIR
 import Decaf.IR.SymbolTable
 import Decaf.Translator
-import Decaf.IR.DecafGraph
 import Decaf.HooplNodes
+import Decaf.RegisterAllocator
 
 import Loligoptl.Graph
 import Loligoptl.Label 
 
 import Control.Monad
 import Data.Int
-{- fix 
-
-correct counting in symbol table
-return highest count
-runtime checks
-
--}
 
 mkBasicBlock :: [LIRInst] -> ControlNode
 mkBasicBlock = BasicBlock
-
-{-mkBranch :: LIROperand -> Int -> ControlPath -> ControlPath -> ControlNode
-mkBranch op num b1 b2 = 
-    Branch op num ((BasicBlock [LIRLabelInst (trueLabel num)]):b1++[BasicBlock [LIRLabelInst $ endLabel num]])
-               (b2 ++ [BasicBlock [LIRJumpLabelInst $ endLabel num]]) 
--}
 
 -- converts CFGExprInsts into CFGLIRInsts
 shortCircuit :: [CFGInst] -> Translator [CFGInst]
@@ -59,52 +47,7 @@ stripCFG is = map strip is
         strip _ = error "shortCircuit didn't work"
 
 -- CHANGE FROM LIRInst to new itermediate ' type
-{-convertLIRInsts :: [CFGInst] -> Translator ControlPath
-convertLIRInsts insts = convHelp [] [] insts
-  where
-    convHelp :: ControlPath -> [LIRInst] -> [CFGInst] -> Translator ControlPath
-    convHelp nodes body [] = return $ nodes ++ [mkBasicBlock body]
-    convHelp nodes body (inst:is) = 
-        case inst of
-          CFGLIRInst inst@(LIRCallInst{}) -> convHelp (nodes ++ (pushBlock' inst)) [] is -- fix this?
-          CFGLIRInst inst@LIRRetInst -> convHelp (nodes ++ (pushBlock' inst)) [] is
-{-          CFGIf reg label block eblock ->
-              convHelp (nodes ++ pushBlock ++ [mkBranch reg label (convHelp [] [] block) (convHelp [] [] eblock)]) [] is-}
-          CFGExprInst (CFGLogExpr expr1 op expr2 reg) -> -- reg is used for labeling new branches
-            do contEvaling  <- convHelp [] [] ([expr2] ++ [CFGLIRInst $ LIRRegAssignInst reg (LIROperExpr $ (cgOper expr2))])
-               let retValBlock b = [mkBasicBlock [LIRRegAssignInst reg (LIROperExpr (LIRIntOperand b))]]
-               case op of
--- add code to fill in final value in reg
-                LAND -> do 
-                  lab <- incLabel
-                  expr1' <- (convHelp [] [] [expr1])
-                  convHelp (nodes ++ pushBlock ++ expr1'
-                                  ++[mkBranch (cgOper expr1) 
-                                              lab
---                                              (symToInt reg)
-                                              contEvaling
-                                              (retValBlock asmFalse)]) [] is
-                LOR -> do
-                  lab <- incLabel
-                  expr1' <- (convHelp [] [] [expr1])
-                  convHelp (nodes ++ pushBlock ++ expr1'
-                                  ++[mkBranch (cgOper expr1) 
-                                              lab 
---                                              (symToInt reg)
-                                              (retValBlock asmTrue)
-                                              contEvaling]) [] is
 
-          CFGExprInst (CFGFlatExpr insts _) ->
-              convHelp nodes body (insts ++is)
-
-          CFGLIRInst x -> convHelp nodes (body++[x]) is
-
-
-         where 
-           pushBlock' inst = [mkBasicBlock (body++[inst])]
-           pushBlock       =  [mkBasicBlock body]
-
--}
 pullOutLIR (CFGLIRInst x) = x
 
 symToInt :: LIRReg -> Int
@@ -112,34 +55,22 @@ symToInt (SREG s) = s
 symToInt  reg = error "attempted to label if using non-symbolic register"
 --symToInt (LIRIntOperand x) = error "attempted to label if using int literal"
 
-
 -- | Main function.  Takes HIR and turns it into Hoopl graph
-graphProgram :: SymbolTree -> DecafProgram -> DecafGraph C C
-graphProgram st dp =
+graphProgram :: Int -> SymbolTree -> DecafProgram -> DecafGraph C C
+graphProgram rc st dp =
   let g (CFGUnit lab insts) = (CFGLIRInst $ LIRLabelInst lab) : insts 
       (res, _) = runTranslator (do prog <- translateProgram st dp
                                    mapM (shortCircuit.g) (cgProgUnits prog) 
-                                          >>= (return . stripCFG . concat))
-                               (mkNamespace 0)
-      blocks = makeBlocks res
+                                          >>= (return . (map stripCFG)))
+                               (mkNamespace rc)
+      resProg = LIRProgram (LIRLabel "" 0) (map (LIRUnit (LIRLabel "" 0)) res) 
+      (res', _, _) = allocateRegisters st resProg
+      instructions = (concat . (map lirUnitInstructions) . lirProgUnits) resProg
+      blocks = makeBlocks instructions
         where
           -- inserts labels for function jumps
 
   in GMany NothingO (mapFromList $ zip (map entryLabel blocks) blocks)  NothingO -- should change probably
-
-{-cfgGraphProgram :: CFGProgram -> Translator ControlGraph
-cfgGraphProgram prog = 
-  mapM (convertLIRInsts.g) (cgProgUnits prog) >>= (return.ControlGraph)
-  where g (CFGUnit lab insts) = (CFGLIRInst $ LIRLabelInst lab) : insts -- inserts labels for function jumps
--}
-{-translateCFG :: ControlGraph -> LIRProgram
-translateCFG g = LIRProgram (LIRLabel "prog" 0) $ map ((LIRUnit (LIRLabel "" 0)).concatMap h) (cgNodes g)
-  where 
-    h :: ControlNode -> [LIRInst]
-    h (BasicBlock insts) = insts
-    h (Branch {condReg = reg, trueBlock = tb, falseBlock = fb, branchNumber = num}) = 
-        [(LIRIfInst (LIROperRelExpr reg) (falseLabel num) (trueLabel num))] ++ (concatMap h fb) ++ (concatMap h tb)
--}
 
 makeBlocks :: [LIRInst] -> [Block Node C C]
 makeBlocks insts = startBlock [] insts
@@ -162,7 +93,7 @@ makeBlocks insts = startBlock [] insts
         LIRIfInst expr falselabel truelabel -> 
           startBlock ((b `BClosed` (BLast $ LIRIfNode expr falselabel truelabel)) : bs) is
         LIRCallInst lab ->
-          startBlock ((b `BClosed` (BLast $ LIRCallNode [lab])) : bs) is -- add another label hopefully
+          startBlock ((b `BClosed` (BLast $ LIRCallNode lab Nothing)) : bs) is -- add another label hopefully
         LIRJumpLabelInst lab ->
           startBlock ((b `BClosed` (BLast $ LIRJumpLabelNode lab)) : bs) is
 
@@ -183,9 +114,37 @@ makeBlocks insts = startBlock [] insts
 --      LIRRegCmpAssignInst LIRReg LIRExpr LIRLabel  -- needed?
 --    where toLabel = Label . uniqueID -- not needed hopefully
 
+graphToLIR :: Graph' Block Node e x -> [LIRInst]
+graphToLIR (GNil) = []
+graphToLIR (GUnit unit) = blockToLIR unit
+graphToLIR (GMany entry labels exit) = mapEntry ++ mapExit
+  where
+    mapEntry = case entry of
+                  JustO v  -> blockToLIR v
+                  NothingO -> []
+    mapExit = case exit of
+                  JustO v  -> blockToLIR v
+                  NothingO -> []
 
-        
-        
-{-CFTtoLOLG :: ControlGraph -> LolGraph
-CFTtoLOLG (ControlGraph paths) = foldl dgSplice GNil (map (h  paths)
-  where-}
+blockToLIR :: Block Node e x -> [LIRInst]
+blockToLIR (BFirst node)   = nodeToLIR node
+blockToLIR (BMiddle node)  = nodeToLIR node
+blockToLIR (BLast node)    = nodeToLIR node
+blockToLIR (BCat b1 b2)    = blockToLIR b1 ++ blockToLIR b2
+blockToLIR (BHead b n)     = blockToLIR b  ++ nodeToLIR n
+blockToLIR (BTail n b)     = nodeToLIR n   ++ blockToLIR b
+blockToLIR (BClosed b1 b2) = blockToLIR b1 ++ blockToLIR b2
+
+nodeToLIR :: Node e x -> [LIRInst]
+nodeToLIR (LIRLabelNode l)                = [LIRLabelInst l]
+nodeToLIR (LIRRegAssignNode r e)          = [LIRRegAssignInst r e]
+nodeToLIR (LIRRegOffAssignNode r1 r2 s o) = [LIRRegOffAssignInst r1 r2 s o]
+nodeToLIR (LIREnterNode i)                = [LIREnterInst i]
+nodeToLIR (LIRIfNode e fl tl)             = [LIRIfInst e fl tl]
+nodeToLIR (LIRJumpLabelNode l)            = [LIRJumpLabelInst l]
+nodeToLIR (LIREnterNode i)                = [LIREnterInst i]
+nodeToLIR (LIRStoreNode m o)              = [LIRStoreInst m o]
+nodeToLIR (LIRLoadNode r m)               = [LIRLoadInst r m]
+nodeToLIR (LIRCalloutNode s)              = [LIRCalloutInst s]
+nodeToLIR (LIRJumpLabelNode l)            = [LIRJumpLabelInst l]
+nodeToLIR (LIRCallNode l _)               = [LIRCallInst l]

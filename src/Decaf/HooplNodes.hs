@@ -9,6 +9,9 @@ import Loligoptl.Fuel
 import Loligoptl.Label 
 import Data.Int
 
+-- Graph
+type DecafGraph = Graph Node
+
 -- Labels 
 type HooplLabel = Loligoptl.Label.Label
 
@@ -24,14 +27,15 @@ data Node e x where
   LIRRetNode          :: Node O C
   LIRIfNode           :: LIRRelExpr -> HooplLabel -> HooplLabel -> Node O C  -- false, then true
   LIRJumpLabelNode    :: HooplLabel -> Node O C
-  LIRCallNode         :: [LIRLabel] -> Node O C -- list of labels includes method label and label for next line
+  LIRCallNode         :: LIRLabel -> Maybe LIRLabel -> Node O C -- method label and label for next line
     
 instance NonLocal Node where
   entryLabel (LIRLabelNode lab) = lab
   successors (LIRRetNode) = []
-  successors (LIRCallNode labs) = labs
+  successors (LIRCallNode l1 (Just l2)) = [l1, l2]
+  successors (LIRCallNode l1 Nothing) = [l1]
   successors (LIRJumpLabelNode lab) = [lab]
-  successors (LIRIfNode expr flab tlab) = [flab,tlab]
+  successors (LIRIfNode expr flab tlab) = [flab, tlab]
 
 -- node to G
 nodeToG :: forall e x. (ShapeLifter e x) => Node e x -> Graph Node e x

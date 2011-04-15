@@ -28,17 +28,12 @@ compile debug source filename =
                             CounterState (LabelCounter rc _ _ _)) =
                                 runRegisterCounter (numberTree $ tree t)
                                                    (CounterState mkCounter)
-                           (lir, _) = runTranslator (translateProgram
-                                                        (top numberedTable) p)
-                                                    (mkNamespace rc)
-                       if debug
-                         then (putStrLn . pp . translateCFG . convertProgram $ lir)
-                         else putStrLn ""
-                       let prog = (translateCFG . convertProgram) lir
-                           (prog', _, _) = allocateRegisters t prog
-                           assembler = programAssembler (content numberedTable) prog'
-                           (prog'', _) = runAssembler assembler mkAssemblerState
-                           asmout = nasm prog''
+                       let 
+                           gProg = graphProgram rc (top numberedTable) p
+                           prog = LIRProgram (LIRLabel "" 0) [LIRUnit (LIRLabel "" 0) (graphToLIR gProg)]
+                           assembler = programAssembler (content numberedTable) prog
+                           (prog', _) = runAssembler assembler mkAssemblerState
+                           asmout = nasm prog'
                        writeFile newFile asmout
                        putStrLn asmout
                        exitSuccess
