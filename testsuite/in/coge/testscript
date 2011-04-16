@@ -2,7 +2,7 @@
 
 for f in *.dcf
   do
-    compiler $f
+    compiler --debug --opt all $f
     done
 
 for f in *.asm

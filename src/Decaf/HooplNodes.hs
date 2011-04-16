@@ -3,6 +3,7 @@
 module Decaf.HooplNodes where
 --import Compiler.Hoopl hiding (Top)
 import Decaf.IR.LIR
+import Decaf.IR.IRNode
 import Loligoptl.Dataflow 
 import Loligoptl.Graph 
 import Loligoptl.Fuel 
@@ -44,3 +45,17 @@ nodeToG n = singletonG n
 joinChangeFlag :: ChangeFlag -> ChangeFlag -> ChangeFlag 
 joinChangeFlag NoChange NoChange = NoChange
 joinChangeFlag _ _               = SomeChange                             
+
+
+instance Show (Node e x) where
+  show (LIRLabelNode label )                       = "LIRLabelNode"
+  show (LIRRegAssignNode reg expr )                = pp $ LIRRegAssignInst reg expr
+  show (LIRRegOffAssignNode reg reg' size operand) = "LIRRegOffAssignNode"
+  show (LIRStoreNode mem operand)                  = "LIRStoreNode"
+  show (LIRLoadNode reg mem)                       = "LIRLoadNode" 
+  show (LIRCallNode label label')                  = "LIRCallNode"
+  show (LIRCalloutNode label )                     = "LIRCalloutNode"
+  show (LIREnterNode int)                          = "LIREnterNode" 
+  show (LIRRetNode labels meth)                    = "LIRRetNode" 
+  show (LIRIfNode expr label1 label2)              = "LIRIfNode"
+  show (LIRJumpLabelNode label)                    = "LIRJumpLabelNode"

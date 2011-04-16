@@ -63,7 +63,7 @@ compile debug optopts source filename =
                        let gProg = graphProgram (top numberedTable) p (rc + mc)
                            mainlab = LIRLabel "main" (-1)
                            gProg' :: DecafGraph C C
-                           gProg' = if (or optopts)
+                           gProg' = if (trace (show $ or optopts) (or optopts))
                                               then (fst.fst $ runLFM (analyzeAndFwdRewrite csePass [mainlab]
                                                 gProg (mapSingleton mainlab (factBottom.fpLattice $ (csePass :: FwdPass LolMonad Node CSEFact))))
                                                 mkInfiniteFuel)

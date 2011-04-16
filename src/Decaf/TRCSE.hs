@@ -179,6 +179,7 @@ exprIsAvail = mkFTransfer ft
 module Decaf.TRCSE where
 import qualified Data.Map as Map
 import Decaf.IR.LIR
+import Decaf.IR.IRNode
 import Control.Monad
 import Decaf.HooplNodes
 import Loligoptl.Dataflow
@@ -255,20 +256,23 @@ type CSEFact = [CSERecord]
 joinCSEFact :: CSEFact -> CSEFact -> (ChangeFlag, CSEFact)
 joinCSEFact x  [] = (NoChange, trace "NO CHANGE: " x)
 joinCSEFact [] [] = (NoChange, trace "NO CHANGE: []" [])
-joinCSEFact [] x  = (SomeChange, trace ("SOME CHANGE: " ++ show x) x )
+joinCSEFact [] x  = (SomeChange, trace ("SOME CHANGE:\n" ++ unlines (map show x)) x )
 joinCSEFact x y = if x == y
-                    then (NoChange, trace ("NOCHANGE: " ++ show x)x)
+                    then (NoChange, trace ("NOCHANGE:\n" ++ unlines (map show x))x)
                     else join x y
   where
     join :: CSEFact -> CSEFact -> (ChangeFlag, CSEFact)
-    join x y = (SomeChange, trace ("SOME CHANGE: " ++ show (concatMap (uncurry consolidate) inOther)) (concatMap (uncurry consolidate) inOther))
+    join x y = let joined =  (concatMap (uncurry consolidate) inOther)
+               in if joined == y || joined == x
+                    then (NoChange, trace ("JOIN:\nNO CHANGE: " ++ unlines (map show joined))y)
+                    else (SomeChange, trace ("JOIN:\nSOME CHANGE: " ++ unlines (map show joined))joined)
     
       where
-        inOther :: [(CSERecord, Maybe LIRReg)]   -- the Maybe type indicates whether or not CSERecord (an element of x) is also in y
-        inOther = zip x (map (search y . fst) x)
-        consolidate :: CSERecord -> Maybe LIRReg -> [CSERecord]
-        consolidate (k, d) (Just reg) = [(k, reg)]
-        consolidate (k, d) Nothing    = []
+        inOther :: [(CSERecord, Maybe LIRReg)]   -- the Maybe type indicates whether or not CSERecord (an element of x) is also present in y
+        inOther = zip x (map (search y . fst) x) -- essentially, search through y for each element of x, and zip those results with x
+        consolidate :: CSERecord -> Maybe LIRReg -> [CSERecord] -- consolidate (i.e. join) each element of x, with the result of the search for the same element in y on the right
+        consolidate (k, d) (Just reg) = [(k, d)]              -- only keep an expression if it is available in both sets; i.e. search found a meaningful result.
+        consolidate (k, d) Nothing    = []                      -- search found nothing, so drop this expression
 search :: CSEFact -> CSEKey -> Maybe LIRReg
 search f k = 
   -- filter out only expression with key match
@@ -352,16 +356,15 @@ cse  = shallowFwdRw simp
   where
     simp :: forall m e x . (ShapeLifter e x, Monad m) => 
             Node e x -> CSEFact -> m (Maybe (Graph Node e x))
-    simp node f = return $ liftM nodeToG $ s_node node
+    simp node f = return $ liftM nodeToG $ s_node (trace ("REWRITING NODE [" ++ show node ++ "] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {\n" ++ unlines(map show f) ++ "}") node)
   
       where
         s_node :: Node e x -> Maybe (Node e x)
         -- x = lit op lit     
-        s_node (LIRRegAssignNode x (LIRBinExpr o1@(LIRRegOperand r1) 
-                                           op o2@(LIRRegOperand r2))) = 
-          case search f $ CSEKey o1 op o2 of
-            Just a  -> Just $ LIRRegAssignNode x $ LIROperExpr $ LIRRegOperand a  
-            Nothing -> Nothing
+        s_node (LIRRegAssignNode reg (LIRBinExpr o1 binop o2)) = 
+          case search f (CSEKey o1 binop o2) of
+            Just result  -> trace ("search found! rewrote to " ++ show (LIRRegAssignNode reg $ LIROperExpr $ LIRRegOperand result)) (Just $ LIRRegAssignNode reg $ LIROperExpr $ LIRRegOperand result)
+            Nothing -> trace "search failed!" Nothing
 
         -- others do not need CSE
         s_node _ = Nothing
