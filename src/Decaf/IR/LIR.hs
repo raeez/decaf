@@ -17,7 +17,7 @@ type LIRSize   = LIRInt
 type LIROffset = LIRInt
 
 data LIRLabel = LIRLabel String Int
-    deriving (Eq, Typeable)
+    deriving (Eq, Typeable, Ord)
 
 data LIRProgram = LIRProgram
     { lirProgLabel :: LIRLabel
@@ -69,7 +69,7 @@ data LIRBinOp = LADD
               | LSHR
               | LSHRA
               | LIRBinRelOp LIRRelOp LIRLabel
-              deriving (Show, Eq, Typeable)
+              deriving (Show, Eq, Typeable, Ord)
 
 data LIRUnOp = LNEG
              | LNOT
@@ -81,7 +81,7 @@ data LIRRelOp = LEQ
               | LGTE
               | LLT
               | LLTE
-              deriving (Show, Eq, Typeable)
+              deriving (Show, Eq, Typeable, Ord)
 
 data LIRMemAddr = LIRMemAddr LIRReg (Maybe LIRReg) LIROffset LIRSize
                 deriving (Show, Eq, Typeable)
@@ -89,7 +89,7 @@ data LIRMemAddr = LIRMemAddr LIRReg (Maybe LIRReg) LIROffset LIRSize
 data LIROperand = LIRRegOperand LIRReg
                 | LIRIntOperand LIRInt
                 | LIRStrOperand String
-                deriving (Show, Eq, Typeable)
+                deriving (Show, Eq, Typeable, Ord)
 
 data LIRReg = LRAX
             | LRBX
@@ -110,7 +110,7 @@ data LIRReg = LRAX
             | GI Int
             | SREG Int
             | MEM String
-            deriving (Show, Eq, Typeable)
+            deriving (Show, Eq, Typeable, Ord)
 
 -- | (very) Intermediate control flow graph representation
 data CFGProgram = CFGProgram
