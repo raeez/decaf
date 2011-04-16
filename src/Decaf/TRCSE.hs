@@ -247,7 +247,7 @@ joinCSEFact a b
     joinVT x y = (SomeChange, TTop)
 -}
 data CSEKey = CSEKey LIROperand LIRBinOp LIROperand
-               deriving (Show, Eq)
+               deriving (Show, Eq, Ord)
 type CSEData = LIRReg
 type CSERecord = (CSEKey, CSEData)
 
@@ -266,14 +266,14 @@ joinCSEFact x y = if x == y
   where
     join :: CSEFact -> CSEFact -> (ChangeFlag, CSEFact)
     -- maybe we want something like this?
-
     -- this function converts the fact lists into maps, then
     -- intersects them, but stores the values for both in the result
     -- (hence intersectionWith), then picks out the ones where the two
     -- agree
-    join x y = foldl fix [] $ M.toList (M.intersectionWith (\a b -> (a,b)) (M.fromList x) (M.fromList y))
+    join x y = (SomeChange, foldl fix [] $ M.toList (M.intersectionWith (\a b -> (a,b)) (M.fromList x) (M.fromList y)))
       where 
-        fix fs x = if fst x == snd x then (fst x) : fs else fs
+        fix :: CSEFact -> (CSEKey, (CSEData, CSEData)) -> CSEFact
+        fix fs x = if (fst . snd) x == (snd . snd) x then ((fst x), (fst . snd) x) : fs else fs
     -- your function
     join x y = let joined =  (concatMap (uncurry consolidate) inOther)
                in if joined == y || joined == x
