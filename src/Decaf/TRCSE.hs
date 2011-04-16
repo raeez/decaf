@@ -329,7 +329,7 @@ exprIsAvail = mkFTransfer ft
     ft (LIRLabelNode {}) f        = f
     ft (LIRRegAssignNode x (LIRBinExpr a op b)) f
                                   = ((CSEKey a op b), x) : (varChanged f x) -- a op b -> x
-    ft (LIRRegAssignNode x _) f   = f                                       -- x = _, no change
+    ft (LIRRegAssignNode x _) f   = varChanged f x                                       -- x = _, no change
     ft (LIRRegOffAssignNode {}) f = f                                       -- write to a memory location indexed by the registers
     ft (LIRStoreNode {}) f        = f
     ft (LIRLoadNode x _) f        = varChanged f x                          -- remove all records containing x
