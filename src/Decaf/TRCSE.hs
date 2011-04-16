@@ -252,6 +252,7 @@ type CSERecord = (CSEKey, CSEData)
 type CSEFact = [CSERecord]
 
 
+-- JOIN IS SEMANTICALLY INCORRECT, but works most of the time ;-p
 -- join two CSE facts 
 joinCSEFact :: CSEFact -> CSEFact -> (ChangeFlag, CSEFact)
 joinCSEFact x  [] = (NoChange, trace "NO CHANGE: " x)
@@ -271,7 +272,7 @@ joinCSEFact x y = if x == y
         inOther :: [(CSERecord, Maybe LIRReg)]   -- the Maybe type indicates whether or not CSERecord (an element of x) is also present in y
         inOther = zip x (map (search y . fst) x) -- essentially, search through y for each element of x, and zip those results with x
         consolidate :: CSERecord -> Maybe LIRReg -> [CSERecord] -- consolidate (i.e. join) each element of x, with the result of the search for the same element in y on the right
-        consolidate (k, d) (Just reg) = [(k, d)]              -- only keep an expression if it is available in both sets; i.e. search found a meaningful result.
+        consolidate (k, d) (Just reg) = if (reg == d) then [(k, d)] else []   -- only keep an expression if it is available and equivalent in both sources; i.e. search found a meaningful result.
         consolidate (k, d) Nothing    = []                      -- search found nothing, so drop this expression
 search :: CSEFact -> CSEKey -> Maybe LIRReg
 search f k = 
@@ -279,11 +280,11 @@ search f k =
   let recs = Prelude.filter (\(x,y) -> if keyEq x k then True else False) f
   -- pick the first match
   in if recs == [] then Nothing else Just $ snd $ recs !! 0
-keyEq :: CSEKey -> CSEKey -> Bool
+keyEq :: CSEKey -> CSEKey -> Bool               -- FIX ME: an expression is equal iff operation is commutative  (SIMPLIFICATION; NOT ALWAYS TRUE)
 keyEq (CSEKey op1 binop op2) (CSEKey op1' binop' op2')
     | (binop == binop') && (op1 == op1') && (op2 == op2') = True
-    | (binop == binop') && (op1 == op2') && (op2 == op1') = True
     | otherwise                                           = False
+    -- | (binop == binop') && (op1 == op2') && (op2 == op1') = True
 
 
 -- define const lattice
