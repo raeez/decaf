@@ -189,6 +189,8 @@ import Loligoptl.Label
 import Loligoptl.Combinators
 import Data.Maybe
 import Debug.Trace
+
+import qualified Data.Map as M
 ----------------------------------------------------
 -- this file contains CSE transfer/rewrite functions
 -- currently it is local rewrite,  
@@ -263,6 +265,16 @@ joinCSEFact x y = if x == y
                     else join x y
   where
     join :: CSEFact -> CSEFact -> (ChangeFlag, CSEFact)
+    -- maybe we want something like this?
+
+    -- this function converts the fact lists into maps, then
+    -- intersects them, but stores the values for both in the result
+    -- (hence intersectionWith), then picks out the ones where the two
+    -- agree
+    join x y = foldl fix [] $ M.toList (M.intersectionWith (\a b -> (a,b)) (M.fromList x) (M.fromList y))
+      where 
+        fix fs x = if fst x == snd x then (fst x) : fs else fs
+    -- your function
     join x y = let joined =  (concatMap (uncurry consolidate) inOther)
                in if joined == y || joined == x
                     then (NoChange, trace ("JOIN:\nNO CHANGE: " ++ unlines (map show joined))y)
