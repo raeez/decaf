@@ -183,7 +183,10 @@ afrGraph pass entries = graph
 
 
 
-data ChangeFlag = SomeChange | NoChange
+data ChangeFlag = SomeChange
+                | NoChange
+                deriving (Show, Eq)
+
 data FixState n f 
   = FS { fsChange :: ChangeFlag
        , fsFBase :: FactBase f
@@ -248,7 +251,7 @@ fixpoint dir lattice doBlock blocks initFBase
         | otherwise
           = do { (dg', outFacts) <- doBlock block fbase
                ; let (ch', fbase') = mapFoldWithKey
-                                     (updateFact lattice labels) 
+                                     (updateFact lattice labels')
                                      (ch,fbase) outFacts
                ; return $ 
                         FS { fsChange = ch'

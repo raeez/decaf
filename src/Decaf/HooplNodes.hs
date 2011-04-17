@@ -48,7 +48,7 @@ joinChangeFlag _ _               = SomeChange
 
 
 instance Show (Node e x) where
-  show (LIRLabelNode label )                       = "LIRLabelNode"
+  show (LIRLabelNode label )                       = pp $ LIRLabelInst label
   show (LIRRegAssignNode reg expr )                = pp $ LIRRegAssignInst reg expr
   show (LIRRegOffAssignNode reg reg' size operand) = "LIRRegOffAssignNode"
   show (LIRStoreNode mem operand)                  = "LIRStoreNode"
