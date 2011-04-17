@@ -12,6 +12,7 @@ import Loligoptl.Fuel
 import Loligoptl.Label 
 import Loligoptl.Combinators
 import Data.Maybe
+import Debug.Trace
 
 import qualified Data.Map as M
 ----------------------------------------------------
@@ -122,15 +123,15 @@ cse  = shallowFwdRw simp
   where
     simp :: forall m e x . (ShapeLifter e x, Monad m) => 
             Node e x -> CSEFact -> m (Maybe (Graph Node e x))
-    simp node f = return $ liftM nodeToG $ s_node node
+    simp node f = return $ liftM nodeToG $ s_node (trace ("REWRITING NODE [" ++ show node ++ "] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {\n" ++ unlines(map show $ M.toList f) ++ "}") node)
   
       where
         s_node :: Node e x -> Maybe (Node e x)
         -- x = lit op lit     
         s_node (LIRRegAssignNode reg (LIRBinExpr o1 binop o2)) = 
           case M.lookup (CSEKey o1 binop o2) f of
-            Just (CSEReg result)  -> Just $ LIRRegAssignNode reg $ LIROperExpr $ LIRRegOperand result
-            Just CSETop           -> Nothing
+            Just (CSEReg result)  -> trace ("lookup found! rewrote to " ++ show (LIRRegAssignNode reg $ LIROperExpr $ LIRRegOperand result)) (Just $ LIRRegAssignNode reg $ LIROperExpr $ LIRRegOperand result)
+            Just CSETop           -> trace "lookup failed!" Nothing
             Nothing -> Nothing
 
         -- others do not need CSE
