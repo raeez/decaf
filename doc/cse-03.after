@@ -1,5 +1,147 @@
 optimizations on
-no debug output active
+debug on
+formattedTree: DecafProgram {fields = [], methods = [DecafMethod {methodType = DecafInteger, methodID = "get_int", methodArg = [DecafVar {varType = DecafInteger, varID = "x", varPos = (2,15)}], methodBody = DecafBlock {blockVars = [], blockStms = [DecafRetStm (Just (DecafLocExpr (DecafVarLoc "x" (3,13)) (3,13))) (3,5)], blockPos = (2,22)}, methodPos = (2,3)},DecafMethod {methodType = DecafVoid, methodID = "main", methodArg = [], methodBody = DecafBlock {blockVars = [DecafVar {varType = DecafInteger, varID = "a", varPos = (7,5)},DecafVar {varType = DecafInteger, varID = "b", varPos = (7,5)},DecafVar {varType = DecafInteger, varID = "c", varPos = (7,5)},DecafVar {varType = DecafInteger, varID = "d", varPos = (7,5)}], blockStms = [DecafAssignStm (DecafVarLoc "a" (9,7)) (DecafEq (9,9)) (DecafMethodExpr (DecafPureMethodCall {methodCallID = "get_int", methodCallArgs = [DecafLitExpr (DecafIntLit (DecafDec "2") (9,18)) (9,18)], methodCallPos = (9,9)}) (9,19)) (9,5),DecafAssignStm (DecafVarLoc "b" (10,7)) (DecafEq (10,9)) (DecafMethodExpr (DecafPureMethodCall {methodCallID = "get_int", methodCallArgs = [DecafLitExpr (DecafIntLit (DecafDec "3") (10,18)) (10,18)], methodCallPos = (10,9)}) (10,19)) (10,5),DecafAssignStm (DecafVarLoc "c" (11,7)) (DecafEq (11,9)) (DecafLitExpr (DecafIntLit (DecafDec "0") (11,10)) (11,10)) (11,5),DecafAssignStm (DecafVarLoc "d" (11,14)) (DecafEq (11,16)) (DecafLitExpr (DecafIntLit (DecafDec "0") (11,17)) (11,17)) (11,12),DecafAssignStm (DecafVarLoc "c" (13,7)) (DecafEq (13,9)) (DecafBinExpr (DecafParenExpr (DecafBinExpr (DecafLocExpr (DecafVarLoc "a" (13,12)) (13,12)) (DecafBinArithOp (DecafPlusOp (13,14)) (13,14)) (DecafLocExpr (DecafVarLoc "b" (13,15)) (13,15)) (13,15)) (13,17)) (DecafBinArithOp (DecafMulOp (13,19)) (13,19)) (DecafParenExpr (DecafBinExpr (DecafLocExpr (DecafVarLoc "a" (13,22)) (13,22)) (DecafBinArithOp (DecafPlusOp (13,24)) (13,24)) (DecafLocExpr (DecafVarLoc "b" (13,25)) (13,25)) (13,25)) (13,26)) (13,26)) (13,5),DecafAssignStm (DecafVarLoc "d" (14,7)) (DecafEq (14,9)) (DecafBinExpr (DecafParenExpr (DecafBinExpr (DecafLocExpr (DecafVarLoc "a" (14,12)) (14,12)) (DecafBinArithOp (DecafPlusOp (14,14)) (14,14)) (DecafLocExpr (DecafVarLoc "b" (14,15)) (14,15)) (14,15)) (14,17)) (DecafBinArithOp (DecafDivOp (14,19)) (14,19)) (DecafParenExpr (DecafBinExpr (DecafLocExpr (DecafVarLoc "a" (14,22)) (14,22)) (DecafBinArithOp (DecafPlusOp (14,24)) (14,24)) (DecafLocExpr (DecafVarLoc "b" (14,25)) (14,25)) (14,25)) (14,26)) (14,26)) (14,5),DecafMethodStm (DecafMethodCallout {methodCalloutID = "printf", methodCalloutArgs = [DecafCalloutArgStr "%d\n" (16,29),DecafCalloutArgExpr (DecafLocExpr (DecafVarLoc "c" (16,32)) (16,32)) (16,32)], methodCalloutPos = (16,5)}) (16,5),DecafMethodStm (DecafMethodCallout {methodCalloutID = "printf", methodCalloutArgs = [DecafCalloutArgStr "%d\n" (17,29),DecafCalloutArgExpr (DecafLocExpr (DecafVarLoc "d" (17,32)) (17,32)) (17,32)], methodCalloutPos = (17,5)}) (17,5)], blockPos = (6,15)}, methodPos = (6,3)}]}
+
+(SymbolTable {symbolRecords = [StringRec "%d\n" 0,StringRec "%d\n" 0,StringRec "main" 0,StringRec "get_int" 0,StringRec "*** RUNTIME ERROR ***: Array out of Bounds access in method \"%s\"\n" 0,StringRec "*** RUNTIME ERROR ***: Missing return statement in method \"%s\"\n" 0,MethodRec (DecafMethod {methodType = DecafInteger, methodID = "get_int", methodArg = [DecafVar {varType = DecafInteger, varID = "x", varPos = (2,15)}], methodBody = DecafBlock {blockVars = [], blockStms = [DecafRetStm (Just (DecafLocExpr (DecafVarLoc "x" (3,13)) (3,13))) (3,5)], blockPos = (2,22)}, methodPos = (2,3)}) ("",32),MethodRec (DecafMethod {methodType = DecafVoid, methodID = "main", methodArg = [], methodBody = DecafBlock {blockVars = [DecafVar {varType = DecafInteger, varID = "a", varPos = (7,5)},DecafVar {varType = DecafInteger, varID = "b", varPos = (7,5)},DecafVar {varType = DecafInteger, varID = "c", varPos = (7,5)},DecafVar {varType = DecafInteger, varID = "d", varPos = (7,5)}], blockStms = [DecafAssignStm (DecafVarLoc "a" (9,7)) (DecafEq (9,9)) (DecafMethodExpr (DecafPureMethodCall {methodCallID = "get_int", methodCallArgs = [DecafLitExpr (DecafIntLit (DecafDec "2") (9,18)) (9,18)], methodCallPos = (9,9)}) (9,19)) (9,5),DecafAssignStm (DecafVarLoc "b" (10,7)) (DecafEq (10,9)) (DecafMethodExpr (DecafPureMethodCall {methodCallID = "get_int", methodCallArgs = [DecafLitExpr (DecafIntLit (DecafDec "3") (10,18)) (10,18)], methodCallPos = (10,9)}) (10,19)) (10,5),DecafAssignStm (DecafVarLoc "c" (11,7)) (DecafEq (11,9)) (DecafLitExpr (DecafIntLit (DecafDec "0") (11,10)) (11,10)) (11,5),DecafAssignStm (DecafVarLoc "d" (11,14)) (DecafEq (11,16)) (DecafLitExpr (DecafIntLit (DecafDec "0") (11,17)) (11,17)) (11,12),DecafAssignStm (DecafVarLoc "c" (13,7)) (DecafEq (13,9)) (DecafBinExpr (DecafParenExpr (DecafBinExpr (DecafLocExpr (DecafVarLoc "a" (13,12)) (13,12)) (DecafBinArithOp (DecafPlusOp (13,14)) (13,14)) (DecafLocExpr (DecafVarLoc "b" (13,15)) (13,15)) (13,15)) (13,17)) (DecafBinArithOp (DecafMulOp (13,19)) (13,19)) (DecafParenExpr (DecafBinExpr (DecafLocExpr (DecafVarLoc "a" (13,22)) (13,22)) (DecafBinArithOp (DecafPlusOp (13,24)) (13,24)) (DecafLocExpr (DecafVarLoc "b" (13,25)) (13,25)) (13,25)) (13,26)) (13,26)) (13,5),DecafAssignStm (DecafVarLoc "d" (14,7)) (DecafEq (14,9)) (DecafBinExpr (DecafParenExpr (DecafBinExpr (DecafLocExpr (DecafVarLoc "a" (14,12)) (14,12)) (DecafBinArithOp (DecafPlusOp (14,14)) (14,14)) (DecafLocExpr (DecafVarLoc "b" (14,15)) (14,15)) (14,15)) (14,17)) (DecafBinArithOp (DecafDivOp (14,19)) (14,19)) (DecafParenExpr (DecafBinExpr (DecafLocExpr (DecafVarLoc "a" (14,22)) (14,22)) (DecafBinArithOp (DecafPlusOp (14,24)) (14,24)) (DecafLocExpr (DecafVarLoc "b" (14,25)) (14,25)) (14,25)) (14,26)) (14,26)) (14,5),DecafMethodStm (DecafMethodCallout {methodCalloutID = "printf", methodCalloutArgs = [DecafCalloutArgStr "%d\n" (16,29),DecafCalloutArgExpr (DecafLocExpr (DecafVarLoc "c" (16,32)) (16,32)) (16,32)], methodCalloutPos = (16,5)}) (16,5),DecafMethodStm (DecafMethodCallout {methodCalloutID = "printf", methodCalloutArgs = [DecafCalloutArgStr "%d\n" (17,29),DecafCalloutArgExpr (DecafLocExpr (DecafVarLoc "d" (17,32)) (17,32)) (17,32)], methodCalloutPos = (17,5)}) (17,5)], blockPos = (6,15)}, methodPos = (6,3)}) ("",32)], blockType = GlobalBlock}
+    SymbolTable {symbolRecords = [VarRec (DecafVar {varType = DecafInteger, varID = "x", varPos = (2,15)}) 32,VarRec (DecafVar {varType = DecafVoid, varID = "return", varPos = (0,0)}) 32], blockType = MethodBlock DecafInteger}
+    SymbolTable {symbolRecords = [VarRec (DecafVar {varType = DecafInteger, varID = "a", varPos = (7,5)}) 32,VarRec (DecafVar {varType = DecafInteger, varID = "b", varPos = (7,5)}) 32,VarRec (DecafVar {varType = DecafInteger, varID = "c", varPos = (7,5)}) 32,VarRec (DecafVar {varType = DecafInteger, varID = "d", varPos = (7,5)}) 32], blockType = MethodBlock DecafVoid}
+,ROOT)
+USE64
+extern get_int_035
+extern printf
+    section .data:
+    __string0: db 0x25, 0x64, 0xa, 0x0
+    __string1: db 0x25, 0x64, 0xa, 0x0
+    __string2: db 0x6d, 0x61, 0x69, 0x6e, 0x0
+    __string3: db 0x67, 0x65, 0x74, 0x5f, 0x69, 0x6e, 0x74, 0x0
+    __string4: db 0x2a, 0x2a, 0x2a, 0x20, 0x52, 0x55, 0x4e, 0x54, 0x49, 0x4d, 0x45, 0x20, 0x45, 0x52, 0x52, 0x4f, 0x52, 0x20, 0x2a, 0x2a, 0x2a, 0x3a, 0x20, 0x41, 0x72, 0x72, 0x61, 0x79, 0x20, 0x6f, 0x75, 0x74, 0x20, 0x6f, 0x66, 0x20, 0x42, 0x6f, 0x75, 0x6e, 0x64, 0x73, 0x20, 0x61, 0x63, 0x63, 0x65, 0x73, 0x73, 0x20, 0x69, 0x6e, 0x20, 0x6d, 0x65, 0x74, 0x68, 0x6f, 0x64, 0x20, 0x22, 0x25, 0x73, 0x22, 0xa, 0x0
+    __string5: db 0x2a, 0x2a, 0x2a, 0x20, 0x52, 0x55, 0x4e, 0x54, 0x49, 0x4d, 0x45, 0x20, 0x45, 0x52, 0x52, 0x4f, 0x52, 0x20, 0x2a, 0x2a, 0x2a, 0x3a, 0x20, 0x4d, 0x69, 0x73, 0x73, 0x69, 0x6e, 0x67, 0x20, 0x72, 0x65, 0x74, 0x75, 0x72, 0x6e, 0x20, 0x73, 0x74, 0x61, 0x74, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x20, 0x69, 0x6e, 0x20, 0x6d, 0x65, 0x74, 0x68, 0x6f, 0x64, 0x20, 0x22, 0x25, 0x73, 0x22, 0xa, 0x0
+
+    section .text:
+    global main
+
+
+    main:
+        push rbp
+        mov rbp, rsp
+        sub rsp, 0xa0
+        mov r11, 0x0
+        mov qword [rbp+-0x8], r11
+        mov r11, 0x0
+        mov qword [rbp+-0x10], r11
+        mov r11, 0x0
+        mov qword [rbp+-0x18], r11
+        mov r11, 0x0
+        mov qword [rbp+-0x20], r11
+        mov r11, 0x2
+        mov rdi, r11
+        mov r11, 0x0
+        mov rax, r11
+        call __proc__get_int0
+        jmp RETURNADDRESS9
+
+
+    __proc__get_int0:
+        push rbp
+        mov rbp, rsp
+        sub rsp, 0x8
+        mov r11, rdi
+        mov qword [rbp+-0x8], r11
+        mov r11, qword [rbp+-0x8]
+        mov rax, r11
+        mov rsp, rbp
+        pop rbp
+        ret
+
+
+    RETURNADDRESS9:
+        mov r11, rax
+        mov qword [rbp+-0x28], r11
+        mov r11, qword [rbp+-0x28]
+        mov qword [rbp+-0x8], r11
+        mov r11, 0x3
+        mov rdi, r11
+        mov r11, 0x0
+        mov rax, r11
+        call __proc__get_int0
+        jmp RETURNADDRESS11
+
+
+    RETURNADDRESS11:
+        mov r11, rax
+        mov qword [rbp+-0x30], r11
+        mov r11, qword [rbp+-0x30]
+        mov qword [rbp+-0x10], r11
+        mov r11, 0x0
+        mov qword [rbp+-0x18], r11
+        mov r11, 0x0
+        mov qword [rbp+-0x20], r11
+        mov r11, qword [rbp+-0x8]
+        mov r10, r11
+        mov r11, qword [rbp+-0x10]
+        add r10, r11
+        mov qword [rbp+-0x38], r10
+        mov r11, qword [rbp+-0x38]
+        mov qword [rbp+-0x40], r11
+        mov r11, qword [rbp+-0x38]
+        mov qword [rbp+-0x48], r11
+        mov r11, qword [rbp+-0x48]
+        mov qword [rbp+-0x50], r11
+        mov r11, qword [rbp+-0x40]
+        mov rax, r11
+        mov r10, qword [rbp+-0x50]
+        imul r10
+        mov qword [rbp+-0x58], rax
+        mov r11, qword [rbp+-0x58]
+        mov qword [rbp+-0x18], r11
+        mov r11, qword [rbp+-0x38]
+        mov qword [rbp+-0x60], r11
+        mov r11, qword [rbp+-0x60]
+        mov qword [rbp+-0x68], r11
+        mov r11, qword [rbp+-0x38]
+        mov qword [rbp+-0x70], r11
+        mov r11, qword [rbp+-0x70]
+        mov qword [rbp+-0x78], r11
+        mov r11, rdx
+        mov r9, r11
+        mov r11, 0x0
+        mov rdx, r11
+        mov r11, qword [rbp+-0x68]
+        mov rax, r11
+        mov r10, qword [rbp+-0x78]
+        div r10
+        mov qword [rbp+-0x80], rax
+        mov r11, r9
+        mov rdx, r11
+        mov r11, qword [rbp+-0x80]
+        mov qword [rbp+-0x20], r11
+        mov r11, __string0
+        mov qword [rbp+-0x88], r11
+        mov r11, qword [rbp+-0x88]
+        mov rdi, r11
+        mov r11, qword [rbp+-0x18]
+        mov rsi, r11
+        mov r11, 0x0
+        mov rax, r11
+        call printf
+        mov r11, rax
+        mov qword [rbp+-0x90], r11
+        mov r11, __string0
+        mov qword [rbp+-0x98], r11
+        mov r11, qword [rbp+-0x98]
+        mov rdi, r11
+        mov r11, qword [rbp+-0x20]
+        mov rsi, r11
+        mov r11, 0x0
+        mov rax, r11
+        call printf
+        mov r11, rax
+        mov qword [rbp+-0xa0], r11
+        mov rsp, rbp
+        pop rbp
+        ret
+
+
 0:
 
 0:
