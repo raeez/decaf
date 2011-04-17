@@ -21,7 +21,7 @@ import qualified Data.Map as M
 -- would need to expand to global rewrite later
 
 data CSEKey = CSEKey LIROperand LIRBinOp LIROperand
-               deriving (Show, Ord)
+              deriving (Show, Ord)
 
 instance Eq CSEKey where
     (==) = keyEq 
@@ -41,7 +41,7 @@ type CSEFact = M.Map CSEKey CSEData
 -- join two CSE facts 
 joinCSEFact :: CSEFact -> CSEFact -> (ChangeFlag, CSEFact)
 joinCSEFact x y = 
-    extract (M.unionWith (\x y -> join (unconv x) (unconv y)) (M.map convertUnchanged x) (M.map convertChanged y))
+    extract (M.intersectionWith (\x y -> join (unconv x) (unconv y)) (M.map convertUnchanged x) (M.map convertChanged y))
   where 
     convertChanged, convertUnchanged :: CSEData -> (ChangeFlag, CSEData)
     convertChanged x = (SomeChange, x)

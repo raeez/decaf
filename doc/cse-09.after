@@ -131,8 +131,11 @@ extern printf
 
 
     LTRUE24:
-        mov r11, qword [rbp+-0x50]
-        mov qword [rbp+-0x58], r11
+        mov r11, qword [rbp+-0x8]
+        mov r10, r11
+        mov r11, qword [rbp+-0x10]
+        add r10, r11
+        mov qword [rbp+-0x58], r10
         mov r11, qword [rbp+-0x58]
         mov qword [rbp+-0x20], r11
         mov r11, 0x1
@@ -242,7 +245,7 @@ LABEL: LFalse23:
     JMP LEND25
 
 LABEL: LTRUE24:
-    s10 <- s9
+    s10 <- s0 ADD s1
     s3 <- s10
     s0 <- 0x1
     JMP LEND25
