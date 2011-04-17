@@ -15,7 +15,7 @@ import Decaf.RegisterAllocator
 import System.IO.Unsafe
 import Loligoptl.Graph
 import Loligoptl.Label 
-
+import Debug.Trace
 import Control.Monad
 import Data.Int
 
@@ -68,7 +68,7 @@ graphProgram st dp rc =
         resProg = LIRProgram (LIRLabel "" 0) (map (LIRUnit (LIRLabel "" 0)) res) 
         (res', _, _) = allocateRegisters st resProg
         instructions = ((mapRet sm) . (concatMap lirUnitInstructions) . lirProgUnits) res'
-        blocks = makeBlocks instructions
+        blocks = makeBlocks (trace (pp resProg) instructions)
 
     in GMany NothingO (mapFromList (zip (map entryLabel blocks) blocks)) NothingO
   where
