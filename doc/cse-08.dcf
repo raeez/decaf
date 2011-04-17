@@ -18,6 +18,7 @@ class Program {
 
     c = a + b;
     if (x) {
+      a = 1;
       d = a + b;
     }
     e = a + b;

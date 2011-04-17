@@ -61,6 +61,7 @@ LABEL: LFalse23:
     JMP LEND25
 
 LABEL: LTRUE24:
+    s4 <- 0x1
     s21 <- s4 ADD s5
     s7 <- s21
     JMP LEND25
@@ -294,6 +295,8 @@ REWRITING NODE [LIRRetNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
 }
 REWRITING NODE [LABEL: LTRUE24] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [s0 <- 0x1] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 }
 REWRITING NODE [s10 <- s0 ADD s1] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 }

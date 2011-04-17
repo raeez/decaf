@@ -42,7 +42,7 @@ LABEL: RETURNADDRESS13:
 LABEL: RETURNADDRESS15:
     s14 <- RAX
     s5 <- s14
-    RDI <- 0x0
+    RDI <- -0x1
     RAX <- 0x0
     CALL __proc__get_bool1 AND RETURN TO RETURNADDRESS17
 
@@ -175,7 +175,7 @@ REWRITING NODE [s6 <- RAX] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 }
 REWRITING NODE [s1 <- s6] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 }
-REWRITING NODE [RDI <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+REWRITING NODE [RDI <- -0x1] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 }
 REWRITING NODE [RAX <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 }
