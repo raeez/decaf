@@ -1,0 +1,76 @@
+optimizations on
+no debug output active
+0:
+
+0:
+
+LABEL: main:
+    ENTER 14
+    s0 <- 0x0
+    s1 <- 0x0
+    s2 <- 0x0
+    s3 <- 0x0
+    s4 <- 0x0
+    RDI <- 0x2
+    RAX <- 0x0
+    CALL __proc__get_int0 AND RETURN TO RETURNADDRESS13
+
+LABEL: __proc__get_int0:
+    ENTER 1
+    s0 <- RDI
+    RAX <- s0
+    RET
+
+LABEL: __proc__get_bool1:
+    ENTER 1
+    s0 <- RDI
+    RAX <- s0
+    RET
+
+LABEL: RETURNADDRESS13:
+    s5 <- RAX
+    s0 <- s5
+    RDI <- 0x3
+    RAX <- 0x0
+    CALL __proc__get_int0 AND RETURN TO RETURNADDRESS15
+
+LABEL: RETURNADDRESS15:
+    s6 <- RAX
+    s1 <- s6
+    RDI <- -0x1
+    RAX <- 0x0
+    CALL __proc__get_bool1 AND RETURN TO RETURNADDRESS17
+
+LABEL: RETURNADDRESS17:
+    s7 <- RAX
+    s4 <- s7
+    s2 <- 0x0
+    s3 <- 0x0
+    IF s4 THEN LTRUE21 ELSE LFalse20
+
+LABEL: LFalse20:
+    JMP LEND22
+
+LABEL: LTRUE21:
+    s8 <- s0 ADD s1
+    s2 <- s8
+    JMP LEND22
+
+LABEL: LEND22:
+    s9 <- s8
+    s3 <- s9
+    s10 <- __string0
+    RDI <- s10
+    RSI <- s2
+    RAX <- 0x0
+    CALL printf
+    s11 <- RAX
+    s12 <- __string0
+    RDI <- s12
+    RSI <- s3
+    RAX <- 0x0
+    CALL printf
+    s13 <- RAX
+    RET
+
+

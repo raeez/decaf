@@ -1,0 +1,49 @@
+optimizations on
+no debug output active
+0:
+
+0:
+
+LABEL: main:
+    ENTER 8
+    RDI <- 0x2
+    RAX <- 0x0
+    CALL __proc__get_int0 AND RETURN TO RETURNADDRESS5
+
+LABEL: __proc__get_int0:
+    ENTER 1
+    s0 <- RDI
+    RAX <- s0
+    RET
+
+LABEL: RETURNADDRESS5:
+    s0 <- RAX
+    g0 <- s0
+    RDI <- 0x3
+    RAX <- 0x0
+    CALL __proc__get_int0 AND RETURN TO RETURNADDRESS7
+
+LABEL: RETURNADDRESS7:
+    s1 <- RAX
+    g1 <- s1
+    g2 <- 0x0
+    g3 <- 0x0
+    s2 <- g0 ADD g1
+    g2 <- s2
+    s3 <- s2
+    g3 <- s3
+    s4 <- __string0
+    RDI <- s4
+    RSI <- g2
+    RAX <- 0x0
+    CALL printf
+    s5 <- RAX
+    s6 <- __string0
+    RDI <- s6
+    RSI <- g3
+    RAX <- 0x0
+    CALL printf
+    s7 <- RAX
+    RET
+
+

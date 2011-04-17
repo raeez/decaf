@@ -1,0 +1,77 @@
+optimizations on
+no debug output active
+0:
+
+0:
+
+LABEL: main:
+    ENTER 16
+    s0 <- 0x0
+    s1 <- 0x0
+    s2 <- 0x0
+    s3 <- 0x0
+    s4 <- 0x0
+    s5 <- 0x0
+    RDI <- 0x2
+    RAX <- 0x0
+    CALL __proc__get_int0 AND RETURN TO RETURNADDRESS12
+
+LABEL: __proc__get_int0:
+    ENTER 1
+    s0 <- RDI
+    RAX <- s0
+    RET
+
+LABEL: RETURNADDRESS12:
+    s6 <- RAX
+    s0 <- s6
+    RDI <- 0x3
+    RAX <- 0x0
+    CALL __proc__get_int0 AND RETURN TO RETURNADDRESS14
+
+LABEL: RETURNADDRESS14:
+    s7 <- RAX
+    s1 <- s7
+    RDI <- 0x5
+    RAX <- 0x0
+    CALL __proc__get_int0 AND RETURN TO RETURNADDRESS16
+
+LABEL: RETURNADDRESS16:
+    s8 <- RAX
+    s4 <- s8
+    s2 <- 0x0
+    s3 <- 0x0
+    s9 <- s0 ADD s1
+    s2 <- s9
+    s10 <- 0x7
+    JMP LLOOP21
+
+LABEL: LFalse19:
+    JMP LEND22
+
+LABEL: LTRUE20:
+    s11 <- s0 ADD s1
+    s3 <- s11
+    s0 <- 0x1
+    s10 <- s10 ADD 0x1
+    JMP LLOOP21
+
+LABEL: LLOOP21:
+    IF s10 < s4 THEN LTRUE20 ELSE LFalse19
+
+LABEL: LEND22:
+    s12 <- __string0
+    RDI <- s12
+    RSI <- s2
+    RAX <- 0x0
+    CALL printf
+    s13 <- RAX
+    s14 <- __string0
+    RDI <- s14
+    RSI <- s3
+    RAX <- 0x0
+    CALL printf
+    s15 <- RAX
+    RET
+
+

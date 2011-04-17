@@ -1,0 +1,97 @@
+optimizations on
+no debug output active
+0:
+
+0:
+
+LABEL: __exception-104:
+    RDI <- __string4
+    RAX <- 0x0
+    CALL printf
+    RET
+
+LABEL: main:
+    ENTER 4
+    RAX <- 0x0
+    CALL __proc__foo1 AND RETURN TO RETURNADDRESS23
+
+LABEL: __proc__get_int0:
+    ENTER 1
+    s0 <- RDI
+    RAX <- s0
+    RET
+
+LABEL: __proc__foo1:
+    ENTER 6
+    s0 <- 0x0
+    RDI <- 0x2
+    RAX <- 0x0
+    CALL __proc__get_int0 AND RETURN TO RETURNADDRESS7
+
+LABEL: RETURNADDRESS7:
+    s1 <- RAX
+    s0 <- s1
+    IF s0 < 0xa THEN __boundscheck11 ELSE __boundscheck_fail9
+
+LABEL: __boundscheck_fail9:
+    RSI <- __string2
+    JMP __exception-104
+
+LABEL: __boundscheck_fail10:
+    RSI <- __string2
+    JMP __exception-104
+
+LABEL: __boundscheck11:
+    IF s0 >= 0x0 THEN __boundscheck12 ELSE __boundscheck_fail10
+
+LABEL: __boundscheck12:
+    s2 <- s0 MUL 0x8
+    LOAD s3, [__array0 + s2 + 0x0]
+    s3 <- 0x7
+    __array0(s2, 0x8) <- s3
+    IF s0 < 0xa THEN __boundscheck18 ELSE __boundscheck_fail16
+
+LABEL: __boundscheck_fail16:
+    RSI <- __string2
+    JMP __exception-104
+
+LABEL: __boundscheck_fail17:
+    RSI <- __string2
+    JMP __exception-104
+
+LABEL: __boundscheck18:
+    IF s0 >= 0x0 THEN __boundscheck19 ELSE __boundscheck_fail17
+
+LABEL: __boundscheck19:
+    s4 <- s2
+    LOAD s5, [__array0 + s4 + 0x0]
+    s5 <- 0x3
+    __array0(s4, 0x8) <- s5
+    RET
+
+LABEL: RETURNADDRESS23:
+    s0 <- RAX
+    s1 <- __string0
+    IF 0x2 < 0xa THEN __boundscheck28 ELSE __boundscheck_fail26
+
+LABEL: __boundscheck_fail26:
+    RSI <- __string1
+    JMP __exception-104
+
+LABEL: __boundscheck_fail27:
+    RSI <- __string1
+    JMP __exception-104
+
+LABEL: __boundscheck28:
+    IF 0x2 >= 0x0 THEN __boundscheck29 ELSE __boundscheck_fail27
+
+LABEL: __boundscheck29:
+    LOAD s2, [__array0 +  + 0x10]
+    RDI <- s1
+    RSI <- s2
+    RAX <- 0x0
+    CALL printf
+    s3 <- RAX
+    RET
+
+

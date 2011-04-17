@@ -1,0 +1,215 @@
+True
+0:
+
+0:
+
+LABEL: __proc__get_int0:
+    s0 <- RDI
+    RAX <- s0
+    RET
+    RSI <- __string3
+    JMP __exception-105
+
+
+0:
+
+LABEL: main:
+    s2 <- 0x0
+    s3 <- 0x0
+    s4 <- 0x0
+    s5 <- 0x0
+    RDI <- 0x2
+    RAX <- 0x0
+    CALL __proc__get_int0 AND RETURN TO RETURNADDRESS9
+
+LABEL: RETURNADDRESS9:
+    s8 <- RAX
+    s2 <- s8
+    RDI <- 0x3
+    RAX <- 0x0
+    CALL __proc__get_int0 AND RETURN TO RETURNADDRESS11
+
+LABEL: RETURNADDRESS11:
+    s10 <- RAX
+    s3 <- s10
+    s4 <- 0x0
+    s5 <- 0x0
+    s12 <- s2 ADD s3
+    s4 <- s12
+    s14 <- s2 ADD s3
+    s5 <- s14
+    s16 <- __string0
+    RDI <- s16
+    RSI <- s4
+    RAX <- 0x0
+    CALL printf
+    s17 <- RAX
+    s19 <- __string0
+    RDI <- s19
+    RSI <- s5
+    RAX <- 0x0
+    CALL printf
+    s20 <- RAX
+    RET
+
+
+0:
+
+LABEL: __exception-104:
+    RDI <- __string4
+    RAX <- 0x0
+    CALL printf
+    RET
+
+
+0:
+
+LABEL: __exception-105:
+    RDI <- __string5
+    RAX <- 0x0
+    CALL printf
+    RET
+
+
+REWRITING NODE [LABEL: main] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [LIREnterNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [s0 <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [s1 <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [s2 <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [s3 <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [RDI <- 0x2] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [RAX <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [LIRCallNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [LABEL: __proc__get_int0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [LIREnterNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [s0 <- RDI] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [RAX <- s0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [LIRRetNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [LABEL: RETURNADDRESS9] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [s4 <- RAX] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [s0 <- s4] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [RDI <- 0x3] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [RAX <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [LIRCallNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [LABEL: main] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [LIREnterNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [s0 <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [s1 <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [s2 <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [s3 <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [RDI <- 0x2] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [RAX <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [LIRCallNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [LABEL: __proc__get_int0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [LIREnterNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [s0 <- RDI] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [RAX <- s0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [LIRRetNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [LABEL: RETURNADDRESS11] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [s5 <- RAX] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [s1 <- s5] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [s2 <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [s3 <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [s6 <- s0 ADD s1] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+lookup failed!
+REWRITING NODE [s2 <- s6] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 6))
+}
+REWRITING NODE [s7 <- s0 ADD s1] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 6))
+}
+lookup found! rewrote to s7 <- s6
+REWRITING NODE [s3 <- s7] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 6))
+}
+REWRITING NODE [s8 <- __string0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 6))
+}
+REWRITING NODE [RDI <- s8] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 6))
+}
+REWRITING NODE [RSI <- s2] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 6))
+}
+REWRITING NODE [RAX <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 6))
+}
+REWRITING NODE [LIRCalloutNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 6))
+}
+REWRITING NODE [s9 <- RAX] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 6))
+}
+REWRITING NODE [s10 <- __string0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 6))
+}
+REWRITING NODE [RDI <- s10] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 6))
+}
+REWRITING NODE [RSI <- s3] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 6))
+}
+REWRITING NODE [RAX <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 6))
+}
+REWRITING NODE [LIRCalloutNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 6))
+}
+REWRITING NODE [s11 <- RAX] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 6))
+}
+REWRITING NODE [LIRRetNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 6))
+}
+REWRITING NODE [LABEL: RETURNADDRESS9] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [s4 <- RAX] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [s0 <- s4] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [RDI <- 0x3] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [RAX <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
+REWRITING NODE [LIRCallNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+}
