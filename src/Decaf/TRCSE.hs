@@ -99,7 +99,17 @@ exprIsAvail = mkFTransfer ft
     ft (LIRRegOffAssignNode {}) f  = f                                       -- write to a memory location indexed by the registers
     ft (LIRStoreNode {}) f         = f
     ft (LIRLoadNode x _) f         = varChanged f x                          -- remove all records containing x
-    ft (LIRCallNode proc ret) f    = mkFactBase cseLattice [(proc, f), (ret, cseBottom)] -- remove all local vars (i.e. only keep global vars) when jumping to the function
+    ft (LIRCallNode proc ret) f    = mkFactBase cseLattice [(proc, f), (ret, mkGlobalsTop)] -- remove all local vars (i.e. only keep global vars) when jumping to the function
+      where
+        mkGlobalsTop = M.mapWithKey globalToTop f
+        globalToTop (CSEKey a op b) (CSEReg (SREG s)) = if local a && local b
+                                                          then CSEReg (SREG s)
+                                                          else CSETop
+        globalToTop _ _ = CSETop
+        local (LIRRegOperand (SREG {})) = True
+        local (LIRIntOperand {}) = True
+        local _ = False
+
     ft (LIRCalloutNode {}) f       = f
     ft (LIREnterNode {}) f         = f
     ft (LIRRetNode successors _) f = mkFactBase cseLattice [] -- (map (\x -> (x, f)) successors)
