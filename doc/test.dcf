@@ -1,0 +1,13 @@
+class Program {
+  int a, b, c, d;
+  int main() {
+    a = 10;
+    b = 1;
+    c = 1;
+    a = b + c;
+    for i = 1, 10 {
+     a = b + c;
+    }
+    return 0;
+  }
+}
