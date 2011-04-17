@@ -62,8 +62,9 @@ joinCSEFact x y =
     changed x = or $ map snd (M.toList (M.map ((== SomeChange) . fst) x))
 
 -- define const lattice
-constLattice :: DataflowLattice CSEFact
-constLattice = DataflowLattice
+cseBottom = factBottom cseLattice
+cseLattice :: DataflowLattice CSEFact
+cseLattice = DataflowLattice
   { factBottom = M.empty
   , factJoin   = joinCSEFact }
 
@@ -99,18 +100,12 @@ exprIsAvail = mkFTransfer ft
     ft (LIRRegOffAssignNode {}) f  = f                                       -- write to a memory location indexed by the registers
     ft (LIRStoreNode {}) f         = f
     ft (LIRLoadNode x _) f         = varChanged f x                          -- remove all records containing x
-    ft (LIRCallNode proc ret) f    =
-      mkFactBase constLattice [(proc, noLocals f), (ret, f)] -- remove all local vars (i.e. only keep global vars) when jumping to the function
+    ft (LIRCallNode proc ret) f    = mkFactBase cseLattice [(proc, f), (ret, cseBottom)] -- remove all local vars (i.e. only keep global vars) when jumping to the function
     ft (LIRCalloutNode {}) f       = f
     ft (LIREnterNode {}) f         = f
-    ft (LIRRetNode successors _) f = mkFactBase constLattice (map (\x -> (x, noLocals f)) successors)
-    ft (LIRIfNode expr tl fl) f    = mkFactBase constLattice [(tl, f), (fl, f)]  -- if expr the jmp tl else jmp fl
-    ft (LIRJumpLabelNode l) f      = mkFactBase constLattice [(l, f)]        -- jmp l --> associate f with l 
-    noLocals :: CSEFact -> CSEFact
-    noLocals f = M.filter filterLocals f
-    filterLocals :: CSEData -> Bool
-    filterLocals (CSEReg (GI n)) = True
-    filterLocals other = False
+    ft (LIRRetNode successors _) f = mkFactBase cseLattice [] -- (map (\x -> (x, f)) successors)
+    ft (LIRIfNode expr tl fl) f    = mkFactBase cseLattice [(tl, f), (fl, f)]  -- if expr the jmp tl else jmp fl
+    ft (LIRJumpLabelNode l) f      = mkFactBase cseLattice [(l, f)]        -- jmp l --> associate f with l 
 
 -- rewrite: define constant folding rewrites
 cse :: Monad m => FwdRewrite m Node CSEFact
@@ -133,6 +128,6 @@ cse  = shallowFwdRw simp
         s_node _ = Nothing
 -- define fwd pass
 csePass  = FwdPass 
-  { fpLattice = constLattice
+  { fpLattice = cseLattice
   , fpTransfer = exprIsAvail
   , fpRewrite = cse }
