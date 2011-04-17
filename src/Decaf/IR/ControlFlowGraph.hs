@@ -18,7 +18,6 @@ import Loligoptl.Label
 
 import Control.Monad
 import Data.Int
-import Debug.Trace
 
 mkBasicBlock :: [LIRInst] -> ControlNode
 mkBasicBlock = BasicBlock
@@ -69,7 +68,7 @@ graphProgram st dp rc =
         resProg = LIRProgram (LIRLabel "" 0) (map (LIRUnit (LIRLabel "" 0)) res) 
         (res', _, _) = allocateRegisters st resProg
         instructions = ((mapRet sm) . (concatMap lirUnitInstructions) . lirProgUnits) res'
-        blocks = makeBlocks (trace (unlines $ map pp instructions) instructions)
+        blocks = makeBlocks instructions
 
     in GMany NothingO (mapFromList (zip (map entryLabel blocks) blocks)) NothingO
   where

@@ -261,8 +261,8 @@ instance IRNode LIRInst where
     pp (LIREnterInst num) = "ENTER " ++ (show num)
     pp (LIRJumpLabelInst label) = "JMP " ++ pp label
     pp (LIRIfInst expr flab tlab) = "IF " ++ pp expr ++ " THEN " ++ pp tlab ++ " ELSE " ++ pp flab
-    pp (LIRCallInst proc ret) = "call " ++ pp proc
-    pp (LIRCalloutInst proc) = "call " ++ proc
+    pp (LIRCallInst proc ret) = "CALL " ++ pp proc ++ " AND RETURN TO " ++ pp ret
+    pp (LIRCalloutInst proc) = "CALL " ++ proc
     pp (LIRRetInst _ _) = "RET"
     pp (LIRLabelInst label) = "LABEL: " ++ pp label
     treeify (LIRRegAssignInst reg expr) =
