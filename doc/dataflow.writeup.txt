@@ -30,6 +30,22 @@
     *** ALL ASSEMBLY IS IN AT&T SYNTAX; IF YOU WANT TO USE ***
     *** GNUASSEMBLER, TURN ON THE .intel_syntax DIRECTIVE  ***
 
+                               ===================
+                               |  Contributions  |
+                               ===================
+
+
+    Raeez: Implemented SSA (not integrated yet), rewrote code
+    generator, helped implement hoopl, helped implement/debug CSE
+    
+    Scott: Implemented most of hoopl, integrated it into our existing
+    LIR structure, helped implement/debug CSE
+
+    Justin: Wrote local CSE code, some dataflow combinators (not
+    integrated yet).
+
+
+
                                ===============
                                |  Framework  |
                                ===============
