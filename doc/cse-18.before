@@ -191,36 +191,47 @@ REWRITING NODE [LIRIfNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRIntOperand 8),CSEReg (SREG 2))
 }
 REWRITING NODE [LABEL: __boundscheck_fail16] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRIntOperand 8),CSEReg (SREG 2))
 }
 REWRITING NODE [RSI <- __string2] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRIntOperand 8),CSEReg (SREG 2))
 }
 REWRITING NODE [LIRJumpLabelNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRIntOperand 8),CSEReg (SREG 2))
 }
 REWRITING NODE [LABEL: __boundscheck18] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRIntOperand 8),CSEReg (SREG 2))
 }
 REWRITING NODE [LIRIfNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRIntOperand 8),CSEReg (SREG 2))
 }
 REWRITING NODE [LABEL: __boundscheck_fail17] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRIntOperand 8),CSEReg (SREG 2))
 }
 REWRITING NODE [RSI <- __string2] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRIntOperand 8),CSEReg (SREG 2))
 }
 REWRITING NODE [LIRJumpLabelNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRIntOperand 8),CSEReg (SREG 2))
 }
 REWRITING NODE [LABEL: __boundscheck19] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRIntOperand 8),CSEReg (SREG 2))
 }
 REWRITING NODE [s4 <- s0 MUL 0x8] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRIntOperand 8),CSEReg (SREG 2))
 }
+lookup found! rewrote to s4 <- s2
 REWRITING NODE [LIRLoadNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
-(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRIntOperand 8),CSEReg (SREG 4))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRIntOperand 8),CSEReg (SREG 2))
 }
 REWRITING NODE [s5 <- 0x3] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
-(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRIntOperand 8),CSEReg (SREG 4))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRIntOperand 8),CSEReg (SREG 2))
 }
 REWRITING NODE [LIRRegOffAssignNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
-(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRIntOperand 8),CSEReg (SREG 4))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRIntOperand 8),CSEReg (SREG 2))
 }
 REWRITING NODE [LIRRetNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
-(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRIntOperand 8),CSEReg (SREG 4))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRIntOperand 8),CSEReg (SREG 2))
 }
 REWRITING NODE [LABEL: RETURNADDRESS23] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 }

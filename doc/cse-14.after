@@ -111,11 +111,8 @@ extern printf
 
 
     LTRUE20:
-        mov r11, qword [rbp+-0x8]
-        mov r10, r11
-        mov r11, qword [rbp+-0x10]
-        add r10, r11
-        mov qword [rbp+-0x60], r10
+        mov r11, qword [rbp+-0x50]
+        mov qword [rbp+-0x60], r11
         mov r11, qword [rbp+-0x60]
         mov qword [rbp+-0x20], r11
         mov r11, qword [rbp+-0x58]
@@ -212,7 +209,7 @@ LABEL: LFalse19:
     JMP LEND22
 
 LABEL: LTRUE20:
-    s11 <- s0 ADD s1
+    s11 <- s9
     s3 <- s11
     s10 <- s10 ADD 0x1
     JMP LLOOP21

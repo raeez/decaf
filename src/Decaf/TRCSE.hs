@@ -36,11 +36,15 @@ data CSEData = CSETop
              | CSEReg LIRReg
              deriving (Show, Eq)
 
-type CSEFact = M.Map CSEKey CSEData
+data CSEFact = CSEFactMap (M.Map CSEKey CSEData)
+             | CSEBot
+             deriving (Show, Eq)
 
 -- join two CSE facts 
 joinCSEFact :: CSEFact -> CSEFact -> (ChangeFlag, CSEFact)
-joinCSEFact x y = 
+joinCSEFact x CSEBot = (NoChange, x)
+joinCSEFact CSEBot y = (SomeChange, y)
+joinCSEFact (CSEFactMap x) (CSEFactMap y) = 
     extract (M.intersectionWith (\x y -> join (unconv x) (unconv y)) (M.map convertUnchanged x) (M.map convertChanged y))
   where 
     convertChanged, convertUnchanged :: CSEData -> (ChangeFlag, CSEData)
@@ -55,21 +59,23 @@ joinCSEFact x y =
     join x y      = if x == y
                       then (NoChange, x)
                       else (SomeChange, CSETop)
-    extract :: M.Map CSEKey (ChangeFlag, CSEData) -> (ChangeFlag, M.Map CSEKey CSEData)
+    extract :: M.Map CSEKey (ChangeFlag, CSEData) -> (ChangeFlag, CSEFact)
     extract x =  ( if changed x then SomeChange else NoChange
-                 , M.map snd x)
+                 , CSEFactMap $ M.map snd x)
     changed :: M.Map CSEKey (ChangeFlag, CSEData) -> Bool
     changed x = or $ map snd (M.toList (M.map ((== SomeChange) . fst) x))
 
 -- define const lattice
 cseBottom = factBottom cseLattice
+cseTop = CSEFactMap $ M.empty
 cseLattice :: DataflowLattice CSEFact
 cseLattice = DataflowLattice
-  { factBottom = M.empty
+  { factBottom = CSEBot
   , factJoin   = joinCSEFact }
 
 -- aux: remvoe all records containing x, because x has been changed
-varChanged :: CSEFact -> LIRReg -> CSEFact
+varChanged :: M.Map CSEKey CSEData -> LIRReg -> M.Map CSEKey CSEData
+--varChanged CSEBot x = error "varChanged: called on CSEBot; should not happen!"
 varChanged f x = M.mapWithKey keep f
   where 
     -- a record is ok (to keep) if it does not contain x
@@ -90,17 +96,21 @@ varChanged f x = M.mapWithKey keep f
 -- transfer: define CSE lattice transfer function:  a expression (x op y) is available iff ((x,op,y),w) \in Lattice
 -- concerns only RegAssignNode and LoadNode
 exprIsAvail :: FwdTransfer Node CSEFact
-exprIsAvail = mkFTransfer ft
+exprIsAvail = mkFTransfer unwrapFactFt
   where
-    ft :: Node e x -> CSEFact -> Fact x CSEFact
-    ft (LIRLabelNode {}) f         = f
+    unwrapFactFt :: Node e x -> CSEFact -> Fact x CSEFact
+    unwrapFactFt n CSEBot = error "exprIsAvail:unwrapFactFt called on CSEBot; should not happen!"
+    unwrapFactFt n (CSEFactMap f) = ft n f
+
+    ft :: Node e x -> M.Map CSEKey CSEData -> Fact x CSEFact
+    ft (LIRLabelNode {}) f         = CSEFactMap f
     ft (LIRRegAssignNode x (LIRBinExpr a op b)) f
-                                   = M.insert (CSEKey a op b) (CSEReg x) (varChanged f x) -- a op b -> x
-    ft (LIRRegAssignNode x _) f    = varChanged f x                                       -- x = _, no change
-    ft (LIRRegOffAssignNode {}) f  = f                                       -- write to a memory location indexed by the registers
-    ft (LIRStoreNode {}) f         = f
-    ft (LIRLoadNode x _) f         = varChanged f x                          -- remove all records containing x
-    ft (LIRCallNode proc ret) f    = mkFactBase cseLattice [(proc, f), (ret, mkGlobalsTop)] -- remove all local vars (i.e. only keep global vars) when jumping to the function
+                                   = CSEFactMap $ M.insert (CSEKey a op b) (CSEReg x) (varChanged f x) -- a op b -> x
+    ft (LIRRegAssignNode x _) f    = CSEFactMap $ varChanged f x                                       -- x = _, no change
+    ft (LIRRegOffAssignNode {}) f  = CSEFactMap $ f                                       -- write to a memory location indexed by the registers
+    ft (LIRStoreNode {}) f         = CSEFactMap $ f
+    ft (LIRLoadNode x _) f         = CSEFactMap $ varChanged f x                          -- remove all records containing x
+    ft (LIRCallNode proc ret) f    = mkFactBase cseLattice [(proc, CSEFactMap f), (ret, CSEFactMap mkGlobalsTop)] -- remove all local vars (i.e. only keep global vars) when jumping to the function
       where
         mkGlobalsTop = M.mapWithKey globalToTop f
         globalToTop (CSEKey a op b) (CSEReg (SREG s)) = if local a && local b
@@ -111,11 +121,11 @@ exprIsAvail = mkFTransfer ft
         local (LIRIntOperand {}) = True
         local _ = False
 
-    ft (LIRCalloutNode {}) f       = f
-    ft (LIREnterNode {}) f         = f
+    ft (LIRCalloutNode {}) f       = CSEFactMap f
+    ft (LIREnterNode {}) f         = CSEFactMap f
     ft (LIRRetNode successors _) f = mkFactBase cseLattice [] -- (map (\x -> (x, f)) successors)
-    ft (LIRIfNode expr tl fl) f    = mkFactBase cseLattice [(tl, f), (fl, f)]  -- if expr the jmp tl else jmp fl
-    ft (LIRJumpLabelNode l) f      = mkFactBase cseLattice [(l, f)]        -- jmp l --> associate f with l 
+    ft (LIRIfNode expr tl fl) f    = mkFactBase cseLattice [(tl, CSEFactMap f), (fl, CSEFactMap f)]  -- if expr the jmp tl else jmp fl
+    ft (LIRJumpLabelNode l) f      = mkFactBase cseLattice [(l, CSEFactMap f)]        -- jmp l --> associate f with l 
 
 -- rewrite: define constant folding rewrites
 cse :: Monad m => FwdRewrite m Node CSEFact
@@ -123,7 +133,8 @@ cse  = shallowFwdRw simp
   where
     simp :: forall m e x . (ShapeLifter e x, Monad m) => 
             Node e x -> CSEFact -> m (Maybe (Graph Node e x))
-    simp node f = return $ liftM nodeToG $ s_node (trace ("REWRITING NODE [" ++ show node ++ "] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {\n" ++ unlines(map show $ M.toList f) ++ "}") node)
+    simp node CSEBot = error "cse: called on CSEBot; shoudl not happen!"
+    simp node (CSEFactMap f) = return $ liftM nodeToG $ s_node (trace ("REWRITING NODE [" ++ show node ++ "] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {\n" ++ unlines(map show $ M.toList f) ++ "}") node)
   
       where
         s_node :: Node e x -> Maybe (Node e x)

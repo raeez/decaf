@@ -152,19 +152,27 @@ REWRITING NODE [LIRCallNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (GI 0)) LADD (LIRRegOperand (GI 1)),CSEReg (SREG 2))
 }
 REWRITING NODE [LABEL: __proc__foo1] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (GI 0)) LADD (LIRRegOperand (GI 1)),CSEReg (SREG 2))
 }
 REWRITING NODE [LIREnterNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (GI 0)) LADD (LIRRegOperand (GI 1)),CSEReg (SREG 2))
 }
 REWRITING NODE [g0 <- 0x1] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (GI 0)) LADD (LIRRegOperand (GI 1)),CSEReg (SREG 2))
 }
 REWRITING NODE [LIRRetNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (GI 0)) LADD (LIRRegOperand (GI 1)),CSETop)
 }
 REWRITING NODE [LABEL: RETURNADDRESS12] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (GI 0)) LADD (LIRRegOperand (GI 1)),CSETop)
 }
 REWRITING NODE [s3 <- RAX] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (GI 0)) LADD (LIRRegOperand (GI 1)),CSETop)
 }
 REWRITING NODE [s4 <- g0 ADD g1] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (GI 0)) LADD (LIRRegOperand (GI 1)),CSETop)
 }
+lookup failed!
 REWRITING NODE [g3 <- s4] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (GI 0)) LADD (LIRRegOperand (GI 1)),CSEReg (SREG 4))
 }

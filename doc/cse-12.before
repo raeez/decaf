@@ -234,9 +234,12 @@ REWRITING NODE [LIRJumpLabelNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSETop)
 }
 REWRITING NODE [LABEL: LEND25] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSETop)
 }
 REWRITING NODE [s11 <- s0 ADD s1] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSETop)
 }
+lookup failed!
 REWRITING NODE [s4 <- s11] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
 }

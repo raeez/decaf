@@ -145,11 +145,8 @@ extern printf
 
 
     __boundscheck19:
-        mov r11, qword [rbp+-0x8]
-        mov rax, r11
-        mov r10, 0x8
-        imul r10
-        mov qword [rbp+-0x28], rax
+        mov r11, qword [rbp+-0x18]
+        mov qword [rbp+-0x28], r11
         mov r10, qword [rbp+-0x28]
         mov r10, qword [__array0+r10]
         mov qword [rbp+-0x30], r10
@@ -275,7 +272,7 @@ LABEL: __boundscheck18:
     IF s0 >= 0x0 THEN __boundscheck19 ELSE __boundscheck_fail17
 
 LABEL: __boundscheck19:
-    s4 <- s0 MUL 0x8
+    s4 <- s2
     LOAD s5, [__array0 + s4 + 0x0]
     s5 <- 0x3
     __array0(s4, 0x8) <- s5

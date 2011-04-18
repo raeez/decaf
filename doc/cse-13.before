@@ -230,68 +230,90 @@ REWRITING NODE [LIRJumpLabelNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [LABEL: LEND25] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [s11 <- s0 ADD s1] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [s4 <- s11] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [s12 <- __string0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [RDI <- s12] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [RSI <- s2] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [RAX <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [LIRCalloutNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [s13 <- RAX] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [s14 <- __string0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [RDI <- s14] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [RSI <- s3] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [RAX <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [LIRCalloutNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [s15 <- RAX] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [s16 <- __string0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [RDI <- s16] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [RSI <- s4] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [RAX <- 0x0] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [LIRCalloutNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [s17 <- RAX] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [LIRRetNode] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 (CSEKey (LIRRegOperand (SREG 0)) LADD (LIRRegOperand (SREG 1)),CSEReg (SREG 11))
+(CSEKey (LIRRegOperand (SREG 0)) LMUL (LIRRegOperand (SREG 1)),CSEReg (SREG 9))
 }
 REWRITING NODE [LABEL: LTRUE24] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {
 }
