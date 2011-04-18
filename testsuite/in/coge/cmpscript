@@ -1,0 +1,11 @@
+#!/bin/bash
+
+for f in *.dcf
+  do
+    compiler --debug --opt all $f 1>${f/%dcf/after} 2>${f/%dcf/before}
+    done
+
+for f in *.asm
+  do
+    nasm -f elf64 -g $f
+    done
