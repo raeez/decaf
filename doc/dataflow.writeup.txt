@@ -116,131 +116,518 @@ References
                  ======================================
     ======================================================
 
-    class Program {
-      int get_int(int x) {
-        return x;
-      }
 
-      void main() {
-        int a, b, c, d;
+We included .before and .after files for each of the test cases you
+provided.  The .before files contain unoptimized LIR code and traces
+produced during the dataflow analysis, while the .after files contain
+the rewritten LIR code.  The .before/.after code is a little hard to
+read because our operations do not preserve ordering of basic blocks,
+and they may be output in any order.  The changes are summarized below
+with excerpts:
 
-        a = get_int(2);
-        b = get_int(3);
-        c = 0; d = 0;
+(I wrote NOTE: before any especially important things)
 
-        c = a + b;
-        d = a + b;
+cse-01.before:  >>>>>>>>>>>>>>>>>> 
+    s8 <- RAX
+    s2 <- s8
+    s10 <- RAX
+    s3 <- s10
+    s4 <- 0x0
+    s5 <- 0x0
+    s12 <- s2 ADD s3
+    s4 <- s12
+    s14 <- s2 ADD s3
+    s5 <- s14
 
-        callout("printf", "%d\n", c);
-        callout("printf", "%d\n", d);
-      }
-    }
+cse-01.after:  >>>>>>>>>>>>>>>>>> 
+    s4 <- RAX
+    s0 <- s4
+    s5 <- RAX
+    s1 <- s5
+    s2 <- 0x0
+    s3 <- 0x0
+    s6 <- s0 ADD s1
+    s2 <- s6   // rewritten
+    s7 <- s6
+    s3 <- s7
 
-    LABEL: __proc__get_int0
-        ENTER 1
-        s0 <- RDI
-        RAX <- s0
-        RET
-        RSI <- __string3
-        JMP __exception-105
 
-    LABEL: main
-        ENTER 12
-        s0 <- 0x0
-        s1 <- 0x0
-        s2 <- 0x0
-        s3 <- 0x0
-        RDI <- 0x2
-        RAX <- 0x0
-        call __proc__get_int0
+cse-02.before:  >>>>>>>>>>>>>>>>>> 
+    s12 <- s2 ADD s3
+    s11 <- s12
+    s15 <- s2 ADD s3
+    s14 <- s15
+    s17 <- s11 MUL s14
 
-    LABEL: RETURNADDRESS9
-        s4 <- RAX
-        s0 <- s4
-        RDI <- 0x3
-        RAX <- 0x0
-        call __proc__get_int0
+cse-02.after:  >>>>>>>>>>>>>>>>>> 
+    s5 <- s0 ADD s1
+    s6 <- s5
+    s7 <- s5
+    s8 <- s7
+    s9 <- s6 MUL s8
 
-    LABEL: RETURNADDRESS11
-        s5 <- RAX
-        s1 <- s5
-        s2 <- 0x0
-        s3 <- 0x0
-        s6 <- s0 ADD s1
-        s2 <- s6
-        s7 <- s0 ADD s1
-        s3 <- s7
-        s8 <- __string0
-        RDI <- s8
-        RSI <- s2
-        RAX <- 0x0
-        call printf
-        s9 <- RAX
-        s10 <- __string0
-        RDI <- s10
-        RSI <- s3
-        RAX <- 0x0
-        call printf
-        s11 <- RAX
-        RET
+cse-03.before:  >>>>>>>>>>>>>>>>>> 
+    s13 <- s2 ADD s3
+    s12 <- s13
+    s16 <- s2 ADD s3
+    s15 <- s16
+    s18 <- s12 MUL s15
+    s4 <- s18
+    s21 <- s2 ADD s3
+    s20 <- s21
+    s24 <- s2 ADD s3
+    s23 <- s24
+    s26 <- s20 DIV s23
 
-    LABEL: __exception-105
-        RDI <- __string5
-        RAX <- 0x0
-        call printf
-        RET
+cse-03.after:  >>>>>>>>>>>>>>>>>> 
+    s6 <- s0 ADD s1
+    s7 <- s6
+    s8 <- s6
+    s9 <- s8
+    s10 <- s7 MUL s9
+    s2 <- s10
+    s11 <- s6
+    s12 <- s11
+    s13 <- s6
+    s14 <- s13
+    s15 <- s12 DIV s14
 
-    LABEL: __exception-104
-        RDI <- __string4
-        RAX <- 0x0
-        call printf
-        RET
+cse-04.before:  >>>>>>>>>>>>>>>>>> 
+    s13 <- s2 ADD s3
+    s12 <- s13
+    s16 <- s2 ADD s3
+    s15 <- s16
+    s18 <- s12 MUL s15
+    s4 <- s18
+    s21 <- s2 ADD s3
+    s20 <- s21
+    s24 <- s2 ADD s3
+    s23 <- s24
+    s26 <- s20 MUL s23
 
-    ______________________________________
 
-    LABEL: main:
-        ENTER 12
-        s0 <- 0x0
-        s1 <- 0x0
-        s2 <- 0x0
-        s3 <- 0x0
-        RDI <- 0x2
-        RAX <- 0x0
-        call __proc__get_int0
+cse-04.after:  >>>>>>>>>>>>>>>>>> 
 
-    LABEL: __proc__get_int0:
-        ENTER 1
-        s0 <- RDI
-        RAX <- s0
-        RET
+    s6 <- s0 ADD s1
+    s7 <- s6
+    s8 <- s6
+    s9 <- s8
+    s10 <- s7 MUL s9
+    s2 <- s10
+    s11 <- s6
+    s12 <- s11
+    s13 <- s6
+    s14 <- s13
+    s15 <- s12 MUL s14
 
-    LABEL: RETURNADDRESS9:
-        s4 <- RAX
-        s0 <- s4
-        RDI <- 0x3
-        RAX <- 0x0
-        call __proc__get_int0
 
-    LABEL: RETURNADDRESS11:
-        s5 <- RAX
-        s1 <- s5
-        s2 <- 0x0
-        s3 <- 0x0
-        s6 <- s0 ADD s1
-        s2 <- s6
-        s7 <- s6
-        s3 <- s7
-        s8 <- __string0
-        RDI <- s8
-        RSI <- s2
-        RAX <- 0x0
-        call printf
-        s9 <- RAX
-        s10 <- __string0
-        RDI <- s10
-        RSI <- s3
-        RAX <- 0x0
-        call printf
-        s11 <- RAX
-        RET
-    ========================================
+NOTE: due to the way we number temporary expressions, it is impossible
+to get rid of the extra multiply with CSE alone.  Incorporating copy
+propagation is something we intend to implement in the next phase.
+Our CSE is capable of handling all arithmetic operations, so once copy
+propagation is implemented this multiply will be eliminated.
+
+cse-05.before:  >>>>>>>>>>>>>>>>>> 
+    s12 <- s2 ADD s3
+    s4 <- s12
+    s2 <- 0x1
+    s14 <- s2 ADD s3
+
+cse-05.after:  >>>>>>>>>>>>>>>>>> 
+    s6 <- s0 ADD s1
+    s2 <- s6 
+    s0 <- 0x1
+    s7 <- s0 ADD s1 // s0 changed, so don't rewrite.
+
+
+cse-06.before:  >>>>>>>>>>>>>>>>>> 
+
+LABEL: LTRUE21:
+    s18 <- s4 ADD s5
+    s6 <- s18
+    JMP LEND22
+
+LABEL: LEND22:
+    s23 <- s4 ADD s5
+
+cse-06.after:  >>>>>>>>>>>>>>>>>> 
+LABEL: LFalse20:
+    JMP LEND22
+
+LABEL: LTRUE21:
+    s8 <- s0 ADD s1
+    s2 <- s8
+    JMP LEND22
+
+LABEL: LEND22:
+    s9 <- s0 ADD s1
+
+
+
+
+
+cse-07.before:  >>>>>>>>>>>>>>>>>> 
+
+    s19 <- s4 ADD s5
+    s6 <- s19
+    IF s9 THEN LTRUE24 ELSE LFalse23
+
+LABEL: LFalse23:
+    JMP LEND25
+
+LABEL: LTRUE24:
+    s21 <- s4 ADD s5
+    s7 <- s21
+    JMP LEND25
+
+LABEL: LEND25:
+    s26 <- s4 ADD s5
+
+
+cse-07.after:  >>>>>>>>>>>>>>>>>> 
+
+    s9 <- s0 ADD s1
+    s2 <- s9
+    IF s5 THEN LTRUE24 ELSE LFalse23
+
+LABEL: LFalse23:
+    JMP LEND25
+
+LABEL: LTRUE24:
+    s10 <- s9
+    s3 <- s10
+    JMP LEND25
+
+LABEL: LEND25:
+    s11 <- s9
+
+cse-08.before:  >>>>>>>>>>>>>>>>>> 
+
+    s19 <- s4 ADD s5
+    s6 <- s19
+    IF s9 THEN LTRUE24 ELSE LFalse23
+
+LABEL: LFalse23:
+    JMP LEND25
+
+LABEL: LTRUE24:
+    s4 <- 0x1
+    s21 <- s4 ADD s5
+    s7 <- s21
+    JMP LEND25
+
+LABEL: LEND25:
+    s26 <- s4 ADD s5
+
+
+cse-08.after:  >>>>>>>>>>>>>>>>>> 
+
+    s9 <- s0 ADD s1
+    s2 <- s9
+    IF s5 THEN LTRUE24 ELSE LFalse23
+
+LABEL: LFalse23:
+    JMP LEND25
+
+LABEL: LTRUE24:
+    s0 <- 0x1
+    s10 <- s0 ADD s1
+    s3 <- s10
+    JMP LEND25
+
+LABEL: LEND25:
+    s11 <- s0 ADD s1  // no rewrite; don't know whether a is 1 or 2.
+
+
+
+cse-09.before:  >>>>>>>>>>>>>>>>>> 
+
+    s19 <- s4 ADD s5
+    s6 <- s19
+    IF s9 THEN LTRUE24 ELSE LFalse23
+
+LABEL: LFalse23:
+    JMP LEND25
+
+LABEL: LTRUE24:
+    s21 <- s4 ADD s5
+    s7 <- s21
+    s4 <- 0x1
+    JMP LEND25
+
+LABEL: LEND25:
+    s26 <- s4 ADD s5
+
+
+cse-09.after:  >>>>>>>>>>>>>>>>>> 
+    s9 <- s0 ADD s1
+    s2 <- s9
+    IF s5 THEN LTRUE24 ELSE LFalse23
+
+LABEL: LFalse23:
+    JMP LEND25
+
+LABEL: LTRUE24:
+    s10 <- s9  // rewritten since the a <- 1 happens after
+    s3 <- s10
+    s0 <- 0x1
+    JMP LEND25
+
+LABEL: LEND25:
+    s11 <- s0 ADD s1  // not rewritten
+
+
+cse-10.before:  >>>>>>>>>>>>>>>>>> 
+LABEL: LFalse23:
+    s21 <- s4 ADD s5
+    s7 <- s21
+    JMP LEND25
+
+LABEL: LTRUE24:
+    s19 <- s4 ADD s5
+    s6 <- s19
+    JMP LEND25
+
+LABEL: LEND25:
+    s26 <- s4 ADD s5
+
+cse-10.after:  >>>>>>>>>>>>>>>>>> 
+LABEL: LFalse23:
+    s9 <- s0 ADD s1
+    s3 <- s9
+    JMP LEND25
+
+LABEL: LTRUE24:
+    s10 <- s0 ADD s1
+    s2 <- s10
+    JMP LEND25
+
+LABEL: LEND25:
+    s11 <- s0 ADD s1
+
+NOTE: no rewrite occurs because our temporary assignment structure
+does not recognize that s10 and s9 hold the same value.  Once we
+implement PRE with SSA (already implemented, not integrated) we will
+get this optimization
+
+
+cse-11.before:  >>>>>>>>>>>>>>>>>> 
+LABEL: LFalse23:
+    s21 <- s4 ADD s5
+    s7 <- s21
+    JMP LEND25
+
+LABEL: LTRUE24:
+    s5 <- 0x1
+    s19 <- s4 ADD s5
+    s6 <- s19
+    JMP LEND25
+
+LABEL: LEND25:
+    s26 <- s4 ADD s5
+
+cse-11.after:  >>>>>>>>>>>>>>>>>> 
+LABEL: LFalse23:
+    s9 <- s0 ADD s1
+    s3 <- s9
+    JMP LEND25
+
+LABEL: LTRUE24:
+    s1 <- 0x1
+    s10 <- s0 ADD s1
+    s2 <- s10
+    JMP LEND25
+
+LABEL: LEND25:
+    s11 <- s0 ADD s1
+
+
+cse-12.before:  >>>>>>>>>>>>>>>>>> 
+LABEL: LFalse23:
+    s21 <- s4 ADD s5
+    s7 <- s21
+    s5 <- 0x1
+    JMP LEND25
+
+LABEL: LTRUE24:
+    s19 <- s4 ADD s5
+    s6 <- s19
+    JMP LEND25
+
+LABEL: LEND25:
+    s26 <- s4 ADD s5
+
+cse-12.after:  >>>>>>>>>>>>>>>>>> 
+LABEL: LFalse23:
+    s9 <- s0 ADD s1
+    s3 <- s9
+    s1 <- 0x1
+    JMP LEND25
+
+LABEL: LTRUE24:
+    s10 <- s0 ADD s1
+    s2 <- s10
+    JMP LEND25
+
+LABEL: LEND25:
+    s11 <- s0 ADD s1
+
+cse-13.before  >>>>>>>>>>>>>>>>>> 
+LABEL: LFalse23:
+    s21 <- s4 MUL s5
+    s7 <- s21
+    JMP LEND25
+
+LABEL: LTRUE24:
+    s19 <- s4 ADD s5
+    s6 <- s19
+    JMP LEND25
+
+LABEL: LEND25:
+    s26 <- s4 ADD s5
+
+cse-13.after:  >>>>>>>>>>>>>>>>>> 
+LABEL: LFalse23:
+    s9 <- s0 MUL s1
+    s3 <- s9
+    JMP LEND25
+
+LABEL: LTRUE24:
+    s10 <- s0 ADD s1
+    s2 <- s10
+    JMP LEND25
+
+LABEL: LEND25:
+    s11 <- s0 ADD s1
+
+cse-14.before:  >>>>>>>>>>>>>>>>>> 
+    s17 <- s2 ADD s3
+    s4 <- s17
+    s8 <- 0x5
+    JMP LLOOP21
+
+LABEL: LLOOP21:
+    IF s8 < s6 THEN LTRUE20 ELSE LFalse19
+
+LABEL: LFalse19:
+    JMP LEND22
+
+LABEL: LTRUE20:
+    s23 <- s2 ADD s3
+
+cse-14.after:  >>>>>>>>>>>>>>>>>> 
+    s9 <- s0 ADD s1
+    s2 <- s9
+    s10 <- 0x5
+    JMP LLOOP21
+
+LABEL: LLOOP21:
+    IF s10 < s4 THEN LTRUE20 ELSE LFalse19
+
+LABEL: LFalse19:
+    JMP LEND22
+
+LABEL: LTRUE20:
+    s11 <- s9
+
+
+cse-15.before:  >>>>>>>>>>>>>>>>>> 
+LABEL: LTRUE20:
+    s23 <- s2 ADD s3
+    s5 <- s23
+    s2 <- 0x1
+    s8 <- s8 ADD 0x1
+    JMP LLOOP21
+
+cse-15.after:  >>>>>>>>>>>>>>>>>> 
+LABEL: LTRUE20:
+    s11 <- s0 ADD s1
+    s3 <- s11
+    s0 <- 0x1
+    s10 <- s10 ADD 0x1
+    JMP LLOOP21
+
+
+cse-16.before:  >>>>>>>>>>>>>>>>>> 
+    s8 <- s-1 ADD s-2
+    s-3 <- s8
+    s10 <- s-1 ADD s-2 // in .before files globals are marked with negative indices
+
+cse-16.after:  >>>>>>>>>>>>>>>>>> 
+    s2 <- g0 ADD g1
+    g2 <- s2
+    s3 <- s2
+    g3 <- s3
+
+cse-17.before  >>>>>>>>>>>>>>>>>> 
+    s9 <- s-1 ADD s-2
+    s-3 <- s9
+    RAX <- 0x0
+    CALL __proc__foo1 AND RETURN TO RETURNADDRESS12
+
+LABEL: RETURNADDRESS12:
+    s11 <- RAX
+    s13 <- s-1 ADD s-2
+
+cse-17.after:  >>>>>>>>>>>>>>>>>> 
+    s2 <- g0 ADD g1
+    g2 <- s2
+    RAX <- 0x0
+    CALL __proc__foo1 AND RETURN TO RETURNADDRESS12
+
+LABEL: RETURNADDRESS12:
+    s3 <- RAX
+    s4 <- g0 ADD g1
+
+NOTE: no rewrite facts involving globals are carried over function
+calls, since they may be modified in functions.  Since a function may
+return to many call-sites, we had to be very careful with how dataflow
+facts are propagated to functions and back.  We are currently taking a
+somewhat conservative approach which may be improved later.
+
+cse-18.before:  >>>>>>>>>>>>>>>>>> 
+LABEL: __boundscheck12:
+    s13 <- s2 MUL 0x8
+    LOAD s8, [__array0 + s13 + 0x0]
+    s8 <- 0x7
+    __array0(s13, 0x8) <- s8
+    IF s2 < 0xa THEN __boundscheck18 ELSE __boundscheck_fail16
+
+LABEL: __boundscheck_fail16:
+    RSI <- __string2
+    JMP __exception-104
+
+LABEL: __boundscheck18:
+    IF s2 >= 0x0 THEN __boundscheck19 ELSE __boundscheck_fail17
+
+LABEL: __boundscheck_fail17:
+    RSI <- __string2
+    JMP __exception-104
+
+LABEL: __boundscheck19:
+    s20 <- s2 MUL 0x8
+
+cse-18.after:  >>>>>>>>>>>>>>>>>> 
+    s2 <- s0 MUL 0x8
+    LOAD s3, [__array0 + s2 + 0x0]
+    s3 <- 0x7
+    __array0(s2, 0x8) <- s3
+    IF s0 < 0xa THEN __boundscheck18 ELSE __boundscheck_fail16
+
+LABEL: __boundscheck_fail16:
+    RSI <- __string2
+    JMP __exception-104
+
+LABEL: __boundscheck_fail17:
+    RSI <- __string2
+    JMP __exception-104
+
+LABEL: __boundscheck18:
+    IF s0 >= 0x0 THEN __boundscheck19 ELSE __boundscheck_fail17
+
+LABEL: __boundscheck19:
+    s4 <- s2	// the multiplication is only done once
+
+NOTE: the second bounds check cannot be eliminated by CSE alone; it
+will be eliminated by the combination of constant propagation and dead
+code elimination.
