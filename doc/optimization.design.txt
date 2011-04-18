@@ -1,0 +1,132 @@
+
+>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=
+
+                         888888 888888    db    8b    d8
+                           88   88__     dPYb   88b  d88
+                           88   88""    dP__Yb  88YbdP88
+                           88   888888 dP""""Yb 88 YY 88
+
+ 88   88 88b 88 888888 Yb    dP    db    88     88   88    db    888888 888888 8888b.
+ 88   88 88Yb88 88__    Yb  dP    dPYb   88     88   88   dPYb     88   88__    8I  Yb 
+ Y8   8P 88 Y88 88""     YbdP    dP__Yb  88  .o Y8   8P  dP__Yb    88   88""    8I  dY 
+ `YbodP' 88  Y8 888888    YP    dP""""Yb 88ood8 `YbodP' dP""""Yb   88   888888 8888Y"
+
+>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=>>=
+
+         presents the writeup covering the design of the decaf optimizer
+
+                               ==================
+                               |  Instructions  |
+                               ==================
+
+     cabal configure
+     cabal build
+     cabal install
+     compiler --opt all filename.dcf
+     nasm -f elf64 filename.asm -o test.o
+     gcc -o filename filename.o
+     ./filename
+
+    *** ALL ASSEMBLY IS IN AT&T SYNTAX; IF YOU WANT TO USE ***
+    *** GNUASSEMBLER, TURN ON THE .intel_syntax DIRECTIVE  ***
+
+                               ================
+                               |  Foundation  |
+                               ================
+
+    In order to be better prepared for this portion of our compiler's
+    implementation, and additionally taking into account the fact that
+    we  are restricted to only two developers working on the compiler,
+    Scott and I have decided to invest a significant portion of our time
+    implementing foundational transforms over our intermediate
+    representation, i.e. our 'LIR' code. These involve:
+
+      * a transform in and out of a fully polymorphic representation of
+        Basic Blocks and Control Flow, as implemented in our data flow
+        analysis framework based on the implementation of Haskell's Hoopl.
+        By fully polymorphic, we mean that a dataflow optimization can be
+        defined in such a way that at is paramterized on the 'Node' type;
+        i.e. we are able to re-use both optimizations and the framework
+        against our various IR's (e.g. LIR, SSA and ASM.)
+
+      * Speculative data flow analyses and rewrites through a combinator
+        library interface, as implemented in our dataflow analysis framework
+        working over our polymorphic representation of (basic block, control flow)
+        tuples. This allows us to simply supply a chain of analyses as
+        combinators, and our implemented dataflow analysis framework
+        will interleave analysis and rewrites in such a way that is
+        optimal (i.e. finding the fix point of the macro-analyses
+        specified by the combinators).
+
+      * a transform from LIR to/from Static Single Assignment Form, where
+        both use-def chains as well as global values are explicit.
+
+      * a statically-checked monadic Assembler (i.e. Code Generator), where
+        completely independant blocks of code can be 'bound' together in
+        a manner automatically implementing optimal instruction selection
+        via tree pattern matching (using the dynamic programming algorithm
+        as laid out by Aho, Ganapathi and Tjiang in their initial
+        implementation of twig).
+
+    In short, we are hoping that a sound foundation will allow the few
+    optimizations we do write to be maximally efficient and composable;
+    specifically, we intend to avoid wasting too much time trying to
+    figure out ideal 'combinations' of optimizations, by relying on our
+    framework's ability to find fix points of arbitrary composable
+    analyses.
+
+                                   =========
+                                   |  SSA  |
+                                   =========
+
+    The decision to move into SSA was driven by the ability to kill many
+    birds with few stones; i.e. we are able to write micro analyses
+    (e.g. sparse conditional constant propogation and partial redundancy
+    elimination), that together accomplish more than the equivalent
+    analyses run independantly (i.e. even if run infinitely many times,
+    SPCP can produce better results than both dead code elimination and
+    constant propogation). By further relying on our ability to
+    interleave speculative rewrites of these macro-analyses, we hope to
+    achieve better results than possible with the individual non-ssa
+    analyses.
+                       ============================
+                       |  Peephole Optimizations  |
+                       ============================
+
+    Since it's original conception, we've rewritten our code generator
+    to support the interleaving of arbitrary peephole pattern-match and
+    tree-rewrites—and we do so by combining mondaic computations that
+    'contain' the following pieces of information:
+
+      * the generated code up and until the corresponding program point.
+
+      * the list of peephole optimizations to be applied on the
+        corresponding generated code.
+
+      * the 'locally' optimal tree-tiling representing the locally
+        optimal instruction selection, along with appopriate meta-data
+        for 'joining' this tree tiling with any other subsequent blocks
+        of generated code, such that globally optimal tree tilings may
+        be generated (i.e. conforming to our dynamic programming
+        methodology.)
+
+    The full list of peephole optimizations we plan to run is still under
+    debate, but we certainly plan to implement (some implemented already):
+
+      * Constant folding - Evaluate constant subexpressions in advance.
+
+      * Strength reduction - Replace slow operations with faster
+        equivalents.
+
+      * Null sequences - Delete useless operations
+
+      * Combine Operations: Replace several operations with one
+        equivalent.
+
+      * Algebraic Laws: Use algebraic laws to simplify or reorder
+        instructions.
+
+      * Special Case Instructions: Use instructions designed for
+        special operand cases.
+
+      * Address Mode Operations: Use address modes to simplify code.
