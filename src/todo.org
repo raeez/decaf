@@ -1,0 +1,17 @@
+* Dataflow
+** TODO Infrastructure
+   - [ ] Deep rewrites
+   - [ ] Backward rewrite?
+** TODO Raeez
+   - [ ] PRE
+   - [ ] constant prop thing
+   - [ ] ?
+
+* TODO Register Allocator
+
+* TODO Instruction Scheduling
+
+* TODO Parallel stuff
+??
+
+  
