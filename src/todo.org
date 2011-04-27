@@ -1,15 +1,22 @@
 * Dataflow
 ** TODO Infrastructure
    - [ ] Deep rewrites
+   Put this in combinators
    - [ ] Backward rewrite?
-** TODO Raeez
+   This goes in dataflow
+   - [ ] Combinator for combining passes
+** TODO Big Stuff (Raeez)
    - [ ] PRE
    - [ ] constant prop thing
    - [ ] ?
 
-* TODO Register Allocator
+* TODO Register Allocator (Scott)
+  - [X] live variable analysis
+  - [X] graph representation
+  - [X] coloring
+  - [ ] rewrites
 
-* TODO Instruction Scheduling
+* TODO Instruction Scheduling (Justin)
 
 * TODO Parallel stuff
 ??
