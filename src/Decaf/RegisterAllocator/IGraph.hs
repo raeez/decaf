@@ -4,6 +4,8 @@
 module Decaf.RegisterAllocator.IGraph
   ( LabelGraph(..)
   , IGraph
+  , mkIGraph
+  , Colorable
   --, manipulation  functions
   )
 where
@@ -77,6 +79,8 @@ numNeighbors a g = length $ neighbors a g
 label a lab (LabelGraph map labels array) = 
   LabelGraph map (M.insert (index a map)  lab labels) array
 
+labels (LabelGraph _ l _) = l
+
 -- get set of adjacent labels (relevant when labels are colors, and we're graph coloring)
 neighborLabels :: (Ord a, Ord dat) => a -> LabelGraph a dat -> S.Set dat
 neighborLabels a g@(LabelGraph m labels array) = 
@@ -92,7 +96,7 @@ neighborColors a g = S.filter isReg $ neighborLabels a g
 
 x = addEdge 'a' 'b' $ mkLabelGraph ['a', 'b', 'c'] 0
 
-g = addEdges [1,2,3] $ addEdge 3 4 $ mkIGraph [1,2,3,4]
+
 
 -- | Interference Graph
 -- change String to LIRReg
@@ -138,6 +142,7 @@ colorIGraph n g = help g []
     argmin :: (Ord b) => [(k,b)] -> k
     argmin tuples = fst $ foldl min (head tuples) (tail tuples)
       where min (a,b) (a',b') = if b < b' then (a,b) else (a',b')
+
     color :: IGraph a -> [a] -> IGraph a
     color g [] = g
     color g (node:ns) = 
@@ -148,3 +153,5 @@ colorIGraph n g = help g []
       
 
 
+g = addEdges [1,2,3] $ addEdge 3 4 $ mkIGraph [1,2,3,4]
+h = addEdges [1,2,3,4] $ mkIGraph [1,2,3,4,5]

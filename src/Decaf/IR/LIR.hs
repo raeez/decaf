@@ -10,6 +10,7 @@ import Decaf.IR.SymbolTable
 import Numeric
 import Data.Int
 import Data.Typeable
+import Data.Data
 --import Loligoptl.Label
 
 type LIRInt    = Int64
@@ -17,7 +18,7 @@ type LIRSize   = LIRInt
 type LIROffset = LIRInt
 
 data LIRLabel = LIRLabel String Int
-    deriving (Eq, Typeable, Ord)
+    deriving (Eq, Typeable, Ord, Data)
 
 data LIRProgram = LIRProgram
     { lirProgLabel :: LIRLabel
@@ -236,6 +237,8 @@ instance Show LIRLabel where
 
 falseLabel :: Int -> LIRLabel
 falseLabel l = LIRLabel "LFalse" l
+
+
 
 instance IRNode LIRProgram where
     pp (LIRProgram label units) = pp label ++ ":\n" ++ unlines (map pp units)
