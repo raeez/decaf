@@ -2,10 +2,6 @@
  ScopedTypeVariables, MultiParamTypeClasses, PatternGuards #-}
 
 {-
-TODO:
-
-integrate with compiler
-
 -}
 
 module Loligoptl.Dataflow
@@ -57,6 +53,42 @@ newtype FwdRewrite m n f = FwdRewrite3
 -- fwd revision to graph
 -- includes the new subgraph, and a new rewrite function to use when analyzing the new graph
 data FwdRev m n f e x  = FwdRev (Graph n e x) (FwdRewrite m n f)
+
+
+-- pass -> graph -> fold function from node, associated fact, to result type -> initial -> final
+-- this doesn't properly belong here; assumes some Decaf stuff
+foldDataflowFacts :: FwdPass m n f
+                  -> Graph n C C
+                  -> ((n,Int) -> f -> res -> res)
+                  -> res -> res
+
+foldDataflowFacts pass g f init = 
+  -- fst takes the DG, drops the state
+  let dg = fst $ runLFM $ (afrGraph pass entries g (mapSingleton mainlab bottom)) >>= fst
+      mainlab = LIRLabel "main" (-1)
+      entries = JustC [mainlab]
+      bottom = (factBottom . fpLattice) pass
+     
+      -- copied from afrgraph
+      block :: forall e x. Block n e x 
+          -> f -> m (DG f n e x, Fact x f)
+      block (BFirst  n)  = node n
+      block (BMiddle n)  = node n
+      block (BLast   n)  = node n
+      block (BCat b1 b2) = block b1 `cat` block b2
+      block (BHead h n)  = block h  `cat` node n
+      block (BTail n t)  = node  n  `cat` block t
+      block (BClosed h t)= block h  `cat` block t
+
+      cat :: forall e a x f1 f2 f3.
+             (f1 -> m (DG f n e a, f2))
+          -> (f2 -> m (DG f n a x, f3))
+          -> (f1 -> m (DG f n e x, f3))
+      cat t1 t2 f1 = do { (g1, f2) <- t1 f1
+                        ; (g2, f3) <- t2 f2
+                        ; return (g1 `dgSplice` g2, f3) }
+  in
+
 
 
 analyzeAndFwdRewrite
@@ -178,8 +210,6 @@ afrGraph pass entries = graph
     arfx arf thing fb = 
       arf thing $ fromJust $ mapLookup (entryLabel thing) $ joinInFacts lattice fb
      where lattice = fpLattice pass
-
-
 
 
 

@@ -27,17 +27,39 @@ number each line of graph
 build webs
 -}
 
-
-makeWebs :: DG ReachFact ASMNode C C
-         -> 
-
-
-
-
-
+-- I think type is right
+makeWebs :: Graph ASMNode C C -> UnionSet (ASMNode, Int)
+makeWebs g = foldDataFlowFacts ASMReachingpass g webjoin emptyUnion
+  where webjoin (n,i) reachingdefs us = 
+          case n of 
+            -- asm node types...
 
 
--- change decafgraph to SSA graph?
+-- IGraph Int because webs are stored as integers in the unionset
+-- this int is found from an asmnode by using find on the UnionSet
+makeIGraph :: Graph ASMNode C C -> UnionSet (ASMNode, Int) -> IGraph Int
+makeIGraph g us = snd $ foldDataFlowFacts ASMLiveVars g igraphjoin (mkIGraph $ listWebs us)
+  where 
+    igraphjoin :: (ASMNode, Int) -> ASMLiveVarFact 
+               -> (UnionSet (ASMNode, Int), IGraph Int)
+               -> (UnionSet (ASMNode, Int), IGraph Int)
+    igraphjoin (n,i) livevars (us, igraph) = 
+      case n of
+        -- asm node types...
+        
+
+
+
+colorRegisters :: ASMProgram -> ASMProgram
+colorRegisters prog = 
+  let asmg = graphASM
+      colorIG = colorIGraph numRegisters $ makeIGraph g (makeWebs g)
+
+
+
+
+{- this moved to Dataflow.hs
+
 varGraph :: DecafGraph C C -> VarDataGraph
 varGraph g = 
   -- fst takes the DG, drops the state
@@ -48,7 +70,7 @@ varGraph g =
 
     pass = liveVarPass
     bottom = (factBottom . fpLattice) pass
-
+-}
 
 
 {- TODO
@@ -57,6 +79,9 @@ make function that gets all facts (from every line of SSA) and returns the list
 use list to generate graph
 
 write precoloring code for special registers
+
+coalescing
+spill costs?
 
 fix function calls
 
