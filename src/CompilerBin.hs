@@ -5,7 +5,7 @@ import System.Environment
 import System.Exit
 
 import Loligoptl
-import Decaf.TRCSE
+import Decaf.Passes.CSE
 import Decaf.HooplNodes
 
 import System.Console.GetOpt

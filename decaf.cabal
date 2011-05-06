@@ -42,14 +42,16 @@ Library
                       Decaf.IR.IRNode,
                       Decaf.IR.ControlFlowGraph,
                       Decaf.Translator,
-                      Decaf.TRCSE
+                      Decaf.Passes.CSE
+                      Decaf.Passes.Dominator
+                      Decaf.Passes.SSA
                       Loligoptl,
                       Loligoptl.Combinators,
                       Loligoptl.Fuel,
                       Loligoptl.Graph,
                       Loligoptl.Label,
                       Loligoptl.Dataflow
-
+                      Loligoptl.Pointed
 
     Other-Modules: Decaf.Data.ContextTree
 

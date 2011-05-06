@@ -1,8 +1,7 @@
 {-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables, NoMonomorphismRestriction #-}
 
 
-module Decaf.TRConst where
---import Compiler.Hoopl hiding (Top)
+module Decaf.Passes.Const where
 import Data.Map as Map
 import Decaf.IR.LIR
 import Control.Monad

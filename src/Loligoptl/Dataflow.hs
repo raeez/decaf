@@ -1,14 +1,16 @@
 {-# LANGUAGE GADTs, EmptyDataDecls, TypeFamilies, RankNTypes, 
  ScopedTypeVariables, MultiParamTypeClasses, PatternGuards #-}
 
-{-
-TODO:
-
-integrate with compiler
-
--}
-
 module Loligoptl.Dataflow
+  {-( DataflowLattice(..), JoinFun, OldFact(..), NewFact(..), Fact, mkFactBase
+  , ChangeFlag(..), changeIf
+  , FwdPass(..), FwdTransfer
+  , FwdRewrite
+  , analyzeAndFwdRewrite
+  --,  analyzeAndRewriteBwd
+  , ShapeLifter
+  , singletonG
+  )-}
 where
 
 import Loligoptl.Label
@@ -17,11 +19,14 @@ import Loligoptl.Fuel
 
 import Data.Maybe
 
-
+changeIf :: Bool -> ChangeFlag
+changeIf changed = if changed then SomeChange else NoChange
 type family   Fact x f :: *
 type instance Fact O f = f
 type instance Fact C f = FactBase f
 
+newtype OldFact a = OldFact a
+newtype NewFact a = NewFact a
 
 data PassDirection = Fwd | Bwd deriving (Show, Eq)
 
@@ -31,11 +36,18 @@ data FwdPass m n f
             , fpRewrite :: FwdRewrite m n f
             }
 
-data DataflowLattice f = DataflowLattice
-  { factBottom :: f -- necessary?
-  , factJoin :: f -> f -> (ChangeFlag, f)
-  }
+data DataflowLattice a = DataflowLattice  
+ { fact_name       :: String          -- Documentation
+ , fact_bot        :: a               -- Lattice bottom element
+ , fact_join       :: JoinFun a       -- Lattice join plus change flag
+                                      -- (changes iff result > old fact)
+ }
+-- ^ A transfer function might want to use the logging flag
+-- to control debugging, as in for example, it updates just one element
+-- in a big finite map.  We don't want Hoopl to show the whole fact,
+-- and only the transfer function knows exactly what changed.
 
+type JoinFun a = Label -> OldFact a -> NewFact a -> (ChangeFlag, a)
 -- are these foralls needed?
 newtype FwdTransfer n f = FwdTransfer3 
   { getFwdTransfer3 :: 
@@ -46,18 +58,12 @@ newtype FwdTransfer n f = FwdTransfer3
   }
 
 
-newtype FwdRewrite m n f = FwdRewrite3
-  { getFwdRewrite3 :: 
-      ( n C O -> f -> m (Maybe (FwdRev m n f C O))
-      , n O O -> f -> m (Maybe (FwdRev m n f O O))
-      , n O C -> f -> m (Maybe (FwdRev m n f O C))
-      )
-  }
-
--- fwd revision to graph
--- includes the new subgraph, and a new rewrite function to use when analyzing the new graph
-data FwdRev m n f e x  = FwdRev (Graph n e x) (FwdRewrite m n f)
-
+newtype FwdRewrite m n f   -- see Note [Respects Fuel]
+  = FwdRewrite3 { getFwdRewrite3 ::
+                    ( n C O -> f -> m (Maybe (Graph n C O, FwdRewrite m n f))
+                    , n O O -> f -> m (Maybe (Graph n O O, FwdRewrite m n f))
+                    , n O C -> f -> m (Maybe (Graph n O C, FwdRewrite m n f))
+                    ) }
 
 analyzeAndFwdRewrite
   :: (FuelMonad m, NonLocal n)
@@ -115,7 +121,7 @@ afrGraph pass entries = graph
         do mrev <- frewrite pass n f >>= withFuel
            case mrev of 
              Nothing -> return (singletonDG f n, ftransfer pass n f)
-             Just (FwdRev g rw) ->
+             Just (g, rw) ->
                  let pass' = pass {fpRewrite = rw}
                      f' = fwdEntryFact n f
                  in afrGraph pass' (fwdEntryLabel n) g f'
@@ -194,22 +200,32 @@ data FixState n f
        , fsLabels :: LabelSet
        }
 
-updateFact :: DataflowLattice f -> LabelSet 
+data TxFactBase n f
+  = TxFB { tfb_fbase :: FactBase f
+         , tfb_rg    :: DG f n C C -- Transformed blocks
+         , tfb_cha   :: ChangeFlag
+         , tfb_lbls  :: LabelSet }
+-- @ end txfb.tex
+     -- See Note [TxFactBase invariants]
+-- @ start update.tex
+updateFact :: DataflowLattice f -> LabelSet
            -> Label -> f -> (ChangeFlag, FactBase f)
            -> (ChangeFlag, FactBase f)
-updateFact lat labels label newFact (ch, fbase)
-  | NoChange <- ch' = (ch, fbase)
-  | label `setMember` labels = (SomeChange, newFBase)
-  | otherwise = (ch, newFBase)
+-- See Note [TxFactBase change flag]
+updateFact lat lbls lbl new_fact (cha, fbase)
+  | NoChange <- cha2     = (cha,        fbase)
+  | lbl `setMember` lbls = (SomeChange, new_fbase)
+  | otherwise            = (cha,        new_fbase)
   where
-    (ch', resFact) 
-       = case mapLookup label fbase of
-           Nothing -> (SomeChange, new_fact_debug)
-           Just oldFact -> join oldFact
-         where join oldFact = 
-                 factJoin lat {-label-} oldFact newFact
-               (_, new_fact_debug) = join (factBottom lat)
-    newFBase = mapInsert label resFact fbase
+    (cha2, res_fact) -- Note [Unreachable blocks]
+       = case lookupFact lbl fbase of
+           Nothing -> (SomeChange, new_fact_debug)  -- Note [Unreachable blocks]
+           Just old_fact -> join old_fact
+         where join old_fact = 
+                 fact_join lat lbl
+                   (OldFact old_fact) (NewFact new_fact)
+               (_, new_fact_debug) = join (fact_bot lat)
+    new_fbase = mapInsert lbl res_fact fbase
   
 
 fixpoint :: forall m n f. (FuelMonad m, NonLocal n) 
@@ -278,10 +294,13 @@ forwardBlockList entries body
                       Nothing -> error "successors returned label not in graph body"
 
                                                    
+-- Join all the incoming facts with bottom.
+-- We know the results _shouldn't change_, but the transfer
+-- functions might, for example, generate some debugging traces.
 joinInFacts :: DataflowLattice f -> FactBase f -> FactBase f
-joinInFacts (lattice @ DataflowLattice {factBottom = bot, factJoin = fj}) fb =
+joinInFacts (lattice @ DataflowLattice {fact_bot = bot, fact_join = fj}) fb =
   mkFactBase lattice $ map botJoin $ mapToList fb
-    where botJoin (l, f) = (l, snd $ fj {-l-} bot f) -- hoopl uses an extra label param in join functions for debugging purposes
+    where botJoin (l, f) = (l, snd $ fj l (OldFact bot) (NewFact f))
                         
 
 
@@ -293,7 +312,7 @@ class ShapeLifter e x where
   fwdEntryLabel :: NonLocal n => n e x -> MaybeC e [Label]
   ftransfer :: FwdPass m n f -> n e x -> f -> Fact x f
   frewrite  :: FwdPass m n f -> n e x 
-           -> f -> m (Maybe (FwdRev m n f e x))
+           -> f -> m (Maybe (Graph n e x, FwdRewrite m n f))
 {- bwdEntryFact :: NonLocal n => DataflowLattice f -> n e x -> Fact e f -> f
  btransfer    :: BwdPass m n f -> n e x -> Fact x f -> f
  brewrite     :: BwdPass m n f -> n e x
@@ -334,13 +353,13 @@ instance ShapeLifter O C where
 
 getFact  :: DataflowLattice f -> Label -> FactBase f -> f
 getFact lat l fb = case mapLookup l fb of Just  f -> f
-                                          Nothing -> factBottom lat
+                                          Nothing -> fact_bot lat
 
-mkFactBase :: forall f . DataflowLattice f -> [(Label, f)] -> FactBase f
+mkFactBase :: forall f. DataflowLattice f -> [(Label, f)] -> FactBase f
 mkFactBase lattice = foldl add mapEmpty
   where add :: FactBase f -> (Label, f) -> FactBase f
-        add map (label, f) = mapInsert label newFact map
-          where newFact = case mapLookup label map of
+        add map (lbl, f) = mapInsert lbl newFact map
+          where newFact = case mapLookup lbl map of
                             Nothing -> f
-                            Just f' -> snd $ join {-label-} f' f
-                join = factJoin lattice
+                            Just f' -> snd $ join lbl (OldFact f') (NewFact f)
+                join = fact_join lattice

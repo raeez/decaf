@@ -8,6 +8,8 @@ module Loligoptl.Label
   , IsMap (..)
   , IsSet (..)
   , mapDeleteList, mapMember
+  , lookupFact
+  , noFacts
   )
 where
 
@@ -32,6 +34,12 @@ unLabel (LIRLabel _ i) = i
 data LabelMap a = LM (M.IntMap a) (M.IntMap String) 
 type FactBase a = LabelMap a
 newtype LabelSet = LS (S.IntSet)
+
+noFacts :: FactBase f
+noFacts = mapEmpty
+
+lookupFact :: Label -> FactBase f -> Maybe f
+lookupFact = mapLookup
 
 class IsMap map where
   type KeyOf map

@@ -1,18 +1,15 @@
 {-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables, NoMonomorphismRestriction #-}
 
-module Decaf.TRCSE where
+module Decaf.Passes.CSE where
 import qualified Data.Map as Map
 import Decaf.IR.LIR
 import Decaf.IR.IRNode
 import Control.Monad
 import Decaf.HooplNodes
-import Loligoptl.Dataflow
-import Loligoptl.Graph 
-import Loligoptl.Fuel 
-import Loligoptl.Label 
 import Loligoptl.Combinators
-import Data.Maybe
 import Debug.Trace
+import Data.Maybe
+import Loligoptl
 
 import qualified Data.Map as M
 ----------------------------------------------------
@@ -41,10 +38,10 @@ data CSEFact = CSEFactMap (M.Map CSEKey CSEData)
              deriving (Show, Eq)
 
 -- join two CSE facts 
-joinCSEFact :: CSEFact -> CSEFact -> (ChangeFlag, CSEFact)
-joinCSEFact x CSEBot = (NoChange, x)
-joinCSEFact CSEBot y = (SomeChange, y)
-joinCSEFact (CSEFactMap x) (CSEFactMap y) = 
+joinCSEFact :: Label -> OldFact CSEFact -> NewFact CSEFact -> (ChangeFlag, CSEFact)
+joinCSEFact l (OldFact x) (NewFact CSEBot) = (NoChange, x)
+joinCSEFact l (OldFact CSEBot) (NewFact y) = (SomeChange, y)
+joinCSEFact l (OldFact (CSEFactMap x)) (NewFact (CSEFactMap y)) = 
     extract (M.intersectionWith (\x y -> join (unconv x) (unconv y)) (M.map convertUnchanged x) (M.map convertChanged y))
   where 
     convertChanged, convertUnchanged :: CSEData -> (ChangeFlag, CSEData)
@@ -66,12 +63,13 @@ joinCSEFact (CSEFactMap x) (CSEFactMap y) =
     changed x = or $ map snd (M.toList (M.map ((== SomeChange) . fst) x))
 
 -- define const lattice
-cseBottom = factBottom cseLattice
+cseBottom = fact_bot cseLattice
 cseTop = CSEFactMap $ M.empty
 cseLattice :: DataflowLattice CSEFact
 cseLattice = DataflowLattice
-  { factBottom = CSEBot
-  , factJoin   = joinCSEFact }
+  { fact_name = "CommonSubexpressionMap"
+  , fact_bot  = CSEBot
+  , fact_join = joinCSEFact }
 
 -- aux: remvoe all records containing x, because x has been changed
 varChanged :: M.Map CSEKey CSEData -> LIRReg -> M.Map CSEKey CSEData
