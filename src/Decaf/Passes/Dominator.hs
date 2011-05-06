@@ -3,7 +3,7 @@
 
 module Decaf.Passes.Dominator
   ( Doms, DPath(..), domPath, domEntry, domLattice, extendDom
-  , DominatorNode(..), DominatorTree(..), tree
+  , DominatorNode(..), DominatorTree(..), dtree
   , immediateDominators
   , domPass
   )
@@ -72,8 +72,8 @@ data DominatorTree = Dominates DominatorNode [DominatorTree]
 
 -- | Map from a FactBase for dominator lists into a
 -- dominator tree.  
-tree :: [(Label, Doms)] -> DominatorTree
-tree facts = Dominates Entry $ merge $ map reverse $ map mkList facts
+dtree :: [(Label, Doms)] -> DominatorTree
+dtree facts = Dominates Entry $ merge $ map reverse $ map mkList facts
    -- This code has been lightly tested.  The key insight is this: to
    -- find lists that all have the same head, convert from a list of
    -- lists to a finite map, in 'children'.  Then, to convert from the

@@ -58,6 +58,15 @@ newtype FwdTransfer n f = FwdTransfer3
   }
 
 
+mkFactBase :: forall f. DataflowLattice f -> [(Label, f)] -> FactBase f
+mkFactBase lattice = foldl add mapEmpty
+  where add :: FactBase f -> (Label, f) -> FactBase f
+        add map (lbl, f) = mapInsert lbl newFact map
+          where newFact = case mapLookup lbl map of
+                            Nothing -> f
+                            Just f' -> snd $ join lbl (OldFact f') (NewFact f)
+                join = fact_join lattice
+
 newtype FwdRewrite m n f   -- see Note [Respects Fuel]
   = FwdRewrite3 { getFwdRewrite3 ::
                     ( n C O -> f -> m (Maybe (Graph n C O, FwdRewrite m n f))
@@ -354,12 +363,3 @@ instance ShapeLifter O C where
 getFact  :: DataflowLattice f -> Label -> FactBase f -> f
 getFact lat l fb = case mapLookup l fb of Just  f -> f
                                           Nothing -> fact_bot lat
-
-mkFactBase :: forall f. DataflowLattice f -> [(Label, f)] -> FactBase f
-mkFactBase lattice = foldl add mapEmpty
-  where add :: FactBase f -> (Label, f) -> FactBase f
-        add map (lbl, f) = mapInsert lbl newFact map
-          where newFact = case mapLookup lbl map of
-                            Nothing -> f
-                            Just f' -> snd $ join lbl (OldFact f') (NewFact f)
-                join = fact_join lattice
