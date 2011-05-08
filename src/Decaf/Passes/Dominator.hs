@@ -132,4 +132,3 @@ distributeFact :: NonLocal n => n O C -> f -> FactBase f
 distributeFact n f = mapFromList [ (l, f) | l <- successors n ]
    -- because the same fact goes out on every edge,
    -- there's no need for 'mkFactBase' here.
-

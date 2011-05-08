@@ -1,4 +1,9 @@
-module Decaf.Data.GraphTree where
+module Decaf.Data.GraphTree
+  ( renderGraph
+  , buildGraph
+  )
+where
+
 import Data.Graph.Inductive
 import Data.GraphViz
 import Decaf.Data.Tree

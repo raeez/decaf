@@ -111,27 +111,6 @@ executable scanner-repl
         build-depends:  QuickCheck < 2
         ghc-options:    -Werror
 
-
-
-executable grapher
-    hs-source-dirs:     src/
-
-    main-is:            GrapherBin.hs
-    other-modules:      Decaf
-
-    Build-Depends:      base > 4, parsec, regex-posix, fgl, graphviz, mtl, process, QuickCheck, containers
-
-    ghc-options:        -Wall -fno-warn-name-shadowing -fno-warn-unused-do-bind
-
-    ghc-prof-options:   -prof -auto-all
-
-    if flag(testing)
-        cpp-options:    -DTESTING
-        hs-source-dirs: . tests/
-        build-depends:  QuickCheck < 2
-        ghc-options:    -Werror
-
-
 executable checker
     hs-source-dirs:     src/
 

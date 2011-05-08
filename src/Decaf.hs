@@ -5,8 +5,10 @@ module Decaf
     , module Decaf.Checker
     , module Decaf.Translator
     , module Decaf.Assembler
+    , module Decaf.HooplNodes
     , module Decaf.Data.Tree
     , module Decaf.Data.Zipper
+    , module Decaf.Data.GraphTree
     , module Decaf.IR.IRNode
     , module Decaf.IR.AST
     , module Decaf.IR.LIR
@@ -22,6 +24,7 @@ module Decaf
 import Decaf.Util.Report
 import Decaf.Data.Tree
 import Decaf.Data.Zipper
+import Decaf.Data.GraphTree
 import Decaf.IR.IRNode
 import Decaf.IR.AST
 import Decaf.IR.LIR
@@ -34,6 +37,7 @@ import Decaf.Parser
 import Decaf.Checker
 import Decaf.Translator
 import Decaf.Assembler
+import Decaf.HooplNodes
 import Decaf.Passes.CSE
 import Decaf.Passes.Dominator
 import Decaf.Passes.SSA

@@ -434,17 +434,3 @@ checkFile str file =
     addHeader a = file ++ ": " ++ a
     displayErrors e = unlines (map (addHeader . show) e)
     displayDebug (prog, t) = show prog ++ "\n\n" ++ show t
-
--- | The 'checkFile' function returns a tuple of (String, String) representing
-check :: String -> String -> Report ([SemanticError], DecafProgram, SymbolTree, String, String)
-check str file =
-    case ps program str of
-        RSuccess prog -> let (_,s) = runChecker (checkProgram prog) mkCheckerState
-                             e = cstErrors s
-                             t = cstTable s
-                         in RSuccess (e, prog, t, displayDebug (prog, t), displayErrors e)
-        RError str -> RError str
-  where
-    addHeader a = file ++ ": " ++ a
-    displayErrors e = unlines (map (addHeader . show) e)
-    displayDebug (prog, t) = show prog ++ "\n\n" ++ show t
