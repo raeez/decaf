@@ -57,7 +57,7 @@ data FwdRev m n f e x  = FwdRev (Graph n e x) (FwdRewrite m n f)
 
 -- pass -> graph -> fold function from node, associated fact, to result type -> initial -> final
 -- this doesn't properly belong here; assumes some Decaf stuff
-foldDataflowFacts :: FwdPass m n f
+{-foldDataflowFacts :: FwdPass m n f
                   -> Graph n C C
                   -> ((n,Int) -> f -> res -> res)
                   -> res -> res
@@ -88,7 +88,7 @@ foldDataflowFacts pass g f init =
                         ; (g2, f3) <- t2 f2
                         ; return (g1 `dgSplice` g2, f3) }
   in
-
+-}
 
 
 analyzeAndFwdRewrite

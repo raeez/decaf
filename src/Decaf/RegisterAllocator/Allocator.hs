@@ -49,7 +49,7 @@ makeIGraph g us = snd $ foldDataFlowFacts ASMLiveVars g igraphjoin (mkIGraph $ l
         
 
 
-
+-- total function
 colorRegisters :: ASMProgram -> ASMProgram
 colorRegisters prog = 
   let asmg = graphASM

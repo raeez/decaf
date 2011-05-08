@@ -79,6 +79,11 @@ instance NonLocal n => NonLocal (Block n) where
 addBlock :: NonLocal thing => thing C C -> LabelMap (thing C C) -> LabelMap (thing C C)
 addBlock block body = mapInsert (entryLabel block) block body
 
+-- node to Graph
+nodeToG :: forall e x. (ShapeLifter e x) => n e x -> Graph n e x
+nodeToG n = singletonG n
+
+
 -- | Decorated graphs
 type DG f = Graph' (DBlock f)
 data DBlock f n e x = DBlock f (Block n e x)
