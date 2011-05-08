@@ -166,8 +166,8 @@ compile chosen source filename =
   where
     newFile = (fst $ break (=='.') filename) ++ ".asm"
     outputGraph a = putStrLn a >> writeFile graphFile a
-    graphFile = buildFilename filename 1 "out"
-    imageFile = buildFilename filename 1 "png"
+    graphFile = buildFilename filename 2 "out"
+    imageFile = buildFilename filename 2 "png"
 
 optimize :: DecafGraph C C -> (DecafGraph C C, DominatorTree)
 optimize g =
