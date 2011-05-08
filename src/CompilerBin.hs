@@ -177,24 +177,26 @@ optimize g =
 
 cseOpt :: DecafGraph C C -> DecafGraph C C
 cseOpt g =
-  let mainlab = LIRLabel "main" (-1)
+  let entry = LIRLabel "main" (-1)
       ((g', facts), _) = runLFM
                           (analyzeAndFwdRewrite csePass
-                                                [mainlab]
-                                                g (mapSingleton mainlab cseTop))
+                                                [entry]
+                                                g
+                                                (mapSingleton entry cseTop))
                           mkInfiniteFuel
   in g'
 
 doms :: DecafGraph C C -> DominatorTree
 doms g =
-  let mainlab = LIRLabel "main" (-1)
+  let entry = LIRLabel "main" (-1)
       ((_, facts), _) = runLFM
                           (analyzeAndFwdRewrite domPass
-                                                [mainlab]
+                                                [entry]
                                                 g
-                                                mapEmpty)
+                                                (mapSingleton entry domEntry))
                           mkInfiniteFuel
-      dominatorTree = dtree (mapToList facts)
+      domList = (mapToList facts)
+      dominatorTree = dtree $ trace ("\n\n\nDOMINATOR LIST:\n" ++ show domList ++ "\n\n\n") domList
   in dominatorTree
 
 

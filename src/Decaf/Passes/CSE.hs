@@ -13,9 +13,6 @@ import Loligoptl
 
 import qualified Data.Map as M
 ----------------------------------------------------
--- this file contains CSE transfer/rewrite functions
--- currently it is local rewrite,  
--- would need to expand to global rewrite later
 
 data CSEKey = CSEKey LIROperand LIRBinOp LIROperand
               deriving (Show, Ord)
@@ -132,15 +129,18 @@ cse  = shallowFwdRw simp
     simp :: forall m e x . (ShapeLifter e x, Monad m) => 
             Node e x -> CSEFact -> m (Maybe (Graph Node e x))
     simp node CSEBot = error "cse: called on CSEBot; shoudl not happen!"
-    simp node (CSEFactMap f) = return $ liftM nodeToG $ s_node (trace ("REWRITING NODE [" ++ show node ++ "] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {\n" ++ unlines(map show $ M.toList f) ++ "}") node)
+    -- simp node (CSEFactMap f) = return $ liftM nodeToG $ s_node (trace ("REWRITING NODE [" ++ show node ++ "] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {\n" ++ unlines(map show $ M.toList f) ++ "}") node)
+    simp node (CSEFactMap f) = return $ liftM nodeToG $ s_node node
   
       where
         s_node :: Node e x -> Maybe (Node e x)
         -- x = lit op lit     
         s_node (LIRRegAssignNode reg (LIRBinExpr o1 binop o2)) = 
           case M.lookup (CSEKey o1 binop o2) f of
-            Just (CSEReg result)  -> trace ("lookup found! rewrote to " ++ show (LIRRegAssignNode reg $ LIROperExpr $ LIRRegOperand result)) (Just $ LIRRegAssignNode reg $ LIROperExpr $ LIRRegOperand result)
-            Just CSETop           -> trace "lookup failed!" Nothing
+            -- Just (CSEReg result)  -> trace ("lookup found! rewrote to " ++ show (LIRRegAssignNode reg $ LIROperExpr $ LIRRegOperand result)) (Just $ LIRRegAssignNode reg $ LIROperExpr $ LIRRegOperand result)
+            Just (CSEReg result)  -> Just $ LIRRegAssignNode reg $ LIROperExpr $ LIRRegOperand result
+            -- Just CSETop           -> trace "lookup failed!" Nothing
+            Just CSETop           -> Nothing
             Nothing -> Nothing
 
         -- others do not need CSE
@@ -149,4 +149,5 @@ cse  = shallowFwdRw simp
 csePass  = FwdPass 
   { fpLattice = cseLattice
   , fpTransfer = exprIsAvail
-  , fpRewrite = cse }
+  , fpRewrite = cse
+  }

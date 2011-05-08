@@ -10,6 +10,7 @@ module Decaf.Passes.Dominator
 where
 import Data.Maybe
 import Loligoptl
+import Debug.Trace
 
 type Doms = WithBot DPath
 -- ^ List of labels, extended with a standard bottom element
@@ -33,7 +34,7 @@ domPath Bot = [] -- lies: an unreachable node appears to be dominated by the ent
 domPath (PElem (DPath ls)) = ls
 
 extendDom :: Label -> DPath -> DPath
-extendDom l (DPath ls) = DPath (l:ls)
+extendDom l (DPath ls) = trace ("found label " ++ show l ++ ", adding it to dpath: " ++ show ls) DPath (l:ls)
 
 domLattice :: DataflowLattice Doms
 domLattice = addPoints "dominators" extend
@@ -60,7 +61,11 @@ extend _ (OldFact (DPath l)) (NewFact (DPath l')) =
 
 -- | Dominator pass
 domPass :: (NonLocal n, Monad m) => FwdPass m n Doms
-domPass = FwdPass domLattice (mkFTransfer3 first (const id) distributeFact) noFwdRewrite
+domPass = FwdPass
+  { fpLattice = domLattice
+  , fpTransfer = (mkFTransfer3 first (const id) distributeFact)
+  , fpRewrite = noFwdRewrite
+  }
   where first n = fmap (extendDom $ entryLabel n)
 
 ----------------------------------------------------------------
