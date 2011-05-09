@@ -41,8 +41,8 @@ instance IsSet LabelSet where
   setUnion (LS s1) (LS s2) = LS (S.union s1 s2)
   setEmpty = LS S.empty
   setFromList list = LS (S.fromList (map unLabel list))
-  setMember a (LS s) = S.member (unLabel a) s
-
+  setMember k (LS s) = S.member (unLabel k) s
+  setInsert k (LS s) = LS (S.insert (unLabel k) s)
   {-
   setNull (LS s) = setNull s
   setSize (LS s) = setSize s
@@ -50,7 +50,6 @@ instance IsSet LabelSet where
 
   -- setEmpty = LS setEmpty
   setSingleton (Label k) = LS (setSingleton k)
-  setInsert (Label k) (LS s) = LS (setInsert k s)
   setDelete (Label k) (LS s) = LS (setDelete k s)
 
   -- setUnion (LS x) (LS y) = LS (setUnion x y)
