@@ -1,82 +1,83 @@
 {-# LANGUAGE GADTs, EmptyDataDecls, TypeFamilies, TypeSynonymInstances #-}
 module Loligoptl.Label
-  ( Label(..)
---  , allLabels -- to be used only by the Fuel monad
-  , LabelMap
-  , FactBase
-  , LabelSet
-  , IsMap (..)
-  , IsSet (..)
-  , mapDeleteList, mapMember
-  , lookupFact
-  , noFacts
+  ( Label
+  , LabelSet, LabelMap
+  , FactBase, noFacts, lookupFact
+  --, freshLabel
+  --, uniqueToLbl -- MkGraph and GHC use only
   )
+
 where
+import Loligoptl.Collections
+import Loligoptl.Unique
 
 import qualified Data.IntMap as M
 import qualified Data.IntSet as S
 
 import Decaf.IR.LIR
 
-{-data Label = Label { readable :: String
-                   , unLabel :: Int }
-  deriving (Eq, Ord)-}
+-----------------------------------------------------------------------------
+--		Label
+-----------------------------------------------------------------------------
 type Label = LIRLabel
 readable (LIRLabel s _) = s
 unLabel (LIRLabel _ i) = i
 
---instance Show Label where
---d  show (Label r n) = r ++ show n
+{-uniqueToLbl :: Unique -> Label
+uniqueToLbl = (LIRLabel "") . uniqueToInt
 
---allLabels :: [Label]
---allLabels = map Label [1..]
+freshLabel :: UniqueMonad m => m Label
+freshLabel = freshUnique >>= return . uniqueToLbl-}
 
-data LabelMap a = LM (M.IntMap a) (M.IntMap String) 
-type FactBase a = LabelMap a
+-----------------------------------------------------------------------------
+-- LabelSet
+
+-- newtype LabelSet = LS UniqueSet deriving (Eq, Ord, Show)
 newtype LabelSet = LS (S.IntSet)
 
-noFacts :: FactBase f
-noFacts = mapEmpty
+instance IsSet LabelSet where
+  type ElemOf LabelSet = Label
 
-lookupFact :: Label -> FactBase f -> Maybe f
-lookupFact = mapLookup
+  setUnion (LS s1) (LS s2) = LS (S.union s1 s2)
+  setEmpty = LS S.empty
+  setFromList list = LS (S.fromList (map unLabel list))
+  setMember a (LS s) = S.member (unLabel a) s
 
-class IsMap map where
-  type KeyOf map
+  {-
+  setNull (LS s) = setNull s
+  setSize (LS s) = setSize s
+  -- setMember (Label k) (LS s) = setMember k s
 
-  mapEmpty :: map a
-  mapLookup :: KeyOf map -> map a -> Maybe a
-  mapInsert :: KeyOf map -> a -> map a -> map a
-  mapDelete :: KeyOf map -> map a -> map a
-  mapUnionWithKey :: ((KeyOf map) -> a -> a -> a) -> map a -> map a -> map a
-  mapFold :: (a -> b -> b) -> b -> map a -> b
-  mapFoldWithKey :: (KeyOf map -> a -> b -> b) -> b -> map a -> b
-  mapToList :: map a -> [(KeyOf map, a)]
-  mapSingleton :: KeyOf map -> a -> map a
-  mapMap :: (a->b) -> map a -> map b
-  mapUnion :: map a -> map a -> map a
-  mapFromList :: [(KeyOf map, a)] -> map a
+  -- setEmpty = LS setEmpty
+  setSingleton (Label k) = LS (setSingleton k)
+  setInsert (Label k) (LS s) = LS (setInsert k s)
+  setDelete (Label k) (LS s) = LS (setDelete k s)
+
+  -- setUnion (LS x) (LS y) = LS (setUnion x y)
+  setDifference (LS x) (LS y) = LS (setDifference x y)
+  setIntersection (LS x) (LS y) = LS (setIntersection x y)
+  setIsSubsetOf (LS x) (LS y) = setIsSubsetOf x y
+
+  setFold k z (LS s) = setFold (k . uniqueToLbl) z s
+
+  setElems (LS s) = map uniqueToLbl (setElems s)
+  -- setFromList ks = LS (setFromList (map lblToUnique ks))
+  -}
+
+-----------------------------------------------------------------------------
+-- LabelMap
 
 -- utility functions defined on maps
 mapDeleteList :: (IsMap map) => [KeyOf map] -> map a -> map a
 mapDeleteList keys map = foldl (flip mapDelete) map keys -- fold the deletes together
 
-mapMember :: (IsMap map) => KeyOf map -> map a -> Bool
-mapMember key map = case mapLookup key map of
-                      Just _ -> True
-                      Nothing -> False
-
-class IsSet set where
-  type ElemOf set
-
-  setEmpty :: set
-  setUnion :: set -> set -> set
-  setFromList :: [ElemOf set] -> set
-  setMember :: ElemOf set -> set -> Bool
+-- mapMember :: (IsMap map) => KeyOf map -> map a -> Bool
+-- newtype LabelMap v = LM (UniqueMap v) deriving (Eq, Ord, Show)
+data LabelMap a = LM (M.IntMap a) (M.IntMap String) 
 
 instance IsMap LabelMap where
   type KeyOf LabelMap = LIRLabel
-  
+
   mapEmpty = LM (M.empty) (M.empty)
   mapLookup label (LM m s) = M.lookup (unLabel label) m
   mapInsert key val (LM m s) = LM (M.insert (unLabel key) val m) 
@@ -100,13 +101,46 @@ instance IsMap LabelMap where
     in LM (M.fromList $ zip keys vals)
           (M.fromList $ zip keys strs)
 
-instance IsSet LabelSet where
-  type ElemOf LabelSet = Label
-  
-  setUnion (LS s1) (LS s2) = LS (S.union s1 s2)
-  setEmpty = LS S.empty
-  setFromList list = LS (S.fromList (map unLabel list))
-  setMember a (LS s) = S.member (unLabel a) s
+  mapMember key map = case mapLookup key map of
+                        Just _ -> True
+                        Nothing -> False
 
+  {-mapNull (LM m) = mapNull m
+  mapSize (LM m) = mapSize m
+  mapMember (Label k) (LM m) = mapMember k m
+  mapLookup (Label k) (LM m) = mapLookup k m
+  mapFindWithDefault def (Label k) (LM m) = mapFindWithDefault def k m
+
+  mapEmpty = LM mapEmpty
+  mapSingleton (Label k) v = LM (mapSingleton k v)
+  mapInsert (Label k) v (LM m) = LM (mapInsert k v m)
+  mapDelete (Label k) (LM m) = LM (mapDelete k m)
+
+  mapUnion (LM x) (LM y) = LM (mapUnion x y)
+  mapUnionWithKey f (LM x) (LM y) = LM (mapUnionWithKey (f . uniqueToLbl) x y)
+  mapDifference (LM x) (LM y) = LM (mapDifference x y)
+  mapIntersection (LM x) (LM y) = LM (mapIntersection x y)
+  mapIsSubmapOf (LM x) (LM y) = mapIsSubmapOf x y
+
+  mapMap f (LM m) = LM (mapMap f m)
+  mapMapWithKey f (LM m) = LM (mapMapWithKey (f . uniqueToLbl) m)
+  mapFold k z (LM m) = mapFold k z m
+  mapFoldWithKey k z (LM m) = mapFoldWithKey (k . uniqueToLbl) z m
+
+  mapElems (LM m) = mapElems m
+  mapKeys (LM m) = map uniqueToLbl (mapKeys m)
+  mapToList (LM m) = [(uniqueToLbl k, v) | (k, v) <- mapToList m]
+  mapFromList assocs = LM (mapFromList [(lblToUnique k, v) | (k, v) <- assocs]) -}
+
+-----------------------------------------------------------------------------
+-- FactBase
+
+type FactBase f = LabelMap f
 instance Show a => Show (LabelMap a) where
   show = show.mapToList
+
+noFacts :: FactBase f
+noFacts = mapEmpty
+
+lookupFact :: Label -> FactBase f -> Maybe f
+lookupFact = mapLookup

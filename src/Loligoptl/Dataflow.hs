@@ -14,8 +14,12 @@ module Loligoptl.Dataflow
 where
 
 import Loligoptl.Label
-import Loligoptl.Graph
+import Loligoptl.Graph hiding (Graph)
 import Loligoptl.Fuel
+import Loligoptl.Checkpoint
+import Loligoptl.Util
+import Loligoptl.Collections
+import qualified Loligoptl.GraphUtil as U
 
 import Data.Maybe
 
@@ -28,13 +32,16 @@ type instance Fact C f = FactBase f
 newtype OldFact a = OldFact a
 newtype NewFact a = NewFact a
 
-data PassDirection = Fwd | Bwd deriving (Show, Eq)
-
 data FwdPass m n f 
-  = FwdPass { fpLattice :: DataflowLattice f
-            , fpTransfer :: FwdTransfer n f
-            , fpRewrite :: FwdRewrite m n f
+  = FwdPass { fp_lattice  :: DataflowLattice f
+            , fp_transfer :: FwdTransfer n f
+            , fp_rewrite  :: FwdRewrite m n f
             }
+
+data BwdPass m n f
+  = BwdPass { bp_lattice  :: DataflowLattice f
+            , bp_transfer :: BwdTransfer n f
+            , bp_rewrite  :: BwdRewrite m n f }
 
 data DataflowLattice a = DataflowLattice  
  { fact_name       :: String          -- Documentation
@@ -42,21 +49,23 @@ data DataflowLattice a = DataflowLattice
  , fact_join       :: JoinFun a       -- Lattice join plus change flag
                                       -- (changes iff result > old fact)
  }
--- ^ A transfer function might want to use the logging flag
--- to control debugging, as in for example, it updates just one element
--- in a big finite map.  We don't want Hoopl to show the whole fact,
--- and only the transfer function knows exactly what changed.
 
 type JoinFun a = Label -> OldFact a -> NewFact a -> (ChangeFlag, a)
 -- are these foralls needed?
+
 newtype FwdTransfer n f = FwdTransfer3 
   { getFwdTransfer3 :: 
       ( n C O -> f -> f
       , n O O -> f -> f
       , n O C -> f -> FactBase f
-      )
-  }
+      ) }
 
+newtype BwdTransfer n f 
+  = BwdTransfer3 { getBTransfer3 ::
+                     ( n C O -> f          -> f
+                     , n O O -> f          -> f
+                     , n O C -> FactBase f -> f
+                     ) }
 
 mkFactBase :: forall f. DataflowLattice f -> [(Label, f)] -> FactBase f
 mkFactBase lattice = foldl add mapEmpty
@@ -74,21 +83,71 @@ newtype FwdRewrite m n f   -- see Note [Respects Fuel]
                     , n O C -> f -> m (Maybe (Graph n O C, FwdRewrite m n f))
                     ) }
 
-analyzeAndFwdRewrite
-  :: (FuelMonad m, NonLocal n)
-  => FwdPass m n f
-  -> [Label]          -- entry points
-  -> Graph n C C      -- might need to make more polymorphic on shape 
-  -> FactBase f       -- input facts
-  -> m (Graph n C C, FactBase f)
+newtype BwdRewrite m n f 
+  = BwdRewrite3 { getBRewrite3 ::
+                    ( n C O -> f          -> m (Maybe (Graph n C O, BwdRewrite m n f))
+                    , n O O -> f          -> m (Maybe (Graph n O O, BwdRewrite m n f))
+                    , n O C -> FactBase f -> m (Maybe (Graph n O C, BwdRewrite m n f))
+                    ) }
 
-analyzeAndFwdRewrite pass entryLabels g fb = 
-  do { (dg, f) <- afrGraph pass entries g fb
-     ; return $ normalizeGraph dg }
-  where entries = 
-          case entryLabels of 
-            [] -> error "closed graph not provided any entry points" -- This is an error I think
-            otherwise -> JustC entryLabels
+-- | if the graph being analyzed is open at the entry, there must
+--   be no other entry point, or all goes horribly wrong...
+analyzeAndRewriteFwd
+   :: forall m n f e x entries. (CheckpointMonad m, NonLocal n, LabelsPtr entries)
+   => FwdPass m n f
+   -> MaybeC e entries
+   -> Graph n e x -> Fact e f
+   -> m (Graph n e x, FactBase f, MaybeO x f)
+analyzeAndRewriteFwd pass entries g f =
+  do (rg, fout) <- arfGraph pass (fmap targetLabels entries) g f
+     let (g', fb) = normalizeGraph rg
+     return (g', fb, distinguishedExitFact g' fout)
+
+distinguishedExitFact :: forall n e x f . Graph n e x -> Fact x f -> MaybeO x f
+distinguishedExitFact g f = maybe g
+    where maybe :: Graph n e x -> MaybeO x f
+          maybe GNil       = JustO f
+          maybe (GUnit {}) = JustO f
+          maybe (GMany _ _ x) = case x of NothingO -> NothingO
+                                          JustO _  -> JustO f
+
+analyzeAndRewriteBwd
+   :: (CheckpointMonad m, NonLocal n, LabelsPtr entries)
+   => BwdPass m n f
+   -> MaybeC e entries -> Graph n e x -> Fact x f
+   -> m (Graph n e x, FactBase f, MaybeO e f)
+analyzeAndRewriteBwd pass entries g f =
+  do (rg, fout) <- arbGraph pass (fmap targetLabels entries) g f
+     let (g', fb) = normalizeGraph rg
+     return (g', fb, distinguishedEntryFact g' fout)
+
+distinguishedEntryFact :: forall n e x f . Graph n e x -> Fact e f -> MaybeO e f
+distinguishedEntryFact g f = maybe g
+    where maybe :: Graph n e x -> MaybeO e f
+          maybe GNil       = JustO f
+          maybe (GUnit {}) = JustO f
+          maybe (GMany e _ _) = case e of NothingO -> NothingO
+                                          JustO _  -> JustO f
+type Graph = Graph' Block
+type DG f  = Graph' (DBlock f)
+data DBlock f n e x = DBlock f (Block n e x) -- ^ block decorated with fact
+-- @ end dg.tex
+instance NonLocal n => NonLocal (DBlock f n) where
+  entryLabel (DBlock _ b) = entryLabel b
+  successors (DBlock _ b) = successors b
+
+--- constructors
+
+dgnil  :: DG f n O O
+dgnil  = GNil
+dgnilC :: DG f n C C
+dgnilC = GMany NothingO emptyBody NothingO
+dgSplice  :: NonLocal n => DG f n e a -> DG f n a x -> DG f n e x
+dgSplice = U.splice fzCat
+  where fzCat :: DBlock f n e O -> DBlock t n O x -> DBlock f n e x
+        fzCat (DBlock f b1) (DBlock _ b2) = DBlock f (b1 `U.cat` b2)
+
+---- observers
 
 normalizeGraph :: forall n f e x . NonLocal n => DG f n e x -> (Graph n e x, FactBase f)
 normalizeGraph g = (dropFacts g, facts g)
@@ -113,63 +172,49 @@ normalizeGraph g = (dropFacts g, facts g)
     exitFacts NothingO = mapEmpty
     exitFacts (JustO (DBlock f b)) = mapSingleton (entryLabel b) f
 
-afrGraph
-  :: forall m n f e x . (FuelMonad m, NonLocal n)
-  => FwdPass m n f
-  -> MaybeC e [Label]  -- entry points if graph is closed
-  -> Graph n e x
-  -> Fact e f          -- facts flowing in
-  -> m (DG f n e x, Fact x f)
 
-afrGraph pass entries = graph
+type Entries e = MaybeC e [Label]
+
+arfGraph :: forall m n f e x .
+            (NonLocal n, CheckpointMonad m) => FwdPass m n f -> 
+            Entries e -> Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)
+arfGraph pass entries = graph
   where
-    node :: forall e x . (ShapeLifter e x) => n e x     
-         ->  f -> m (DG f n e x, Fact x f)
+    {- nested type synonyms would be so lovely here 
+    type ARF  thing = forall e x . thing e x -> f        -> m (DG f n e x, Fact x f)
+    type ARFX thing = forall e x . thing e x -> Fact e f -> m (DG f n e x, Fact x f)
+    -}
+    graph ::              Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)
+-- @ start block.tex -2
+    block :: forall e x . 
+             Block n e x -> f -> m (DG f n e x, Fact x f)
+-- @ end block.tex
+-- @ start node.tex -4
+    node :: forall e x . (ShapeLifter e x) 
+         => n e x -> f -> m (DG f n e x, Fact x f)
+-- @ end node.tex
+-- @ start bodyfun.tex
+    body  :: [Label] -> LabelMap (Block n C C)
+          -> Fact C f -> m (DG f n C C, Fact C f)
+-- @ end bodyfun.tex
+                    -- Outgoing factbase is restricted to Labels *not* in
+                    -- in the Body; the facts for Labels *in*
+                    -- the Body are in the 'DG f n C C'
+-- @ start cat.tex -2
+    cat :: forall e a x f1 f2 f3. 
+           (f1 -> m (DG f n e a, f2))
+        -> (f2 -> m (DG f n a x, f3))
+        -> (f1 -> m (DG f n e x, f3))
+-- @ end cat.tex
 
-    node n f = 
-        do mrev <- frewrite pass n f >>= withFuel
-           case mrev of 
-             Nothing -> return (singletonDG f n, ftransfer pass n f)
-             Just (g, rw) ->
-                 let pass' = pass {fpRewrite = rw}
-                     f' = fwdEntryFact n f
-                 in afrGraph pass' (fwdEntryLabel n) g f'
-
-    block :: forall e x. Block n e x 
-          -> f -> m (DG f n e x, Fact x f)
-    block (BFirst  n)  = node n
-    block (BMiddle n)  = node n
-    block (BLast   n)  = node n
-
-    block (BCat b1 b2) = block b1 `cat` block b2
-
-    block (BHead h n)  = block h  `cat` node n
-    block (BTail n t)  = node  n  `cat` block t
-    block (BClosed h t)= block h  `cat` block t
-
-
-    body :: [Label] -> LabelMap (Block n C C) 
-         -> Fact C f  -> m (DG f n C C, Fact C f) 
-
-    body entries blockmap initFBase
-        = fixpoint Fwd lattice doBlock blocks initFBase
-      where
-          blocks = forwardBlockList entries blockmap
-          lattice = fpLattice pass
-          doBlock b fb = block b entryFact
-            where entryFact = getFact lattice (entryLabel b) fb
-                                
-
-    graph :: Graph n e x 
-          -> Fact e f -> m (DG f n e x, Fact x f)
-    graph GNil            = \f -> return (dgNil, f)
+    graph GNil            = \f -> return (dgnil, f)
     graph (GUnit blk)     = block blk
     graph (GMany e bdy x) = (e `ebcat` bdy) `cat` exit x
      where
       ebcat :: MaybeO e (Block n O C) -> Body n -> Fact e f -> m (DG f n e C, Fact C f)
       exit  :: MaybeO x (Block n C O)           -> Fact C f -> m (DG f n C x, Fact x f)
       exit (JustO blk) = arfx block blk
-      exit NothingO    = \fb -> return (dgNilC, fb)
+      exit NothingO    = \fb -> return (dgnilC, fb)
       ebcat entry bdy = c entries entry
        where c :: MaybeC e [Label] -> MaybeO e (Block n O C)
                 -> Fact e f -> m (DG f n e C, Fact C f)
@@ -177,24 +222,150 @@ afrGraph pass entries = graph
              c (JustC entries) NothingO = body entries bdy
              c _ _ = error "bogus GADT pattern match failure"
 
-    -- this glues all the subgraphs together; afrGraph sort of
-    -- operates in a monad like thing, for which this is bind
-    cat :: forall e a x f1 f2 f3.
-         (f1 -> m (DG f n e a, f2))
-        -> (f2 -> m (DG f n a x, f3))
-        -> (f1 -> m (DG f n e x, f3))
-    cat t1 t2 f1 = do { (g1, f2) <- t1 f1
-                      ; (g2, f3) <- t2 f2
-                      ; return (g1 `dgSplice` g2, f3) }
+    -- Lift from nodes to blocks
+-- @ start block.tex -2
+    block (BFirst  n)  = node n
+    block (BMiddle n)  = node n
+    block (BLast   n)  = node n
+    block (BCat b1 b2) = block b1 `cat` block b2
+-- @ end block.tex
+    block (BHead h n)  = block h  `cat` node n
+    block (BTail n t)  = node  n  `cat` block t
+    block (BClosed h t)= block h  `cat` block t
 
-    arfx :: forall thing x . NonLocal thing
+-- @ start node.tex -4
+    node n f
+     = do { grw <- frewrite pass n f
+          ; case grw of
+              Nothing -> return ( singletonDG f n
+                                , ftransfer pass n f )
+              Just (g, rw) ->
+                  let pass' = pass { fp_rewrite = rw }
+                      f'    = fwdEntryFact n f
+                  in  arfGraph pass' (fwdEntryLabel n) g f' }
+
+-- @ end node.tex
+
+    -- | Compose fact transformers and concatenate the resulting
+    -- rewritten graphs.
+    {-# INLINE cat #-} 
+-- @ start cat.tex -2
+    cat ft1 ft2 f = do { (g1,f1) <- ft1 f
+                       ; (g2,f2) <- ft2 f1
+                       ; return (g1 `dgSplice` g2, f2) }
+-- @ end cat.tex
+    arfx :: forall thing x .
+            NonLocal thing
          => (thing C x ->        f -> m (DG f n C x, Fact x f))
          -> (thing C x -> Fact C f -> m (DG f n C x, Fact x f))
     arfx arf thing fb = 
-      arf thing $ fromJust $ mapLookup (entryLabel thing) $ joinInFacts lattice fb
-     where lattice = fpLattice pass
+      arf thing $ fromJust $ lookupFact (entryLabel thing) $ joinInFacts lattice fb
+     where lattice = fp_lattice pass
+     -- joinInFacts adds debugging information
 
 
+                    -- Outgoing factbase is restricted to Labels *not* in
+                    -- in the Body; the facts for Labels *in*
+                    -- the Body are in the 'DG f n C C'
+-- @ start bodyfun.tex
+    body entries blockmap init_fbase
+      = fixpoint Fwd lattice do_block blocks init_fbase
+      where
+        blocks  = forwardBlockList entries blockmap
+        lattice = fp_lattice pass
+        do_block :: forall x. Block n C x -> FactBase f -> m (DG f n C x, Fact x f)
+        do_block b fb = block b entryFact
+          where entryFact = getFact lattice (entryLabel b) fb
+-- @ end bodyfun.tex
+
+
+arbGraph :: forall m n f e x .
+            (NonLocal n, CheckpointMonad m) => BwdPass m n f -> 
+            Entries e -> Graph n e x -> Fact x f -> m (DG f n e x, Fact e f)
+arbGraph pass entries = graph
+  where
+    {- nested type synonyms would be so lovely here 
+    type ARB  thing = forall e x . thing e x -> Fact x f -> m (DG f n e x, f)
+    type ARBX thing = forall e x . thing e x -> Fact x f -> m (DG f n e x, Fact e f)
+    -}
+    graph ::              Graph n e x -> Fact x f -> m (DG f n e x, Fact e f)
+    block :: forall e x . Block n e x -> Fact x f -> m (DG f n e x, f)
+    node  :: forall e x . (ShapeLifter e x) 
+                       => n e x       -> Fact x f -> m (DG f n e x, f)
+    body  :: [Label] -> Body n -> Fact C f -> m (DG f n C C, Fact C f)
+    cat :: forall e a x info info' info''.
+           (info' -> m (DG f n e a, info''))
+        -> (info  -> m (DG f n a x, info'))
+        -> (info  -> m (DG f n e x, info''))
+
+    graph GNil            = \f -> return (dgnil, f)
+    graph (GUnit blk)     = block blk
+    graph (GMany e bdy x) = (e `ebcat` bdy) `cat` exit x
+     where
+      ebcat :: MaybeO e (Block n O C) -> Body n -> Fact C f -> m (DG f n e C, Fact e f)
+      exit  :: MaybeO x (Block n C O)           -> Fact x f -> m (DG f n C x, Fact C f)
+      exit (JustO blk) = arbx block blk
+      exit NothingO    = \fb -> return (dgnilC, fb)
+      ebcat entry bdy = c entries entry
+       where c :: MaybeC e [Label] -> MaybeO e (Block n O C)
+                -> Fact C f -> m (DG f n e C, Fact e f)
+             c NothingC (JustO entry)   = block entry `cat` body (successors entry) bdy
+             c (JustC entries) NothingO = body entries bdy
+             c _ _ = error "bogus GADT pattern match failure"
+
+    -- Lift from nodes to blocks
+    block (BFirst  n)  = node n
+    block (BMiddle n)  = node n
+    block (BLast   n)  = node n
+    block (BCat b1 b2) = block b1 `cat` block b2
+    block (BHead h n)  = block h  `cat` node n
+    block (BTail n t)  = node  n  `cat` block t
+    block (BClosed h t)= block h  `cat` block t
+
+    node n f
+      = do { bwdres <- brewrite pass n f
+           ; case bwdres of
+               Nothing -> return (singletonDG entry_f n, entry_f)
+                            where entry_f = btransfer pass n f
+               Just (g, rw) ->
+                          do { let pass' = pass { bp_rewrite = rw }
+                             ; (g, f) <- arbGraph pass' (fwdEntryLabel n) g f
+                             ; return (g, bwdEntryFact (bp_lattice pass) n f)} }
+
+    -- | Compose fact transformers and concatenate the resulting
+    -- rewritten graphs.
+    {-# INLINE cat #-} 
+    cat ft1 ft2 f = do { (g2,f2) <- ft2 f
+                       ; (g1,f1) <- ft1 f2
+                       ; return (g1 `dgSplice` g2, f1) }
+
+    arbx :: forall thing x .
+            NonLocal thing
+         => (thing C x -> Fact x f -> m (DG f n C x, f))
+         -> (thing C x -> Fact x f -> m (DG f n C x, Fact C f))
+
+    arbx arb thing f = do { (rg, f) <- arb thing f
+                          ; let fb = joinInFacts (bp_lattice pass) $
+                                     mapSingleton (entryLabel thing) f
+                          ; return (rg, fb) }
+     -- joinInFacts adds debugging information
+
+                    -- Outgoing factbase is restricted to Labels *not* in
+                    -- in the Body; the facts for Labels *in*
+                    -- the Body are in the 'DG f n C C'
+    body entries blockmap init_fbase
+      = fixpoint Bwd (bp_lattice pass) do_block blocks init_fbase
+      where
+        blocks = backwardBlockList entries blockmap
+        do_block :: forall x. Block n C x -> Fact x f -> m (DG f n C x, LabelMap f)
+        do_block b f = do (g, f) <- block b f
+                          return (g, mapSingleton (entryLabel b) f)
+
+
+backwardBlockList :: (LabelsPtr entries, NonLocal n) => entries -> Body n -> [Block n C C]
+-- This produces a list of blocks in order suitable for backward analysis,
+-- along with the list of Labels it may depend on for facts.
+backwardBlockList entries body = reverse $ forwardBlockList entries body
 
 
 
@@ -237,72 +408,76 @@ updateFact lat lbls lbl new_fact (cha, fbase)
     new_fbase = mapInsert lbl res_fact fbase
   
 
-fixpoint :: forall m n f. (FuelMonad m, NonLocal n) 
-         => PassDirection -> DataflowLattice f
-         -> (Block n C C -> FactBase f -> m (DG f n C C, Fact C f))
-         -> [Block n C C] -> FactBase f ->  m (DG f n C C, Fact C f)
-
-fixpoint dir lattice doBlock blocks initFBase
-  = do { fs <- loop initFBase
-       -- return the dg produced, and the part of the factbase
-       -- consisting of labels NOT in the subgraph being considered
-       ; return (fsDG fs, mapDeleteList (map (fst . fst) taggedBlocks) (fsFBase fs))
-       }
+data Direction = Fwd | Bwd
+fixpoint :: forall m n f. (CheckpointMonad m, NonLocal n)
+ => Direction
+ -> DataflowLattice f
+ -> (Block n C C -> Fact C f -> m (DG f n C C, Fact C f))
+ -> [Block n C C]
+ -> (Fact C f -> m (DG f n C C, Fact C f))
+fixpoint direction lat do_block blocks init_fbase
+  = do { tx_fb <- loop init_fbase
+       ; return (tfb_rg tx_fb, 
+                 map (fst . fst) tagged_blocks 
+                    `mapDeleteList` tfb_fbase tx_fb ) }
+    -- The successors of the Graph are the the Labels 
+    -- for which we have facts and which are *not* in
+    -- the blocks of the graph
   where
-    loop fbase = 
-      do{ fs <- iterBlocks taggedBlocks (FS {fsChange = NoChange, fsFBase = fbase
-                                          , fsDG = dgNilC, fsLabels = setEmpty})
-        ; case fsChange fs of 
-            NoChange -> return fs
-            SomeChange -> loop $ fsFBase fs }
-
-    taggedBlocks = map tag blocks
+    tagged_blocks = map tag blocks
+    is_fwd = case direction of { Fwd -> True; 
+                                 Bwd -> False }
     tag :: NonLocal t => t C C -> ((Label, t C C), [Label])
     tag b = ((entryLabel b, b), 
-             if (dir == Fwd) then [entryLabel b] 
-             else successors b)
-    iterBlocks :: [((Label, Block n C C), [Label])]
-               -> FixState n f -> m (FixState n f)
-    iterBlocks [] fs 
-      = return fs
-    iterBlocks (((l, b), entries):bs) fs 
-      = iterBlock l b entries fs >>= iterBlocks bs
+             if is_fwd then [entryLabel b] 
+                        else successors b)
+     -- 'tag' adds the in-labels of the block; 
+     -- see Note [TxFactBase invairants]
 
-    iterBlock :: Label -> Block n C C -> [Label] -> FixState n f -> m (FixState n f)
-    iterBlock label block inLabels
-      fs@(FS {fsChange = ch, fsFBase = fbase, fsDG = dg, fsLabels = labels})
-        | dir == Fwd  && not (label `mapMember` fbase)
-          = return $ fs {fsLabels = labels'}
-        | otherwise
-          = do { (dg', outFacts) <- doBlock block fbase
-               ; let (ch', fbase') = mapFoldWithKey
-                                     (updateFact lattice labels')
-                                     (ch,fbase) outFacts
-               ; return $ 
-                        FS { fsChange = ch'
-                           , fsFBase = fbase'
-                           , fsDG = dg `dgSplice` dg'
-                           , fsLabels = labels' } }
-        where
-          labels' = labels `setUnion` setFromList inLabels
+    tx_blocks :: [((Label, Block n C C), [Label])]   -- I do not understand this type
+              -> TxFactBase n f -> m (TxFactBase n f)
+    tx_blocks []              tx_fb = return tx_fb
+    tx_blocks (((lbl,blk), in_lbls):bs) tx_fb 
+      = tx_block lbl blk in_lbls tx_fb >>= tx_blocks bs
+     -- "in_lbls" == Labels the block may 
+     --                 _depend_ upon for facts
 
--- | Orders the blocks in a graph for data flow analysis.
--- | Could make this faster using folds
-forwardBlockList :: NonLocal n => [Label] -> LabelMap (Block n C C) -> [Block n C C]
-forwardBlockList entries body
-  = map lookupBlock (reverse $ travHelp [] entries body) -- use cons, then reverse
-  where
-    travHelp :: [Label] -> [Label] -> LabelMap (Block n C C) -> [Label]
-    travHelp seen [] body = seen
-    travHelp seen (x:xs) body = 
-        if x `elem` seen
-          then travHelp seen xs body
-          else travHelp (x:seen) ((successors $ lookupBlock x) ++ xs) body
-    lookupBlock x = case (mapLookup x body) of 
-                      Just b -> b
-                      Nothing -> error "successors returned label not in graph body"
+    tx_block :: Label -> Block n C C -> [Label]
+             -> TxFactBase n f -> m (TxFactBase n f)
+    tx_block lbl blk in_lbls 
+        tx_fb@(TxFB { tfb_fbase = fbase, tfb_lbls = lbls
+                    , tfb_rg = blks, tfb_cha = cha })
+      | is_fwd && not (lbl `mapMember` fbase)
+      = return (tx_fb {tfb_lbls = lbls'})       -- Note [Unreachable blocks]
+      | otherwise
+      = do { (rg, out_facts) <- do_block blk fbase
+           ; let (cha', fbase') = mapFoldWithKey
+                                  (updateFact lat lbls) 
+                                  (cha,fbase) out_facts
+           ; return $
+               TxFB { tfb_lbls  = lbls'
+                    , tfb_rg    = rg `dgSplice` blks
+                    , tfb_fbase = fbase'
+                    , tfb_cha = cha' } }
+      where
+        lbls' = lbls `setUnion` setFromList in_lbls
+        
 
-                                                   
+    loop :: FactBase f -> m (TxFactBase n f)
+    loop fbase 
+      = do { s <- checkpoint
+           ; let init_tx :: TxFactBase n f
+                 init_tx = TxFB { tfb_fbase = fbase
+                                , tfb_cha   = NoChange
+                                , tfb_rg    = dgnilC
+                                , tfb_lbls  = setEmpty }
+           ; tx_fb <- tx_blocks tagged_blocks init_tx
+           ; case tfb_cha tx_fb of
+               NoChange   -> return tx_fb
+               SomeChange 
+                 -> do { restart s
+                       ; loop (tfb_fbase tx_fb) } }
+
 -- Join all the incoming facts with bottom.
 -- We know the results _shouldn't change_, but the transfer
 -- functions might, for example, generate some debugging traces.
@@ -310,56 +485,85 @@ joinInFacts :: DataflowLattice f -> FactBase f -> FactBase f
 joinInFacts (lattice @ DataflowLattice {fact_bot = bot, fact_join = fj}) fb =
   mkFactBase lattice $ map botJoin $ mapToList fb
     where botJoin (l, f) = (l, snd $ fj l (OldFact bot) (NewFact f))
+
+forwardBlockList :: (NonLocal n, LabelsPtr entry)
+                 => entry -> Body n -> [Block n C C]
+-- This produces a list of blocks in order suitable for forward analysis,
+-- along with the list of Labels it may depend on for facts.
+forwardBlockList entries blks = postorder_dfs_from blks entries
                         
 
 
 
 class ShapeLifter e x where
-  singletonG    ::      n e x -> Graph n e x
-  singletonDG   :: f -> n e x -> DG f n e x
-  fwdEntryFact  :: NonLocal n => n e x -> f -> Fact e f
-  fwdEntryLabel :: NonLocal n => n e x -> MaybeC e [Label]
-  ftransfer :: FwdPass m n f -> n e x -> f -> Fact x f
-  frewrite  :: FwdPass m n f -> n e x 
+ singletonG    ::      n e x -> Graph n e x
+ singletonDG   :: f -> n e x -> DG f n e x
+ fwdEntryFact  :: NonLocal n => n e x -> f -> Fact e f
+ fwdEntryLabel :: NonLocal n => n e x -> MaybeC e [Label]
+ ftransfer :: FwdPass m n f -> n e x -> f -> Fact x f
+ frewrite  :: FwdPass m n f -> n e x 
            -> f -> m (Maybe (Graph n e x, FwdRewrite m n f))
-{- bwdEntryFact :: NonLocal n => DataflowLattice f -> n e x -> Fact e f -> f
+-- @ end node.tex
+ bwdEntryFact :: NonLocal n => DataflowLattice f -> n e x -> Fact e f -> f
  btransfer    :: BwdPass m n f -> n e x -> Fact x f -> f
  brewrite     :: BwdPass m n f -> n e x
               -> Fact x f -> m (Maybe (Graph n e x, BwdRewrite m n f))
--}
+
 instance ShapeLifter C O where
   singletonG = gUnitCO . BFirst
   singletonDG f = gUnitCO . DBlock f . BFirst
   fwdEntryFact     n f  = mapSingleton (entryLabel n) f
---  bwdEntryFact lat n fb = getFact lat (entryLabel n) fb
-  ftransfer (FwdPass {fpTransfer = FwdTransfer3 (ft, _, _)}) n f = ft n f
---  btransfer (BwdPass {bpTransfer = BwdTransfer3 (bt, _, _)}) n f = bt n f
-  frewrite  (FwdPass {fpRewrite  = FwdRewrite3  (fr, _, _)}) n f = fr n f
---  brewrite  (BwdPass {bpRewrite  = BwdRewrite3  (br, _, _)}) n f = br n f
+  bwdEntryFact lat n fb = getFact lat (entryLabel n) fb
+  ftransfer (FwdPass {fp_transfer = FwdTransfer3 (ft, _, _)}) n f = ft n f
+  btransfer (BwdPass {bp_transfer = BwdTransfer3 (bt, _, _)}) n f = bt n f
+  frewrite  (FwdPass {fp_rewrite  = FwdRewrite3  (fr, _, _)}) n f = fr n f
+  brewrite  (BwdPass {bp_rewrite  = BwdRewrite3  (br, _, _)}) n f = br n f
   fwdEntryLabel n = JustC [entryLabel n]
 
 instance ShapeLifter O O where
   singletonG = gUnitOO . BMiddle
   singletonDG f = gUnitOO . DBlock f . BMiddle
   fwdEntryFact   _ f = f
-  --bwdEntryFact _ _ f = f
-  ftransfer (FwdPass {fpTransfer = FwdTransfer3 (_, ft, _)}) n f = ft n f
---  btransfer (BwdPass {bpTransfer = BwdTransfer3 (_, bt, _)}) n f = bt n f
-  frewrite  (FwdPass {fpRewrite  = FwdRewrite3  (_, fr, _)}) n f = fr n f
---  brewrite  (BwdPass {bpRewrite  = BwdRewrite3  (_, br, _)}) n f = br n f
+  bwdEntryFact _ _ f = f
+  ftransfer (FwdPass {fp_transfer = FwdTransfer3 (_, ft, _)}) n f = ft n f
+  btransfer (BwdPass {bp_transfer = BwdTransfer3 (_, bt, _)}) n f = bt n f
+  frewrite  (FwdPass {fp_rewrite  = FwdRewrite3  (_, fr, _)}) n f = fr n f
+  brewrite  (BwdPass {bp_rewrite  = BwdRewrite3  (_, br, _)}) n f = br n f
   fwdEntryLabel _ = NothingC
 
 instance ShapeLifter O C where
   singletonG = gUnitOC . BLast
   singletonDG f = gUnitOC . DBlock f . BLast
   fwdEntryFact   _ f = f
---  bwdEntryFact _ _ f = f
-  ftransfer (FwdPass {fpTransfer = FwdTransfer3 (_, _, ft)}) n f = ft n f
---  btransfer (BwdPass {bpTransfer = BwdTransfer3 (_, _, bt)}) n f = bt n f
-  frewrite  (FwdPass {fpRewrite  = FwdRewrite3  (_, _, fr)}) n f = fr n f
---  brewrite  (BwdPass {bpRewrite  = BwdRewrite3  (_, _, br)}) n f = br n f
+  bwdEntryFact _ _ f = f
+  ftransfer (FwdPass {fp_transfer = FwdTransfer3 (_, _, ft)}) n f = ft n f
+  btransfer (BwdPass {bp_transfer = BwdTransfer3 (_, _, bt)}) n f = bt n f
+  frewrite  (FwdPass {fp_rewrite  = FwdRewrite3  (_, _, fr)}) n f = fr n f
+  brewrite  (BwdPass {bp_rewrite  = BwdRewrite3  (_, _, br)}) n f = br n f
   fwdEntryLabel _ = NothingC
 
+-- Fact lookup: the fact `orelse` bottom
 getFact  :: DataflowLattice f -> Label -> FactBase f -> f
-getFact lat l fb = case mapLookup l fb of Just  f -> f
-                                          Nothing -> fact_bot lat
+getFact lat l fb = case lookupFact l fb of Just  f -> f
+                                           Nothing -> fact_bot lat
+
+
+
+{-  Note [Respects fuel]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-}
+-- $fuel
+-- A value of type 'FwdRewrite' or 'BwdRewrite' /respects fuel/ if 
+-- any function contained within the value satisfies the following properties:
+--
+--   * When fuel is exhausted, it always returns 'Nothing'.
+--
+--   * When it returns @Just g rw@, it consumes /exactly/ one unit
+--     of fuel, and new rewrite 'rw' also respects fuel.
+--
+-- Provided that functions passed to 'mkFRewrite', 'mkFRewrite3', 
+-- 'mkBRewrite', and 'mkBRewrite3' are not aware of the fuel supply,
+-- the results respect fuel.
+--
+-- It is an /unchecked/ run-time error for the argument passed to 'wrapFR',
+-- 'wrapFR2', 'wrapBR', or 'warpBR2' to return a function that does not respect fuel.

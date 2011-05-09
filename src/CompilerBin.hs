@@ -131,9 +131,9 @@ compile chosen source filename =
          control_flow_graph = graphProgram (top numberedTable) parsed_program (rc + mc)
          -- ^ convert to control flow graph
  
-         (optimized, dominatorTree) = optimize control_flow_graph
+     (optimized, dominatorTree) <- optimize control_flow_graph
 
-         control_flow_graph' = if or (optopts chosen)
+     let control_flow_graph' = if or (optopts chosen)
                               then optimized
                               else control_flow_graph
         -- ^ for now, optimize if any opt flags are present
@@ -169,35 +169,33 @@ compile chosen source filename =
     graphFile = buildFilename filename 2 "out"
     imageFile = buildFilename filename 2 "png"
 
-optimize :: DecafGraph C C -> (DecafGraph C C, DominatorTree)
-optimize g =
-  let g' = cseOpt g
-      dominatorTree = doms g'
-  in (g', dominatorTree)
+type M = CheckingFuelMonad (SimpleUniqueMonad)
 
-cseOpt :: DecafGraph C C -> DecafGraph C C
-cseOpt g =
-  let entry = LIRLabel "main" (-1)
-      ((g', facts), _) = runLFM
-                          (analyzeAndFwdRewrite csePass
-                                                [entry]
-                                                g
-                                                (mapSingleton entry cseTop))
-                          mkInfiniteFuel
-  in g'
+optimize :: DecafGraph C C -> IO (DecafGraph C C, DominatorTree)
+optimize g = do
+  let g' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (cseOpt g)
+      dominatorTree = runSimpleUniqueMonad $ runWithFuel infiniteFuel (doms g')
+  return (g', dominatorTree)
 
-doms :: DecafGraph C C -> DominatorTree
-doms g =
+cseOpt :: DecafGraph C C -> M (DecafGraph C C)
+cseOpt g = do
   let entry = LIRLabel "main" (-1)
-      ((_, facts), _) = runLFM
-                          (analyzeAndFwdRewrite domPass
-                                                [entry]
+  (g', facts, _) <- analyzeAndRewriteFwd csePass
+                                                (JustC [entry])
                                                 g
-                                                (mapSingleton entry domEntry))
-                          mkInfiniteFuel
-      domList = (mapToList facts)
+                                                (mapSingleton entry cseTop)
+  return g'
+
+doms :: DecafGraph C C -> M DominatorTree
+doms g = do
+  let entry = LIRLabel "main" (-1)
+  (_, facts, _) <- analyzeAndRewriteFwd domPass
+                                                (JustC [entry])
+                                                g
+                                                (mapSingleton entry domEntry)
+  let domList = (mapToList facts)
       dominatorTree = dtree $ trace ("\n\n\nDOMINATOR LIST:\n" ++ show domList ++ "\n\n\n") domList
-  in dominatorTree
+  return dominatorTree
 
 
 basename :: String -> String
@@ -208,3 +206,4 @@ buildFilename f i ext = basename f ++ "." ++ show i ++ "." ++ ext
 
 convertToPNG :: String -> String -> IO ()
 convertToPNG graphFile imageFile = runCommand ("dot -Tpng " ++ graphFile ++ " -o" ++ imageFile) >> putStrLn ""
+

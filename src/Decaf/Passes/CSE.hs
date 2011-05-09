@@ -146,8 +146,9 @@ cse  = shallowFwdRw simp
         -- others do not need CSE
         s_node _ = Nothing
 -- define fwd pass
+-- csePass = FuelMonad m => FwdPass m 
 csePass  = FwdPass 
-  { fpLattice = cseLattice
-  , fpTransfer = exprIsAvail
-  , fpRewrite = cse
+  { fp_lattice = cseLattice
+  , fp_transfer = exprIsAvail
+  , fp_rewrite = cse
   }

@@ -1,14 +1,11 @@
 {-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables #-}
 
 module Decaf.HooplNodes where
---import Compiler.Hoopl hiding (Top)
 import Decaf.IR.LIR
 import Decaf.IR.IRNode
-import Loligoptl.Dataflow 
-import Loligoptl.Graph 
-import Loligoptl.Fuel 
-import Loligoptl.Label 
 import Data.Int
+import Loligoptl
+import qualified Loligoptl.Label
 
 -- Graph
 type DecafGraph = Graph Node

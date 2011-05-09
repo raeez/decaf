@@ -13,8 +13,7 @@ import Decaf.Translator
 import Decaf.HooplNodes
 import Decaf.RegisterAllocator
 import System.IO.Unsafe
-import Loligoptl.Graph
-import Loligoptl.Label 
+import Loligoptl
 import Debug.Trace
 import Control.Monad
 import Data.Int
