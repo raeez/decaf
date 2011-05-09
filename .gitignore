@@ -9,3 +9,7 @@ dist
 *.sw[a-z]
 testsuite/runtests
 .DS_Store
+
+*.asm
+*.png
+*.out
