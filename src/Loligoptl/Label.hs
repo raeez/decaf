@@ -17,7 +17,7 @@ import qualified Data.IntSet as S
 import Decaf.IR.LIR
 
 -----------------------------------------------------------------------------
---		Label
+--Label
 -----------------------------------------------------------------------------
 type Label = LIRLabel
 readable (LIRLabel s _) = s

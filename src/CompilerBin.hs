@@ -206,4 +206,3 @@ buildFilename f i ext = basename f ++ "." ++ show i ++ "." ++ ext
 
 convertToPNG :: String -> String -> IO ()
 convertToPNG graphFile imageFile = runCommand ("dot -Tpng " ++ graphFile ++ " -o" ++ imageFile) >> putStrLn ""
-
