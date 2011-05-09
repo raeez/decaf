@@ -504,6 +504,7 @@ instance ASMOper ASMGenOperand where
 
 instance ASMOper LIRReg where
     asm reg = case reg of
+        -- CHANGE
         SREG s -> return $ ASMGenOperand $ ASMMemOperand (ASMRegBase RBP) Nothing (stackAddress s) 8
         MEM s  -> return $ ASMGenOperand $ ASMSymOperand (ASMSym s)
         GI s   -> do r <- mapMemBase reg
@@ -540,3 +541,4 @@ mapRegister reg =
         LR13 -> R13
         LR14 -> R14
         LR15 -> R15
+        (SREG i) -> (ASMSREG i)

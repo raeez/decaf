@@ -57,38 +57,51 @@ data FwdRev m n f e x  = FwdRev (Graph n e x) (FwdRewrite m n f)
 
 -- pass -> graph -> fold function from node, associated fact, to result type -> initial -> final
 -- this doesn't properly belong here; assumes some Decaf stuff
-{-foldDataflowFacts :: FwdPass m n f
+foldDataflowFacts :: (Nonlocal n)=> 
+                     FwdPass m n f
                   -> Graph n C C
-                  -> ((n,Int) -> f -> res -> res)
+                  -> (n -> f -> res -> res)
                   -> res -> res
 
-foldDataflowFacts pass g f init = 
+foldDataflowFactsFwd pass graph func init = 
   -- fst takes the DG, drops the state
-  let dg = fst $ runLFM $ (afrGraph pass entries g (mapSingleton mainlab bottom)) >>= fst
+  let
+      -- partly copied from afrgraph
+      block :: forall e x. Block n e x 
+            -> f -> res -> (f, res)
+      block (BFirst  n)   f acc = node n f acc
+      block (BMiddle n)   f acc = node n f acc
+      block (BLast   n)   f acc = node n f acc
+      block (BCat b1 b2)  f acc = block b1 `cat` block b2
+      block (BHead h n)   f acc = block h  `cat` node n
+      block (BTail n t)   f acc = node  n  `cat` block t
+      block (BClosed h t) f acc = block h  `cat` block t
+                           
+      node :: forall e x. (Shapelifter e x) => n e x 
+           -> f -> res -> (f, res)
+      node n f acc = (transfer f, func n f acc) -- apply transfer function and accum function
+
+      cat :: (f -> res -> (f,res))
+          -> (f -> res -> (f,res))
+          -> (f -> res -> (f,res))
+      cat t1 t2 f acc = let (f', acc') = t1 f acc
+                        in t2 f' acc'
+
+      dgBody = case fst $ runLFM $ (afrGraph pass entries g (mapSingleton mainlab bottom)) of
+                 GMany _ body _ -> body -- this seems like a hack
       mainlab = LIRLabel "main" (-1)
       entries = JustC [mainlab]
-      bottom = (factBottom . fpLattice) pass
-     
-      -- copied from afrgraph
-      block :: forall e x. Block n e x 
-          -> f -> m (DG f n e x, Fact x f)
-      block (BFirst  n)  = node n
-      block (BMiddle n)  = node n
-      block (BLast   n)  = node n
-      block (BCat b1 b2) = block b1 `cat` block b2
-      block (BHead h n)  = block h  `cat` node n
-      block (BTail n t)  = node  n  `cat` block t
-      block (BClosed h t)= block h  `cat` block t
 
-      cat :: forall e a x f1 f2 f3.
-             (f1 -> m (DG f n e a, f2))
-          -> (f2 -> m (DG f n a x, f3))
-          -> (f1 -> m (DG f n e x, f3))
-      cat t1 t2 f1 = do { (g1, f2) <- t1 f1
-                        ; (g2, f3) <- t2 f2
-                        ; return (g1 `dgSplice` g2, f3) }
+      -- dataflow stuff
+      transfer = undefined
+      bottom = (factBottom . fpLattice) pass
+
+      blocks = forwardBlockList entries dgBody
+      
   in
--}
+    -- curry id :: a -> b -> (a,b)
+    (foldr cat (curry id) $ map block blocks) bottom init
+
 
 
 analyzeAndFwdRewrite
@@ -293,7 +306,7 @@ fixpoint dir lattice doBlock blocks initFBase
 
 -- | Orders the blocks in a graph for data flow analysis.
 -- | Could make this faster using folds
-forwardBlockList :: NonLocal n => [Label] -> LabelMap (Block n C C) -> [Block n C C]
+{-forwardBlockList :: NonLocal n => [Label] -> LabelMap (Block n C C) -> [Block n C C]
 forwardBlockList entries body
   = map lookupBlock (reverse $ travHelp [] entries body) -- use cons, then reverse
   where
@@ -306,8 +319,23 @@ forwardBlockList entries body
     lookupBlock x = case (mapLookup x body) of 
                       Just b -> b
                       Nothing -> error "successors returned label not in graph body"
-
-                                                   
+-}
+-- more general forward list
+forwardBlockList :: NonLocal a => [Label] -> LabelMap a -> [a]
+forwardBlockList entries body
+  = map lookupBlock (reverse $ travHelp [] entries body) -- use cons, then reverse
+  where
+    travHelp :: [Label] -> [Label] -> LabelMap a -> [Label]
+    travHelp seen [] body = seen
+    travHelp seen (x:xs) body = 
+        if x `elem` seen
+          then travHelp seen xs body
+          else travHelp (x:seen) ((successors $ lookupBlock x) ++ xs) body
+    lookupBlock x = case (mapLookup x body) of 
+                      Just b -> b
+                      Nothing -> error "successors returned label not in graph body"
+        
+                                           
 joinInFacts :: DataflowLattice f -> FactBase f -> FactBase f
 joinInFacts (lattice @ DataflowLattice {factBottom = bot, factJoin = fj}) fb =
   mkFactBase lattice $ map botJoin $ mapToList fb

@@ -154,7 +154,7 @@ data ASMReg = RAX
             | R13
             | R14
             | R15
-            | SREG Int
+            | ASMSREG Int
 
 lit :: Int64 -> ASMGenOperand
 lit i = ASMGenOperand $ ASMLitOperand i

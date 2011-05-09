@@ -1,0 +1,154 @@
+{- 
+possible bugs:
+not every OC node is followed by a CO label node
+-}
+module Decaf.GraphASM where
+--import Compiler.Hoopl hiding (Top)
+import Decaf.IR.LIR
+import Decaf.IR.IRNode
+import Loligoptl.Dataflow 
+import Loligoptl.Graph 
+import Loligoptl.Fuel 
+import Loligoptl.Label 
+import Data.Int
+
+-- Graph
+type ASMGraph = Graph ASMNode
+
+-- Labels 
+type HooplLabel = Loligoptl.Label.Label
+
+-- nodes
+data ASMNode e x where
+    ASMAddNode   :: Int -> ASMOperand a -> ASMOperand b -> ASMNode O O
+    ASMSubNode   :: Int -> ASMOperand a -> ASMOperand b -> ASMNode O O
+    ASMMovNode   :: Int -> ASMOperand a -> ASMOperand b -> ASMNode O O
+    ASMCmpNode   :: Int -> ASMOperand a -> ASMOperand b -> ASMNode O O
+    ASMAndNode   :: Int -> ASMOperand a -> ASMOperand b -> ASMNode O O
+    ASMOrNode    :: Int -> ASMOperand a -> ASMOperand b -> ASMNode O O 
+    ASMXorNode   :: Int -> ASMOperand a -> ASMOperand b -> ASMNode O O
+    ASMShlNode   :: Int -> ASMOperand a -> ASMOperand b -> ASMNode O O
+    ASMShrNode   :: Int -> ASMOperand a -> ASMOperand b -> ASMNode O O
+    ASMShraNode  :: Int -> ASMOperand a -> ASMOperand b -> ASMNode O O
+    ASMMulNode   :: Int -> ASMOperand a -> ASMNode O O
+    ASMDivNode   :: Int -> ASMOperand a -> ASMNode O O
+    ASMModNode   :: Int -> ASMOperand a -> ASMNode O O
+    ASMPushNode  :: Int -> ASMOperand a -> ASMNode O O
+    ASMPopNode   :: Int -> ASMOperand a -> ASMNode O O
+    ASMNegNode   :: Int -> ASMOperand a -> ASMNode O O
+    ASMNotNode   :: Int -> ASMOperand a -> ASMNode O O
+    ASMJmpNode   :: Int -> ASMLabel -> ASMNode O C
+    ASMJeNode    :: Int -> ASMLabel -> ASMNode O C
+    ASMJneNode   :: Int -> ASMLabel -> ASMNode O C
+    ASMJgNode    :: Int -> ASMLabel -> ASMNode O C
+    ASMJgeNode   :: Int -> ASMLabel -> ASMNode O C
+    ASMJlNode    :: Int -> ASMLabel -> ASMNode O C
+    ASMJleNode   :: Int -> ASMLabel -> ASMNode O C
+    ASMLabelNode :: Int -> ASMLabel -> ASMNode C O
+    ASMCallNode  :: Int -> ASMSym -> ASMNode O C
+    ASMEnterNode :: Int -> ASMInt -> ASMNode O O
+    ASMRetNode   :: Int -> ASMNode O C
+    
+instance NonLocal ASMNode where
+  entryLabel (ASMLabelNode l) =  asmtohooplLabel l -- hoopllabel = lirlabel
+  successors (ASMJmpNode _ l) = [asmtohooplLabel l]
+  successors (ASMJeNode _ l)  = [asmtohooplLabel l]
+  successors (ASMJneNode _ l) = [asmtohooplLabel l]
+  successors (ASMJgNode _ l)  = [asmtohooplLabel l]
+  successors (ASMJgeNode _ l) = [asmtohooplLabel l]
+  successors (ASMJlNode _ l)  = [asmtohooplLabel l]
+  successors (ASMJleNode _ l) = [asmtohooplLabel l]
+
+asmtohooplLabel (ASMLabel l i ) = LIRLabel l i
+
+
+-- Turns ASMProgram into ASMNode Graph with numbered 
+graphASMProgram :: AsmProgram -> Graph ASMNode C C
+graphASMProgram prog =
+        instructions = asmConcat $ filter isText (progSections prog)
+        blocks = makeBlocks instructions
+
+    in GMany NothingO (mapFromList (zip (map entryLabel blocks) blocks)) NothingO
+  where
+    isText (ASMTextSection {}) = True
+    isText _ = False
+
+makeBlocks :: ASMInstructions -> [Block ASMNode C C]
+makeBlocks insts = startBlock 0 [] insts
+  where
+    startBlock  :: Int -> [Block ASMNode C C] -> ASMInstructions -> [Block ASMNode C C]
+    startBlock i bs ASMNil = bs
+    startBlock i bs (ASMCons inst is) = 
+      case inst of
+        -- Closed Open nodes
+        ASMLabelInst lab -> (buildBlock (i+1) bs (BFirst $ ASMLabelNode $ lab) is)
+        other -> (startBlock i bs is) -- skip the node; it's dead code (hopefully...)
+
+    buildBlock :: Int -> [Block Node C C] -> Block Node C O -> [ASMInst] -> [Block Node C C]
+    buildBlock i bs b [] = error "unfinished block"
+    buildBlock i bs b (inst:is) = 
+      case inst of
+        ASMAddInst  op1 op2 -> buildBlock (i+1) bs (b `BHead` (ASMAddNode i op1 op2)) is
+        ASMSubInst  op1 op2 -> buildBlock (i+1) bs (b `BHead` (ASMSubNode i op1 op2)) is
+        ASMMovInst  op1 op2 -> buildBlock (i+1) bs (b `BHead` (ASMMovNode i op1 op2)) is
+        ASMCmpInst  op1 op2 -> buildBlock (i+1) bs (b `BHead` (ASMCmpNode i op1 op2)) is
+        ASMAndInst  op1 op2 -> buildBlock (i+1) bs (b `BHead` (ASMAndNode i op1 op2)) is
+        ASMOrInst   op1 op2 -> buildBlock (i+1) bs (b `BHead` (ASMOrNode  i op1 op2)) is
+        ASMXorInst  op1 op2 -> buildBlock (i+1) bs (b `BHead` (ASMXorNode i op1 op2)) is
+        ASMShlInst  op1 op2 -> buildBlock (i+1) bs (b `BHead` (ASMShlNode i op1 op2)) is
+        ASMShrInst  op1 op2 -> buildBlock (i+1) bs (b `BHead` (ASMShrNode i op1 op2)) is
+        ASMShraInst op1 op2 -> buildBlock (i+1) bs (b `BHead` (ASMShraNode i op1 op2)) is
+
+        ASMMulInst  op -> buildBlock (i+1) bs (b `BHead` (ASMMulNode i op)) is
+        ASMDivInst  op -> buildBlock (i+1) bs (b `BHead` (ASMDivNode i op)) is
+        ASMModInst  op -> buildBlock (i+1) bs (b `BHead` (ASMModNode i op)) is
+        ASMPushInst op -> buildBlock (i+1) bs (b `BHead` (ASMPushNode i op)) is
+        ASMPopInst  op -> buildBlock (i+1) bs (b `BHead` (ASMPopNode i op)) is
+        ASMNegInst  op -> buildBlock (i+1) bs (b `BHead` (ASMNegNode i op)) is
+        ASMNotInst  op -> buildBlock (i+1) bs (b `BHead` (ASMNotNode i op)) is
+
+
+        ASMJmpInst lab -> startBlock (i+1) ((b `BClosed` (BLast $ ASMJmpNode i lab)) : bs) is
+        ASMJeInst  lab -> startBlock (i+1) ((b `BClosed` (BLast $ ASMJeNode  i lab)) : bs) is
+        ASMJneInst lab -> startBlock (i+1) ((b `BClosed` (BLast $ ASMJneNode i lab)) : bs) is
+        ASMJgInst  lab -> startBlock (i+1) ((b `BClosed` (BLast $ ASMJgNode  i lab)) : bs) is
+        ASMJgeInst lab -> startBlock (i+1) ((b `BClosed` (BLast $ ASMJgeNode i lab)) : bs) is
+        ASMJlInst  lab -> startBlock (i+1) ((b `BClosed` (BLast $ ASMJlNode  i lab)) : bs) is
+        ASMJleInst lab -> startBlock (i+1) ((b `BClosed` (BLast $ ASMJleNode i lab)) : bs) is
+
+-- graphToLIR :: Graph' Block Node e x -> [LIRInst]
+-- graphToLIR (GNil) =  []
+-- graphToLIR (GUnit unit) = blockToLIR unit
+-- graphToLIR (GMany entry labels exit) = (mapEntry ++ mapLabel ++ mapExit)
+--   where
+--     mapEntry :: [LIRInst]
+--     mapEntry = case entry of
+--                   JustO v  -> blockToLIR v
+--                   NothingO -> []
+--     mapExit :: [LIRInst]
+--     mapExit = case exit of
+--                   JustO v  -> blockToLIR v
+--                   NothingO -> []
+--     mapLabel = concatMap (blockToLIR.snd) (mapToList labels)
+
+-- blockToLIR :: Block Node e x -> [LIRInst]
+-- blockToLIR (BFirst node)   = nodeToLIR node
+-- blockToLIR (BMiddle node)  = nodeToLIR node
+-- blockToLIR (BLast node)    = nodeToLIR node
+-- blockToLIR (BCat b1 b2)    = blockToLIR b1 ++ blockToLIR b2
+-- blockToLIR (BHead b n)     = blockToLIR b  ++ nodeToLIR n
+-- blockToLIR (BTail n b)     = nodeToLIR n   ++ blockToLIR b
+-- blockToLIR (BClosed b1 b2) = blockToLIR b1 ++ blockToLIR b2
+
+-- nodeToLIR :: Node e x -> [LIRInst]
+-- nodeToLIR (LIRLabelNode l)                = [LIRLabelInst l]
+-- nodeToLIR (LIRRegAssignNode r e)          = [LIRRegAssignInst r e]
+-- nodeToLIR (LIRRegOffAssignNode r1 r2 s o) = [LIRRegOffAssignInst r1 r2 s o]
+-- nodeToLIR (LIRStoreNode m o)              = [LIRStoreInst m o]
+-- nodeToLIR (LIRLoadNode r m)               = [LIRLoadInst r m]
+-- nodeToLIR (LIRCalloutNode s)              = [LIRCalloutInst s]
+-- nodeToLIR (LIREnterNode i)                = [LIREnterInst i]
+-- nodeToLIR (LIRRetNode l m)                = [LIRRetInst l m]
+-- nodeToLIR (LIRIfNode e fl tl)             = [LIRIfInst e fl tl]
+-- nodeToLIR (LIRJumpLabelNode l)            = [LIRJumpLabelInst l]
+-- nodeToLIR (LIRCallNode l1 l2)             = [LIRCallInst l1 l2]
