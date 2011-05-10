@@ -57,181 +57,198 @@ data SSARelExpr = SSABinRelExpr SSAOperand SSARelOp SSAOperand
                 | SSAOperRelExpr SSAOperand
                 deriving (Show, Eq, Typeable)
 
-data LIRBinOp = LADD
-              | LSUB
-              | LMUL
-              | LDIV
-              | LMOD
-              | LAND
-              | LOR
-              | LXOR
-              | LSHL
-              | LSHR
-              | LSHRA
-              | LIRBinRelOp LIRRelOp LIRLabel
+data LIRBinOp = SADD
+              | SSUB
+              | SMUL
+              | SDIV
+              | SMOD
+              | SAND
+              | SOR
+              | SXOR
+              | SSHL
+              | SSHR
+              | SSHRA
+              | SSABinRelOp SSARelOp SSALabel
               deriving (Show, Eq, Typeable, Ord)
 
-type SSAUnOp = LIRUnOp
-type SSARelOp = LIRRelOp
-type SSAMemAddr = LIRMemAddr
-data SSAOperand = SSARegOperand LIRReg
-                | SSAIntOperand LIRInt
+data SSAUnOp = SNEG
+             | SNOT
+             deriving (Show, Eq, Typeable)
+
+data SSARelOp = SEQ
+              | SNEQ
+              | SGT
+              | SGTE
+              | SLT
+              | SLTE
+              deriving (Show, Eq, Typeable, Ord)
+
+data SSAMemAddr = SSAMemAddr SSAReg (Maybe SSAReg) SSAOffset SSASize
+                deriving (Show, Eq, Typeable)
+
+data SSAOperand = SSARegOperand SSAReg
+                | SSAIntOperand SSAInt
                 | SSAStrOperand String
                 deriving (Show, Eq, Typeable, Ord)
 
-type SSAReg = LIRReg
-
-instance Show LIRLabel where
-  show (LIRLabel s n) = if n == -1 then s else s ++ (show n)
-
-falseLabel :: Int -> LIRLabel
-falseLabel l = LIRLabel "LFalse" l
+data SSAReg = SRAX Int -- Int is the subscript, starting at 0
+            | SRBX Int
+            | SRCX Int
+            | SRDX Int
+            | SRBP Int
+            | SRSP Int
+            | SRSI Int
+            | SRDI Int
+            | SR8 Int
+            | SR9 Int
+            | SR10 Int
+            | SR11 Int
+            | SR12 Int
+            | SR13 Int
+            | SR14 Int
+            | SR15 Int
+            | GI Int Int
+            | SREG Int Int
+            | MEM String Int
+            deriving (Show, Eq, Typeable, Ord)
 
 instance IRNode SSAProgram where
     pp (SSAProgram label units) = pp label ++ ":\n" ++ unlines (map pp units)
     treeify (SSAProgram label units) = Node (pp label) (map treeify units)
 
-instance IRNode LIRUnit where
-    pp (LIRUnit label insts) =
+instance IRNode SSAUnit where
+    pp (SSAUnit label insts) =
         "\n" ++ pp label ++ ":\n" ++ unlines (indentMap insts)
       where
         indentMap [] = []
         indentMap (x:xs) = let repr = case x of
-                                    LIRLabelInst _ -> "\n" ++ pp x ++ ":"
+                                    SSALabelInst _ -> "\n" ++ pp x ++ ":"
                                     _ -> "    " ++ pp x
                         in (repr:indentMap xs)
-    treeify (LIRUnit label insts) = Node ("LIRUnit: " ++ pp label) (map treeify insts)
+    treeify (SSAUnit label insts) = Node ("SSAUnit: " ++ pp label) (map treeify insts)
 
-instance IRNode LIRInst where
-    pp (LIRRegAssignInst reg expr) = pp reg ++ " <- " ++ pp expr
-    pp (LIRRegOffAssignInst reg offset size operand) =
+instance IRNode SSAInst where
+    pp (SSARegAssignInst reg expr) = pp reg ++ " <- " ++ pp expr
+    pp (SSARegOffAssignInst reg offset size operand) =
         pp reg ++ "(" ++ pp offset ++ ", " ++ pp size ++ ") <- " ++ pp operand
-    pp (LIRStoreInst mem operand) = "STORE " ++ pp mem ++ ", " ++ pp operand
-    pp (LIRLoadInst reg mem) = "LOAD " ++ pp reg ++ ", " ++ pp mem
-    pp (LIREnterInst num) = "ENTER " ++ (show num)
-    pp (LIRJumpLabelInst label) = "JMP " ++ pp label
-    pp (LIRIfInst expr flab tlab) = "IF " ++ pp expr ++ " THEN " ++ pp tlab ++ " ELSE " ++ pp flab
-    pp (LIRCallInst proc ret) = "CALL " ++ pp proc ++ " AND RETURN TO " ++ pp ret
-    pp (LIRCalloutInst proc) = "CALL " ++ proc
-    pp (LIRRetInst _ _) = "RET"
-    pp (LIRLabelInst label) = "LABEL: " ++ pp label
-    treeify (LIRRegAssignInst reg expr) =
+    pp (SSAStoreInst mem operand) = "STORE " ++ pp mem ++ ", " ++ pp operand
+    pp (SSALoadInst reg mem) = "LOAD " ++ pp reg ++ ", " ++ pp mem
+    pp (SSAEnterInst num) = "ENTER " ++ (show num)
+    pp (SSAJumpLabelInst label) = "JMP " ++ pp label
+    pp (SSAIfInst expr flab tlab) = "IF " ++ pp expr ++ " THEN " ++ pp tlab ++ " ELSE " ++ pp flab
+    pp (SSACallInst proc ret) = "CALL " ++ pp proc ++ " AND RETURN TO " ++ pp ret
+    pp (SSACalloutInst proc) = "CALL " ++ proc
+    pp (SSARetInst _ _) = "RET"
+    pp (SSALabelInst label) = "LABEL: " ++ pp label
+    treeify (SSARegAssignInst reg expr) =
         Node "ASSIGN" [treeify reg, treeify expr]
-    treeify (LIRRegOffAssignInst reg offset size operand) =
+    treeify (SSARegOffAssignInst reg offset size operand) =
         Node "ASSIGN" $ [treeify reg, treeify offset, treeify size, treeify operand]
-    treeify (LIRStoreInst mem operand) =
+    treeify (SSAStoreInst mem operand) =
         Node "STR" [treeify mem, treeify operand]
-    treeify (LIRLoadInst reg mem) = Node "LD" [treeify reg, treeify mem]
-    treeify (LIREnterInst bytes) = Node ("Enter[" ++ pp bytes ++ "]") []
-    treeify (LIRJumpLabelInst label) = Node "JMP" [treeify label]
-    treeify (LIRIfInst expr flab tlab) = Node "IF" [treeify expr, treeify flab, treeify tlab]
-    treeify (LIRCallInst proc ret) = Node "CALL" [treeify proc]
-    treeify (LIRRetInst _ _) = Node "RET" []
-    treeify (LIRLabelInst label) = Node (pp label) []
+    treeify (SSALoadInst reg mem) = Node "LD" [treeify reg, treeify mem]
+    treeify (SSAEnterInst bytes) = Node ("Enter[" ++ pp bytes ++ "]") []
+    treeify (SSAJumpLabelInst label) = Node "JMP" [treeify label]
+    treeify (SSAIfInst expr flab tlab) = Node "IF" [treeify expr, treeify flab, treeify tlab]
+    treeify (SSACallInst proc ret) = Node "CALL" [treeify proc]
+    treeify (SSARetInst _ _) = Node "RET" []
+    treeify (SSALabelInst label) = Node (pp label) []
 
-instance IRNode LIRProc where
-    pp (LIRProcLabel label) = pp label
-    pp (LIRProcReg reg) = pp reg
-    treeify (LIRProcLabel label) = Node (pp label) []
-    treeify (LIRProcReg reg) = treeify reg
+instance IRNode SSAProc where
+    pp (SSAProcLabel label) = pp label
+    pp (SSAProcReg reg) = pp reg
+    treeify (SSAProcLabel label) = Node (pp label) []
+    treeify (SSAProcReg reg) = treeify reg
 
-instance IRNode LIRExpr where
-    pp (LIRBinExpr operand binop operand') =
+instance IRNode SSAExpr where
+    pp (SSABinExpr operand binop operand') =
         pp operand ++ " " ++ pp binop ++ " " ++ pp operand'
-    pp (LIRUnExpr unop operand) = pp unop ++ pp operand
-    pp (LIROperExpr operand) = pp operand
-    treeify (LIRBinExpr operand binop operand') =
+    pp (SSAUnExpr unop operand) = pp unop ++ pp operand
+    pp (SSAOperExpr operand) = pp operand
+    treeify (SSABinExpr operand binop operand') =
         Node (pp binop) [treeify operand, treeify operand']
-    treeify (LIRUnExpr unop operand) = Node (pp unop) [treeify operand]
-    treeify (LIROperExpr operand) = Node (pp operand) []
+    treeify (SSAUnExpr unop operand) = Node (pp unop) [treeify operand]
+    treeify (SSAOperExpr operand) = Node (pp operand) []
 
-instance IRNode LIRRelExpr where
-    pp (LIRBinRelExpr operand relop operand') =
+instance IRNode SSARelExpr where
+    pp (SSABinRelExpr operand relop operand') =
         pp operand ++ " " ++ pp relop ++ " " ++ pp operand'
-    pp (LIRNotRelExpr operand) = "!" ++ pp operand
-    pp (LIROperRelExpr operand) = pp operand
-    treeify (LIRBinRelExpr operand relop operand') =
+    pp (SSANotRelExpr operand) = "!" ++ pp operand
+    pp (SSAOperRelExpr operand) = pp operand
+    treeify (SSABinRelExpr operand relop operand') =
         Node (pp relop) [treeify operand, treeify operand']
-    treeify (LIRNotRelExpr operand) = Node "!" [treeify operand]
-    treeify (LIROperRelExpr operand) = Node (pp operand) []
+    treeify (SSANotRelExpr operand) = Node "!" [treeify operand]
+    treeify (SSAOperRelExpr operand) = Node (pp operand) []
 
-instance IRNode LIRBinOp where
-    pp (LADD) = "ADD"
-    pp (LSUB) = "SUB"
-    pp (LMUL) = "MUL"
-    pp (LDIV) = "DIV"
-    pp (LMOD) = "MOD"
-    pp (LAND) = "AND"
-    pp (LOR) = "OR"
-    pp (LXOR) = "XOR"
-    pp (LSHL) = "SHL"
-    pp (LSHR) = "SHR"
-    pp (LSHRA) = "SHRA"
-    pp (LIRBinRelOp relop _) = pp relop
-    treeify (LIRBinRelOp relop _) = treeify relop
+instance IRNode SSABinOp where
+    pp (SADD) = "ADD"
+    pp (SSUB) = "SUB"
+    pp (SMUL) = "MUL"
+    pp (SDIV) = "DIV"
+    pp (SMOD) = "MOD"
+    pp (SAND) = "AND"
+    pp (SOR) = "OR"
+    pp (SXOR) = "XOR"
+    pp (SSHL) = "SHL"
+    pp (SSHR) = "SHR"
+    pp (SSHRA) = "SHRA"
+    pp (SSABinRelOp relop _) = pp relop
+    treeify (SSABinRelOp relop _) = treeify relop
     treeify a = Node (pp a) []
 
-instance IRNode LIRUnOp where
-    pp (LNEG) = "-"
-    pp (LNOT) = "!"
+instance IRNode SSAUnOp where
+    pp (SNEG) = "-"
+    pp (SNOT) = "!"
     treeify a = Node (pp a) []
 
-instance IRNode LIRRelOp where
-    pp (LEQ) = "=="
-    pp (LNEQ) = "!="
-    pp (LGT) = ">"
-    pp (LGTE) = ">="
-    pp (LLT) = "<"
-    pp (LLTE) = "<="
+instance IRNode SSARelOp where
+    pp (SEQ) = "=="
+    pp (SNEQ) = "!="
+    pp (SGT) = ">"
+    pp (SGTE) = ">="
+    pp (SLT) = "<"
+    pp (SLTE) = "<="
     treeify a = Node (pp a) []
 
-instance IRNode LIRMemAddr where
-    pp (LIRMemAddr base reg offset _) =
+instance IRNode SSAMemAddr where
+    pp (SSAMemAddr base reg offset _) =
         "[" ++ pp base ++ " + " ++ reg' ++ " + " ++ pp offset ++ "]"
       where
         reg' = case reg of
                   Just r -> pp r
                   Nothing -> ""
 
-    treeify (LIRMemAddr base reg offset size) =
+    treeify (SSAMemAddr base reg offset size) =
         Node "MemAddr" $ [treeify base] ++ reg' ++ [treeify offset, treeify size]
       where
         reg' = case reg of
                   Just r -> [treeify r]
                   Nothing -> []
 
-instance IRNode LIROperand where
-    pp (LIRRegOperand reg) = pp reg
-    pp (LIRIntOperand i) = pp i
-    pp (LIRStrOperand s) = s
+instance IRNode SSAOperand where
+    pp (SSARegOperand reg) = pp reg
+    pp (SSAIntOperand i) = pp i
+    pp (SSAStrOperand s) = s
     treeify a = Node (pp a) []
 
-instance IRNode LIRReg where
-    pp (LRAX) = "RAX"
-    pp (LRBX) = "RBX"
-    pp (LRCX) = "RCX"
-    pp (LRDX) = "RDX"
-    pp (LRBP) = "RBP"
-    pp (LRSP) = "RSP"
-    pp (LRSI) = "RSI"
-    pp (LRDI) = "RDI"
-    pp (LR8)  = "R8"
-    pp (LR9)  = "R9"
-    pp (LR10) = "R10"
-    pp (LR11) = "R11"
-    pp (LR12) = "R12"
-    pp (LR13) = "R13"
-    pp (LR14) = "R14"
-    pp (LR15) = "R15"
-    pp (GI i) = "g"++(show i)
-    pp (MEM s)  = s
-    pp (SREG i) = "s" ++ (show i)
+instance IRNode SSAReg where
+    pp (LRAX s) = "RAX[" ++ show s ++ "]"
+    pp (LRBX s) = "RBX" ++ "[" ++ show s ++ "]"
+    pp (LRCX s) = "RCX" ++ "[" ++ show s ++ "]"
+    pp (LRDX s) = "RDX" ++ "[" ++ show s ++ "]"
+    pp (LRBP s) = "RBP" ++ "[" ++ show s ++ "]"
+    pp (LRSP s) = "RSP" ++ "[" ++ show s ++ "]"
+    pp (LRSI s) = "RSI" ++ "[" ++ show s ++ "]"
+    pp (LRDI s) = "RDI" ++ "[" ++ show s ++ "]"
+    pp (LR8 s)  = "R8" ++ "[" ++ show s ++ "]"
+    pp (LR9 s)  = "R9" ++ "[" ++ show s ++ "]"
+    pp (LR10 s) = "R10" ++ "[" ++ show s ++ "]"
+    pp (LR11 s) = "R11" ++ "[" ++ show s ++ "]"
+    pp (LR12 s) = "R12" ++ "[" ++ show s ++ "]"
+    pp (LR13 s) = "R13" ++ "[" ++ show s ++ "]"
+    pp (LR14 s) = "R14" ++ "[" ++ show s ++ "]"
+    pp (LR15 s) = "R15" ++ "[" ++ show s ++ "]"
+    pp (GI i s) = "g"++(show i) ++ "[" ++ show s ++ "]"
+    pp (MEM s su)  = s ++ "[" ++ show su ++ "]"
+    pp (SREG i s) = "s" ++ (show i) ++ "[" ++ show s ++ "]"
     treeify a = Node (pp a) []
-
-instance IRNode LIRInt where
-    pp i = (if i < 0 then "-" else "") ++ "0x" ++ showHex (abs i) ""
-    treeify i = Node (pp i) []
-
-instance IRNode LIRLabel where
-    pp l@(LIRLabel s n) = show l
-    treeify s = Node (pp s) []
