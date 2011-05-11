@@ -24,19 +24,22 @@ simplify = mkFRewrite simp
     simp node _ = return $ liftM nodeToG $ s_node node
     s_node :: LIRNode e x -> Maybe (LIRNode e x)
     s_node (LIRRegAssignNode x e)        = Just $ LIRRegAssignNode x (rewriteExpr e)
-    s_node (LIRIfNode e fl tl) = let e' = trace ("collapsing branch with expr: " ++ pp (rewriteRelExpr e)) rewriteRelExpr e
-                                 in case e' of
+    s_node (LIRIfNode e fl tl) = let e' = rewriteRelExpr e
+                                     e'' = trace ("collapsing branch with expr: " ++ pp e') e'
+                                 in case e'' of
                                     (LIRNotRelExpr (LIRIntOperand i))
-                                        -> Just $ LIRJumpLabelNode (case i of
-                                                                    asmTrue -> trace ("picked false branch: " ++ pp fl) fl
-                                                                    asmFalse -> trace ("picked true branch: " ++ pp tl) tl
-                                                                    other -> error $ "tried to collapse an if node with an invalid relexpr of value: " ++ pp i)
+                                        -> Just $ LIRJumpLabelNode (if i == asmFalse
+                                                                      then trace ("rel: picked true branch: " ++ pp tl) tl
+                                                                      else if i == asmTrue
+                                                                        then trace ("rel: picked false branch: " ++ pp fl) fl
+                                                                        else error $ "tried to collapse an if node with an invalid relexpr of value: " ++ pp i)
 
                                     (LIROperRelExpr (LIRIntOperand i))
-                                        -> Just $ LIRJumpLabelNode (case i of
-                                                                    asmTrue -> trace ("rel: picked true branch: " ++ pp tl) tl
-                                                                    asmFalse -> trace ("rel: picked false branch: " ++ pp fl) fl
-                                                                    other -> error $ "tried to collapse an if node with an invalid relexpr of value: " ++ pp i)
+                                        -> Just $ LIRJumpLabelNode (if i == asmTrue
+                                                                      then trace ("rel: picked true branch: " ++ pp tl) tl
+                                                                      else if i == asmFalse
+                                                                        then trace ("rel: picked false branch: " ++ pp fl) fl
+                                                                        else error $ "tried to collapse an if node with an invalid relexpr of value: " ++ pp i)
 
                                     _   -> trace "FAIL: could not collapse branch" $ Just $ LIRIfNode e' fl tl
     s_node _ = Nothing

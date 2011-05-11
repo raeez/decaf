@@ -37,7 +37,7 @@ liveness = mkBTransfer live
     live n@(LIREnterNode {}) f         = f
     live n@(LIRCalloutNode {}) f       = f
     live n@(LIRJumpLabelNode l) f      = addUses (fact f l) n
-    live n@(LIRIfNode expr tl fl) f    = addUses (fact f tl `S.union` fact f fl) n
+    live n@(LIRIfNode expr fl tl) f    = addUses (fact f fl `S.union` fact f tl) n
     live n@(LIRCallNode proc ret) f    = addUses (fact f proc `S.union` fact f ret) n
     live n@(LIRRetNode successors _) f = addUses (fact_bot liveLattice) n
 
