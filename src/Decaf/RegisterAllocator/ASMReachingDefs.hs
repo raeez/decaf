@@ -1,8 +1,8 @@
 {-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables, NoMonomorphismRestriction #-}
 
-module Decaf.ReachingDefs
-  ( reachingDefsPass
---  , VarFact
+module Decaf.ASMReachingDefs
+  ( asmReachingDefs
+  , DefFact
   )
 
 where
@@ -25,8 +25,12 @@ import Debug.Trace
 import qualified Data.Map as M
 import qualified Data.Set as S
 
-type Key = ASMNode -- will only be 'mov type' nodes
-type DefFact = S.Set Key 
+type DefFact = S.Set (ASMReg, ASMNode)
+
+getDef :: ASMReg -> DefFact -> ASMNode
+getDef r f = case lookup r $ toAscList f of -- returns the first one
+               Nothing -> error "tried to look up register without preceeding definition in ASMReachingDefs line 32"
+               Just n -> n
 
 -- join two CSE facts 
 join :: VarFact -> VarFact -> (ChangeFlag, VarFact)
@@ -103,7 +107,7 @@ lattice = DataflowLattice
   , factJoin   = join }
 
 -- define fwd pass
-liveVarPass  = FwdPass
+asmReachingDefs  = FwdPass
   { fpLattice = lattice
   , fpTransfer = transfer
   , fpRewrite = rewrite }

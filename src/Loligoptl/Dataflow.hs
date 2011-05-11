@@ -65,13 +65,61 @@ newtype FwdTransfer n f = FwdTransfer3
 
 -- pass -> graph -> fold function from node, associated fact, to result type -> initial -> final
 -- this doesn't properly belong here; assumes some Decaf stuff
-foldDataflowFacts :: (Nonlocal n)=> 
-                     FwdPass m n f
-                  -> Graph n C C
-                  -> (n -> f -> res -> res)
-                  -> res -> res
+foldDataflowFactsFwd :: (Nonlocal n)=> 
+                        FwdPass m n f
+                     -> Graph n C C
+                     -> (n -> f -> res -> res)
+                     -> res -> res
 
 foldDataflowFactsFwd pass graph func init = 
+  -- fst takes the DG, drops the state
+  let
+      -- partly copied from afrgraph
+      block :: forall e x. Block n e x 
+            -> f -> res -> (f, res)
+      block (BFirst  n)   f acc = node n f acc
+      block (BMiddle n)   f acc = node n f acc
+      block (BLast   n)   f acc = node n f acc
+      block (BCat b1 b2)  f acc = block b1 `cat` block b2
+      block (BHead h n)   f acc = block h  `cat` node n
+      block (BTail n t)   f acc = node  n  `cat` block t
+      block (BClosed h t) f acc = block h  `cat` block t
+                           
+      node :: forall e x. (Shapelifter e x) => n e x 
+           -> f -> res -> (f, res)
+      -- apply transfer function and accum function
+      -- use fact flowing OUT of node
+      -- so that definitions get joined to themself in web building
+      node n f acc = (transfer f, func n (transfer f) acc) 
+
+      cat :: (f -> res -> (f,res))
+          -> (f -> res -> (f,res))
+          -> (f -> res -> (f,res))
+      cat t1 t2 f acc = let (f', acc') = t1 f acc
+                        in t2 f' acc'
+
+      dgBody = case fst $ runLFM $ (afrGraph pass entries g (mapSingleton mainlab bottom)) of
+                 GMany _ body _ -> body -- this seems like a hack
+      mainlab = LIRLabel "main" (-1)
+      entries = JustC [mainlab]
+
+      -- dataflow stuff
+      transfer = ftransfer pass
+      bottom = (factBottom . fpLattice) pass
+
+      blocks = forwardBlockList entries dgBody
+      
+  in
+    -- curry id :: a -> b -> (a,b)
+    (foldr cat (curry id) $ map block blocks) bottom init
+
+foldDataflowFactsbwd :: (Nonlocal n)=> 
+                        BwdPass m n f
+                     -> Graph n C C
+                     -> (n -> f -> res -> res)
+                     -> res -> res
+
+foldDataflowFactsBwd pass graph func init = 
   -- fst takes the DG, drops the state
   let
       -- partly copied from afrgraph
@@ -92,23 +140,24 @@ foldDataflowFactsFwd pass graph func init =
       cat :: (f -> res -> (f,res))
           -> (f -> res -> (f,res))
           -> (f -> res -> (f,res))
-      cat t1 t2 f acc = let (f', acc') = t1 f acc
-                        in t2 f' acc'
+      cat t1 t2 f acc = let (f', acc') = t2 f acc
+                        in t1 f' acc'
 
-      dgBody = case fst $ runLFM $ (afrGraph pass entries g (mapSingleton mainlab bottom)) of
+      dgBody = case fst $ runLFM $ (abrGraph pass entries g (mapSingleton mainlab bottom)) of
                  GMany _ body _ -> body -- this seems like a hack
       mainlab = LIRLabel "main" (-1)
       entries = JustC [mainlab]
 
       -- dataflow stuff
-      transfer = undefined
-      bottom = (factBottom . fpLattice) pass
+      transfer = btransfer pass
+      bottom = (factBottom . bpLattice) pass
 
+      -- does this need to change?
       blocks = forwardBlockList entries dgBody
       
   in
     -- curry id :: a -> b -> (a,b)
-    (foldr cat (curry id) $ map block blocks) bottom init
+    (foldr cat (curry id) $ map block blocks) bottom init -- should be okay CHANGE?
 
 
 
@@ -493,7 +542,7 @@ fixpoint direction lat do_block blocks init_fbase
      -- 'tag' adds the in-labels of the block; 
      -- see Note [TxFactBase invairants]
 
-    tx_blocks :: [((Label, Block n C C), [Label])]   -- I do not understand this type
+    tx_blocks :: [((Label, Block n C C), [Label])]
               -> TxFactBase n f -> m (TxFactBase n f)
     tx_blocks []              tx_fb = return tx_fb
     tx_blocks (((lbl,blk), in_lbls):bs) tx_fb 

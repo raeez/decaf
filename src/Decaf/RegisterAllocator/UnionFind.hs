@@ -18,7 +18,7 @@ emptyUnion = UnionSet [] []
 insert :: Eq a => a -> UnionSet a -> UnionSet a
 insert a (UnionSet m l) = 
   let size = length m in
-  UnionSet ((a, size):m) (l++[-1])
+  UnionSet (m++[(a, size)]) (l++[-1])
 
 -- returns list element corresponding to a
 ulookup :: Eq a => a -> UnionSet a -> Maybe Int
@@ -44,6 +44,9 @@ find a (UnionSet m l) =
 
 -- joins b to a in us
 join :: Eq a => a -> a -> UnionSet a -> UnionSet a
+join a b u | a == b = 
+  if ulookup a u == Nothing then insert a u else u
+                      
 join a b u = 
   let u' = 
         let ma = ulookup a u
@@ -71,3 +74,22 @@ join a b u =
       modify pa pb $ modify pb (-(sa+sb)) u'
 
   
+
+-- m  is a list of ((reg,node),int), for instance
+assocFind :: Eq a => a -> UnionSet (a,b) -> (a,b)
+assocFind key (UnionSet m l) = (key, fromJust $ lookup key (map fst m))
+
+
+-- gets parent node
+getParent :: Eq a => a -> UnionSet a -> a
+getParent a us@(UnionSet m l) = 
+  let (p, _) = find a us 
+  in fst $ m !! p
+--lists the parent of each web
+listPartitions :: Eq a => UnionSet a -> [a]
+listPartitions us@(UnionSet m _) = foldl appendnew [] m
+  where
+--    appendnew :: [a] -> (a,Int) -> [a]
+    appendnew seen (a,_) = if (getParent a us) `elem` seen then seen else a:seen
+
+      
