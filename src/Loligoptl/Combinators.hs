@@ -9,7 +9,7 @@ module Loligoptl.Combinators
   )
 where
   
-import Loligoptl.Dataflow hiding (Graph)
+import Loligoptl.Dataflow
 import Loligoptl.Graph 
 import Loligoptl.Fuel 
 import Loligoptl.Label 

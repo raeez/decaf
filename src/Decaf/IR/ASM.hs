@@ -230,6 +230,7 @@ data ASMReg = RAX
             | R14
             | R15
             | ASMSREG Int
+              deriving (Show, Eq, Ord)
 
 lit :: Int64 -> ASMGenOperand
 lit i = ASMGenOperand $ ASMLitOperand i

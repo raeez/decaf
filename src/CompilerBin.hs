@@ -1,6 +1,7 @@
 module Main where
 import Decaf
-import Decaf.RegisterAllocator
+import Decaf.RegisterAllocator -- different module than below!!
+import Decaf.RegisterAllocator.Allocator
 import System.Environment
 import System.Exit
 import System.Process
@@ -148,10 +149,13 @@ compile chosen source filename =
          assembler = programAssembler (content numberedTable) program
          -- ^ pre-assembly monad
 
-         (assembler', _) = runAssembler assembler mkAssemblerState
+         (asmprogram, _) = runAssembler assembler mkAssemblerState
          -- ^ translate to pre-assembly
+
+         withRegs = colorRegisters asmprogram
+         -- ^ color registers and rewrite
  
-         asmout = nasm assembler'
+         asmout = nasm withRegs
          -- ^ translate to NASM assembler syntax
 
      if graph chosen
@@ -169,7 +173,7 @@ compile chosen source filename =
     graphFile = buildFilename filename 2 "out"
     imageFile = buildFilename filename 2 "png"
 
-type M = CheckingFuelMonad (SimpleUniqueMonad)
+--type M = CheckingFuelMonad (SimpleUniqueMonad)
 
 optimize :: DecafGraph C C -> IO (DecafGraph C C, DominatorTree)
 optimize g = do

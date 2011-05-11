@@ -157,7 +157,7 @@ programAssembler st prog =
        text <- getAsmList
        -- generate externs
        externs <- getExterns
-       return (ASMProgram defaultFlags (union defaultExterns externs) [dataSection, ASMTextSection text])
+       return (ASMProgram defaultFlags (union defaultExterns externs) (dataSection, ASMTextSection text))
 
 ------------------- DATA --------------------------------
 

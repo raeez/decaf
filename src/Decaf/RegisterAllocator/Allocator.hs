@@ -23,9 +23,11 @@ module Decaf.RegisterAllocator.Allocator
 where
 
 import Decaf.RegisterAllocator.IGraph
+import Decaf.RegisterAllocator.ASMLiveVars
+import Decaf.RegisterAllocator.ASMReachingDefs
 import Loligoptl.Dataflow
 import Decaf.HooplNodes
-import Decaf.LiveVars
+
 
 
 type VarDataGraph = DG VarFact Node C C
@@ -128,14 +130,14 @@ makeIGraph g us =
 
 
     -- join function for dataflow fold
-    igraphjoin :: ASMNode -> VarFact -> (IGraph, CGraph) -> (IGraph, CGraph)
+    igraphjoin :: ASMNode e x -> Fact x VarFact -> (IGraph, CGraph) -> (IGraph, CGraph)
     igraphjoin n livevars (igraph, cgraph) = (ijoin igraph, cjoin cgraph)
       where
         ijoin igraph = 
           if mop n then -- mul/div/mod
             foldr (uncurry addEdge) igraph 
                   (concatMap (\rx -> map (curry id $ (rx, n)) (lookupReg r livevars)) [RAX,RDX])
-          else if ctrl n then 
+          else if narith n then 
                  igraph
                else
                  case op of
@@ -174,6 +176,23 @@ makeIGraph g us =
             n@(ASMDivNode {}) -> True
             n@(ASMModNode {}) -> True
             otherwise -> False
+
+        narith n = 
+          case n of
+            (ASMJmpInst   o  ) -> True
+            (ASMJeInst    o  ) -> True
+            (ASMJneInst   o  ) -> True
+            (ASMJgInst    o  ) -> True
+            (ASMJgeInst   o  ) -> True
+            (ASMJlInst    o  ) -> True
+            (ASMJleInst   o  ) -> True
+            (ASMLabelInst o  ) -> True
+            (ASMCallInst  o  ) -> True
+            (ASMEnterInst o  ) -> True
+            (ASMRetInst      ) -> True
+            otherwise -> False
+            
+            
 
         lift key = getParent key us
 

@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables, NoMonomorphismRestriction #-}
 
-module Decaf.ASMLiveVars
+module Decaf.RegisterAllocator.ASMLiveVars
   ( asmLiveVars
   , VarFact
   )
@@ -12,13 +12,9 @@ import Decaf.HooplNodes
 import Decaf.IR.ASM
 import Decaf.IR.ASM
 import Decaf.RegisterAllocator.GraphASM
-import Loligoptl.Dataflow
-import Loligoptl.Graph 
-import Loligoptl.Fuel 
-import Loligoptl.Label 
-import Loligoptl.Combinators
+import Loligoptl
 
-import Control.Monad
+import Control.Monad hiding (join)
 import Data.Maybe
 import Debug.Trace
 
@@ -33,7 +29,7 @@ lookupReg r = S.filter ((== r) . fst)
 
 -- join two CSE facts 
 join :: VarFact -> VarFact -> (ChangeFlag, VarFact)
-join f g = if f == g then (NoChange, f) else (SomeChange, S.Union f g)
+join f g = if f == g then (NoChange, f) else (SomeChange, S.union f g)
 
 
 transfer :: BwdTransfer ASMNode VarFact
@@ -106,11 +102,12 @@ rewrite = shallowFwdRw (return Nothing)
 -- define lattice
 bottom = S.empty
 lattice = DataflowLattice
-  { factBottom = bottom
-  , factJoin   = join }
+  { fact_name = "ASM Live Variables"
+  , fact_bot  = bottom
+  , fact_join = join }
 
 -- define fwd pass
 asmLiveVars  = BwdPass
-  { bpLattice = lattice
-  , bpTransfer = transfer
-  , bpRewrite = rewrite }
+  { bp_lattice  = lattice
+  , bp_transfer = transfer
+  , bp_rewrite  = rewrite }

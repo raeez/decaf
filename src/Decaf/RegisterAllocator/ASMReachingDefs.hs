@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables, NoMonomorphismRestriction #-}
 
-module Decaf.ASMReachingDefs
+module Decaf.RegisterAllocator.ASMReachingDefs
   ( asmReachingDefs
   , DefFact
   )

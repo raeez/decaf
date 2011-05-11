@@ -1,11 +1,15 @@
+{-# LANGUAGE GADTs, MultiParamTypeClasses #-}
+
 {- 
 possible bugs:
 not every OC node is followed by a CO label node
 -}
-module Decaf.GraphASM where
+module Decaf.RegisterAllocator.GraphASM where
 --import Compiler.Hoopl hiding (Top)
 import Decaf.IR.LIR
 import Decaf.IR.IRNode
+import Decaf.IR.ASM
+import Loligoptl
 import Loligoptl.Dataflow 
 import Loligoptl.Graph 
 import Loligoptl.Fuel 
@@ -20,23 +24,23 @@ type HooplLabel = Loligoptl.Label.Label
 
 -- nodes
 data ASMNode e x where
-    ASMAddNode   :: Int -> ASMOperand a -> ASMOperand b -> ASMNode O O
-    ASMSubNode   :: Int -> ASMOperand a -> ASMOperand b -> ASMNode O O
-    ASMMovNode   :: Int -> ASMOperand a -> ASMOperand b -> ASMNode O O
-    ASMCmpNode   :: Int -> ASMOperand a -> ASMOperand b -> ASMNode O O
-    ASMAndNode   :: Int -> ASMOperand a -> ASMOperand b -> ASMNode O O
-    ASMOrNode    :: Int -> ASMOperand a -> ASMOperand b -> ASMNode O O 
-    ASMXorNode   :: Int -> ASMOperand a -> ASMOperand b -> ASMNode O O
-    ASMShlNode   :: Int -> ASMOperand a -> ASMOperand b -> ASMNode O O
-    ASMShrNode   :: Int -> ASMOperand a -> ASMOperand b -> ASMNode O O
-    ASMShraNode  :: Int -> ASMOperand a -> ASMOperand b -> ASMNode O O
-    ASMMulNode   :: Int -> ASMOperand a -> ASMNode O O
-    ASMDivNode   :: Int -> ASMOperand a -> ASMNode O O
-    ASMModNode   :: Int -> ASMOperand a -> ASMNode O O
-    ASMPushNode  :: Int -> ASMOperand a -> ASMNode O O
-    ASMPopNode   :: Int -> ASMOperand a -> ASMNode O O
-    ASMNegNode   :: Int -> ASMOperand a -> ASMNode O O
-    ASMNotNode   :: Int -> ASMOperand a -> ASMNode O O
+    ASMAddNode   :: Int -> ASMOperand -> ASMOperand -> ASMNode O O
+    ASMSubNode   :: Int -> ASMOperand -> ASMOperand -> ASMNode O O
+    ASMMovNode   :: Int -> ASMOperand -> ASMOperand -> ASMNode O O
+    ASMCmpNode   :: Int -> ASMOperand -> ASMOperand -> ASMNode O O
+    ASMAndNode   :: Int -> ASMOperand -> ASMOperand -> ASMNode O O
+    ASMOrNode    :: Int -> ASMOperand -> ASMOperand -> ASMNode O O 
+    ASMXorNode   :: Int -> ASMOperand -> ASMOperand -> ASMNode O O
+    ASMShlNode   :: Int -> ASMOperand -> ASMOperand -> ASMNode O O
+    ASMShrNode   :: Int -> ASMOperand -> ASMOperand -> ASMNode O O
+    ASMShraNode  :: Int -> ASMOperand -> ASMOperand -> ASMNode O O
+    ASMMulNode   :: Int -> ASMOperand -> ASMNode O O
+    ASMDivNode   :: Int -> ASMOperand -> ASMNode O O
+    ASMModNode   :: Int -> ASMOperand -> ASMNode O O
+    ASMPushNode  :: Int -> ASMOperand -> ASMNode O O
+    ASMPopNode   :: Int -> ASMOperand -> ASMNode O O
+    ASMNegNode   :: Int -> ASMOperand -> ASMNode O O
+    ASMNotNode   :: Int -> ASMOperand -> ASMNode O O
     ASMJmpNode   :: Int -> ASMLabel -> ASMNode O C
     ASMJeNode    :: Int -> ASMLabel -> ASMNode O C
     ASMJneNode   :: Int -> ASMLabel -> ASMNode O C
@@ -49,43 +53,55 @@ data ASMNode e x where
     ASMEnterNode :: Int -> ASMInt -> ASMNode O O
     ASMRetNode   :: Int -> ASMNode O C
 
-getASMLine :: ASMNode -> Int
-getASMLine n = 
-  case n of
-    (ASMAddNode   i _ _) -> i
-    (ASMSubNode   i _ _) -> i
-    (ASMMovNode   i _ _) -> i
-    (ASMCmpNode   i _ _) -> i
-    (ASMAndNode   i _ _) -> i
-    (ASMOrNode    i _ _) -> i
-    (ASMXorNode   i _ _) -> i
-    (ASMShlNode   i _ _) -> i
-    (ASMShrNode   i _ _) -> i
-    (ASMShraNode  i _ _) -> i
-    (ASMMulNode   i _  ) -> i
-    (ASMDivNode   i _  ) -> i
-    (ASMModNode   i _  ) -> i
-    (ASMPushNode  i _  ) -> i
-    (ASMPopNode   i _  ) -> i
-    (ASMNegNode   i _  ) -> i
-    (ASMNotNode   i _  ) -> i
-    (ASMJmpNode   i _  ) -> i
-    (ASMJeNode    i _  ) -> i
-    (ASMJneNode   i _  ) -> i
-    (ASMJgNode    i _  ) -> i
-    (ASMJgeNode   i _  ) -> i
-    (ASMJlNode    i _  ) -> i
-    (ASMJleNode   i _  ) -> i
-    (ASMLabelNode i _  ) -> i
-    (ASMCallNode  i _  ) -> i
-    (ASMEnterNode i _  ) -> i
-    (ASMRetNode   i    ) -> i
+class HasLine e x where
+  getASMLine :: ASMNode e x -> Int
+
+instance HasLine C O where
+  getASMLine n = 
+    case n of
+      (ASMLabelNode i _  ) -> i
+
+instance HasLine O O where
+  getASMLine n = 
+    case n of
+      (ASMAddNode   i _ _) -> i
+      (ASMSubNode   i _ _) -> i
+      (ASMMovNode   i _ _) -> i
+      (ASMCmpNode   i _ _) -> i
+      (ASMAndNode   i _ _) -> i
+      (ASMOrNode    i _ _) -> i
+      (ASMXorNode   i _ _) -> i
+      (ASMShlNode   i _ _) -> i
+      (ASMShrNode   i _ _) -> i
+      (ASMShraNode  i _ _) -> i
+      (ASMMulNode   i _  ) -> i
+      (ASMDivNode   i _  ) -> i
+      (ASMModNode   i _  ) -> i
+      (ASMPushNode  i _  ) -> i
+      (ASMPopNode   i _  ) -> i
+      (ASMNegNode   i _  ) -> i
+      (ASMNotNode   i _  ) -> i
+      (ASMEnterNode i _  ) -> i
+
+instance HasLine O C where
+  getASMLine n = 
+    case n of
+      (ASMJmpNode   i _  ) -> i
+      (ASMJeNode    i _  ) -> i
+      (ASMJneNode   i _  ) -> i
+      (ASMJgNode    i _  ) -> i
+      (ASMJgeNode   i _  ) -> i
+      (ASMJlNode    i _  ) -> i
+      (ASMJleNode   i _  ) -> i
+
+      (ASMCallNode  i _  ) -> i
+      (ASMRetNode   i    ) -> i
 
         
 
     
 instance NonLocal ASMNode where
-  entryLabel (ASMLabelNode l) =  asmtohooplLabel l -- hoopllabel = lirlabel
+  entryLabel (ASMLabelNode _ l) =  asmtohooplLabel l -- hoopllabel = lirlabel
   successors (ASMJmpNode _ l) = [asmtohooplLabel l]
   successors (ASMJeNode _ l)  = [asmtohooplLabel l]
   successors (ASMJneNode _ l) = [asmtohooplLabel l]
@@ -100,11 +116,11 @@ asmtohooplLabel (ASMLabel l i ) = LIRLabel l i
 -- Turns numbered ASMInst list into ASMNode Graph
 graphASMList :: [(ASMInst, Int)] -> Graph ASMNode C C
 graphASMList prog =
-  let blocks = makeBlocks instructions
+  let blocks = makeBlocks prog
   in GMany NothingO (mapFromList (zip (map entryLabel blocks) blocks)) NothingO
 
 makeBlocks :: [(ASMInst, Int)] -> [Block ASMNode C C]
-makeBlocks insts = startBlock 0 [] insts
+makeBlocks insts = startBlock [] insts
   where
     startBlock  :: [Block ASMNode C C] -> [(ASMInst, Int)] -> [Block ASMNode C C]
     startBlock bs [] = bs
@@ -114,7 +130,7 @@ makeBlocks insts = startBlock 0 [] insts
         ASMLabelInst lab -> (buildBlock bs (BFirst $ ASMLabelNode i lab) is)
         other -> (startBlock bs is) -- skip the node; it's dead code (hopefully...)
 
-    buildBlock :: [Block Node C C] -> Block Node C O -> [ASMInst] -> [Block Node C C]
+    buildBlock :: [Block ASMNode C C] -> Block ASMNode C O -> [(ASMInst, Int)] -> [Block ASMNode C C]
     buildBlock bs b [] = error "unfinished block"
     buildBlock bs b ((inst,i):is) = 
       case inst of
