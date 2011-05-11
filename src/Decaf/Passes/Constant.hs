@@ -74,22 +74,33 @@ constTransfer = mkFTransfer unwrapFactFt
     ft :: LIRNode e x -> M.Map ConstKey ConstData -> Fact x ConstFact
     ft (LIRLabelNode {}) f         = ConstFactMap f
     ft (LIRRegAssignNode x (LIROperExpr (LIRIntOperand i))) f
-                                   = ConstFactMap $ M.insert x (ConstLit i) (varChanged f x) -- a op b -> x
+                                   = ConstFactMap $ skipForbidden
+      where
+        forbidden = [LRSP, LRBP]
+        skipForbidden = if x `notElem` forbidden
+                          then M.insert x (ConstLit i) (varChanged f x)
+                          else varChanged f x
     ft (LIRRegAssignNode x _) f    = ConstFactMap $ varChanged f x                                       -- x = _, no change
     ft (LIRRegOffAssignNode {}) f  = ConstFactMap $ f                                       -- write to a memory location indexed by the registers
     ft (LIRStoreNode {}) f         = ConstFactMap $ f
     ft (LIRLoadNode x _) f         = ConstFactMap $ varChanged f x                          -- remove all records containing x
-    ft (LIRCallNode proc ret) f    = mkFactBase constLattice [(proc, ConstFactMap f), (ret, ConstFactMap mkGlobalsTop)] -- remove all local vars (i.e. only keep global vars) when jumping to the function
+    ft (LIRCallNode proc ret) f    = mkFactBase constLattice [(proc, ConstFactMap mkGlobalsTop), (ret, ConstFactMap mkGlobalsTop)] -- remove all local vars (i.e. only keep global vars) when jumping to the function
       where
         mkGlobalsTop = M.mapWithKey globalToTop f
         globalToTop r i = if local r
                             then i
                             else ConstTop
         globalToTop _ _ = ConstTop
+
         local (SREG {}) = True
         local _ = False
 
-    ft (LIRCalloutNode {}) f       = ConstFactMap f
+    ft (LIRCalloutNode {}) f       = ConstFactMap mkRAXTop
+      where
+        mkRAXTop = M.mapWithKey f' f
+        f' LRAX _ = ConstTop
+        f' _ v    = v
+
     ft (LIREnterNode {}) f         = ConstFactMap f
     ft (LIRRetNode successors _) f = mkFactBase constLattice [] -- (map (\x -> (x, f)) successors)
     ft (LIRIfNode expr fl tl) f    = mkFactBase constLattice [(tl, ConstFactMap f), (fl, ConstFactMap f)]  -- if expr the jmp tl else jmp fl
