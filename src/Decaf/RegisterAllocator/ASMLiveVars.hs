@@ -39,7 +39,7 @@ join f g = if f == g then (NoChange, f) else (SomeChange, S.Union f g)
 transfer :: BwdTransfer ASMNode VarFact
 transfer = mkBTransfer livetran
   where
-    livetran :: ASMNode e x -> VarFact -> Fact x VarFact
+    livetran :: ASMNode e x -> Fact x VarFact -> VarFact
 
     livetran n@(ASMAddNode i op1 op2) f = opinsert op1 n (opinsert op2 n f)
     livetran n@(ASMSubNode i op1 op2) f = opinsert op1 n (opinsert op2 n f)

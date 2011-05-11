@@ -44,7 +44,7 @@ class SymbolicAssembler a where
 data ASMProgram = ASMProgram
     { progFlags    :: Set ASMFlag
     , progExterns  :: Set ASMExternDecl
-    , progSections :: [ASMSection]
+    , progSections :: (ASMSection, ASMSection)
     }
 
 -- |Represents a general assembler flag; usually assembler-specific.
@@ -67,43 +67,43 @@ data ASMDataDecl = ASMDataSegment ASMLabel [ASMByte]
                  | ASMCommonSegment ASMLabel ASMInt
 
 -- |Phantom-type indicator of an ASMOperand that is a register.
-data Reg
+data Reg_
 
 -- |Phantom-type indicator of an ASMOperand that is a pointer to a memory region.
-data Mem
+data Mem_
 
 -- |Phantom-type indicator of an ASMOperand that is a static integer literal.
-data Lit
+data Lit_
 
 data ASMGenOperand where
-    ASMGenOperand :: forall t. ASMOperand t -> ASMGenOperand
+    ASMGenOperand :: forall t. ASMOperand -> ASMGenOperand
 
-data ASMOperand a where
-    ASMMemOperand :: ASMMemBase -> Maybe ASMMemBase -> Int64 -> Int64 -> ASMOperand Mem
-    ASMSymOperand :: ASMSym -> ASMOperand Mem
-    ASMRegOperand :: ASMReg -> Int64 -> ASMOperand Reg
-    ASMLitOperand :: Int64 -> ASMOperand Lit
+data ASMOperand where
+    ASMMemOperand :: ASMMemBase -> Maybe ASMMemBase -> Int64 -> Int64 -> ASMOperand --Mem_
+    ASMSymOperand :: ASMSym -> ASMOperand --Mem_
+    ASMRegOperand :: ASMReg -> Int64 -> ASMOperand --Reg_
+    ASMLitOperand :: Int64 -> ASMOperand --Lit_
 
 -- |Represents a single opcode (one, two or three bytes) in the x86_64
 -- instruction set. ASMInst is a GADT parameterized 
 data ASMInst where
-    ASMAddInst   :: ASMOperand a -> ASMOperand b -> ASMInst
-    ASMSubInst   :: ASMOperand a -> ASMOperand b -> ASMInst
-    ASMMovInst   :: ASMOperand a -> ASMOperand b -> ASMInst
-    ASMCmpInst   :: ASMOperand a -> ASMOperand b -> ASMInst
-    ASMAndInst   :: ASMOperand a -> ASMOperand b -> ASMInst
-    ASMOrInst    :: ASMOperand a -> ASMOperand b -> ASMInst
-    ASMXorInst   :: ASMOperand a -> ASMOperand b -> ASMInst
-    ASMShlInst   :: ASMOperand a -> ASMOperand b -> ASMInst
-    ASMShrInst   :: ASMOperand a -> ASMOperand b -> ASMInst
-    ASMShraInst  :: ASMOperand a -> ASMOperand b -> ASMInst
-    ASMMulInst   :: ASMOperand a -> ASMInst
-    ASMDivInst   :: ASMOperand a -> ASMInst
-    ASMModInst   :: ASMOperand a -> ASMInst
-    ASMPushInst  :: ASMOperand a -> ASMInst
-    ASMPopInst   :: ASMOperand a -> ASMInst
-    ASMNegInst   :: ASMOperand a -> ASMInst
-    ASMNotInst   :: ASMOperand a -> ASMInst
+    ASMAddInst   :: ASMOperand -> ASMOperand -> ASMInst
+    ASMSubInst   :: ASMOperand -> ASMOperand -> ASMInst
+    ASMMovInst   :: ASMOperand -> ASMOperand -> ASMInst
+    ASMCmpInst   :: ASMOperand -> ASMOperand -> ASMInst
+    ASMAndInst   :: ASMOperand -> ASMOperand -> ASMInst
+    ASMOrInst    :: ASMOperand -> ASMOperand -> ASMInst
+    ASMXorInst   :: ASMOperand -> ASMOperand -> ASMInst
+    ASMShlInst   :: ASMOperand -> ASMOperand -> ASMInst
+    ASMShrInst   :: ASMOperand -> ASMOperand -> ASMInst
+    ASMShraInst  :: ASMOperand -> ASMOperand -> ASMInst
+    ASMMulInst   :: ASMOperand -> ASMInst
+    ASMDivInst   :: ASMOperand -> ASMInst
+    ASMModInst   :: ASMOperand -> ASMInst
+    ASMPushInst  :: ASMOperand -> ASMInst
+    ASMPopInst   :: ASMOperand -> ASMInst
+    ASMNegInst   :: ASMOperand -> ASMInst
+    ASMNotInst   :: ASMOperand -> ASMInst
     ASMJmpInst   :: ASMLabel -> ASMInst
     ASMJeInst    :: ASMLabel -> ASMInst
     ASMJneInst   :: ASMLabel -> ASMInst
@@ -115,7 +115,77 @@ data ASMInst where
     ASMCallInst  :: ASMSym -> ASMInst
     ASMEnterInst :: ASMInt -> ASMInst
     ASMRetInst   :: ASMInst
-             deriving (Data)
+
+getASMTarget :: ASMInst -> (Maybe ASMReg, Maybe ASMReg)
+getASMTarget n = 
+  case n of
+    (ASMAddInst   o _) -> (fixOp o, Nothing)
+    (ASMSubInst   o _) -> (fixOp o, Nothing)
+    (ASMMovInst   o _) -> (fixOp o, Nothing)
+    (ASMCmpInst   o _) -> (fixOp o, Nothing)
+    (ASMAndInst   o _) -> (fixOp o, Nothing)
+    (ASMOrInst    o _) -> (fixOp o, Nothing)
+    (ASMXorInst   o _) -> (fixOp o, Nothing)
+    (ASMShlInst   o _) -> (fixOp o, Nothing)
+    (ASMShrInst   o _) -> (fixOp o, Nothing)
+    (ASMShraInst  o _) -> (fixOp o, Nothing)
+    (ASMMulInst   _  ) -> (Just RAX, Just RDX)
+    (ASMDivInst   _  ) -> (Just RAX, Just RDX)
+    (ASMModInst   _  ) -> (Just RAX, Just RDX)
+    (ASMPushInst  _  ) -> (Nothing, Nothing)
+    (ASMPopInst   o  ) -> (fixOp o, Nothing)
+    (ASMNegInst   o  ) -> (fixOp o, Nothing)
+    (ASMNotInst   o  ) -> (fixOp o, Nothing)
+    (ASMJmpInst   _  ) -> (Nothing, Nothing)
+    (ASMJeInst    _  ) -> (Nothing, Nothing)
+    (ASMJneInst   _  ) -> (Nothing, Nothing)
+    (ASMJgInst    _  ) -> (Nothing, Nothing)
+    (ASMJgeInst   _  ) -> (Nothing, Nothing)
+    (ASMJlInst    _  ) -> (Nothing, Nothing)
+    (ASMJleInst   _  ) -> (Nothing, Nothing)
+    (ASMLabelInst _  ) -> (Nothing, Nothing)
+    (ASMCallInst  _  ) -> (Nothing, Nothing)
+    (ASMEnterInst _  ) -> (Nothing, Nothing)
+    (ASMRetInst      ) -> (Nothing, Nothing)
+
+        
+
+getASMSource :: ASMInst -> (Maybe ASMReg, Maybe ASMReg)
+getASMSource n = 
+  case n of
+    (ASMAddInst   o1 o2) -> (fixOp o1, fixOp o2)
+    (ASMSubInst   o1 o2) -> (fixOp o1, fixOp o2)
+    (ASMMovInst   o1 o2) -> (fixOp o1, fixOp o2)
+    (ASMCmpInst   o1 o2) -> (fixOp o1, fixOp o2)
+    (ASMAndInst   o1 o2) -> (fixOp o1, fixOp o2)
+    (ASMOrInst    o1 o2) -> (fixOp o1, fixOp o2)
+    (ASMXorInst   o1 o2) -> (fixOp o1, fixOp o2)
+    (ASMShlInst   o1 o2) -> (fixOp o1, fixOp o2)
+    (ASMShrInst   o1 o2) -> (fixOp o1, fixOp o2)
+    (ASMShraInst  o1 o2) -> (fixOp o1, fixOp o2)
+    (ASMMulInst   o  ) -> (Just RAX, Just RDX)
+    (ASMDivInst   o  ) -> (Just RAX, Just RDX)
+    (ASMModInst   o  ) -> (Just RAX, Just RDX)
+    (ASMPushInst  o  ) -> (fixOp o, Nothing)
+    (ASMPopInst   o  ) -> (Nothing,Nothing)
+    (ASMNegInst   o  ) -> (fixOp o, Nothing)
+    (ASMNotInst   o  ) -> (fixOp o, Nothing)
+    (ASMJmpInst   o  ) -> (Nothing,Nothing)
+    (ASMJeInst    o  ) -> (Nothing,Nothing)
+    (ASMJneInst   o  ) -> (Nothing,Nothing)
+    (ASMJgInst    o  ) -> (Nothing,Nothing)
+    (ASMJgeInst   o  ) -> (Nothing,Nothing)
+    (ASMJlInst    o  ) -> (Nothing,Nothing)
+    (ASMJleInst   o  ) -> (Nothing,Nothing)
+    (ASMLabelInst o  ) -> (Nothing,Nothing)
+    (ASMCallInst  o  ) -> (Nothing,Nothing)
+    (ASMEnterInst o  ) -> (Nothing,Nothing)
+    (ASMRetInst      ) -> (Nothing,Nothing)
+
+fixOp :: ASMOperand -> Maybe ASMReg
+fixOp (ASMRegOperand r _) = Just r
+fixOp _ = Nothing
+                               
 
 data ASMInstructions where
     ASMCons :: ASMInst -> ASMInstructions -> ASMInstructions
@@ -132,11 +202,11 @@ asmConcat = foldr asmAppend ASMNil
 
 castASMList :: [ASMInst] -> ASMInstructions
 castASMList [] = ASMNil
-castASMList (x:xs) = ASMCons x (castAsmList xs)
+castASMList (x:xs) = ASMCons x (castASMList xs)
 
 castASMToList :: ASMInstructions -> [ASMInst]
 castASMToList ASMNil = []
-castASMToList (ASMCons x y) = x:(castAsmToList y)
+castASMToList (ASMCons x y) = x:(castASMToList y)
 
 
 
@@ -225,10 +295,11 @@ indent :: String
 indent = "    "
 
 instance SymbolicAssembler ASMProgram where
-    nasm (ASMProgram flags externs sections) =
+    nasm (ASMProgram flags externs (dsec, tsec)) =
         unlines (map nasm $ elems flags)
      ++ unlines (map nasm $ elems externs)
-     ++ unlines (indentLabels nasm sections)
+     ++ unlines (indentLabels nasm [dsec])
+     ++ unlines (indentLabels nasm [tsec])
 
 instance SymbolicAssembler ASMFlag where
     nasm (ASMFlag flag) = flag
@@ -350,7 +421,7 @@ literalDisplay :: ASMInt -> String
 literalDisplay literal =
     (if literal < 0 then "-" else "") ++ "0x" ++ showHex (abs literal) ""
 
-instance SymbolicAssembler (ASMOperand a) where
+instance SymbolicAssembler (ASMOperand) where
     nasm (ASMRegOperand reg size) =
         nasm reg
 

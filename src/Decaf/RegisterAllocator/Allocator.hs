@@ -8,6 +8,13 @@ When building IGraph:
 we assume they all lie in the same web (right?)
   - bwd analysis uses fact flowing out of node, fwd uses fact flowing in...
 
+
+TODO
+
+fix spill/loads
+
+fix enters?
+
 -}
 
 module Decaf.RegisterAllocator.Allocator 
@@ -173,62 +180,109 @@ makeIGraph g us =
 
 -- final function
 colorRegisters :: ASMProgram -> ASMProgram
-colorRegisters prog@(ASMProgram pfls pxts pscs) = loop $ numberListASM prog
+colorRegisters prog@(ASMProgram pfls pxts (dsec, tsec)) = loop 0 $ numberListASM prog
   where
-    loop :: [(ASMInst, Int)] -> ASMProgram
-    loop pr = 
+    loop :: [(ASMInst, Int)] -> Int -> ASMProgram
+    loop pr numspills = 
       let g = graphASMList pr in
       case colorGraph regs $ makeIGraph g (makeWebs g) of
-        Left spills -> loop $ spill spills pr
-        Right g -> registers g pr
+        Left spills -> loop (numspills + length spills) $ spill spills pr
+        Right g -> registers numspills g pr
 
     regs = [RAX, RCX, RDX, RBX, RSP, RBP, RSI, RDI, R8, R9, R10, R11, R12, R13, R14, R15]
 
-    spill :: [Key] -> [ASMNode] -> [(ASMInst, Int)]
-    spill spills pr = foldl rewspill ([],n) pr
+    -- rewrite spills
+    spill :: [Key] -> [(ASMInst, Int)] -> [(ASMInst, Int)]
+    spill spills pr = (\(x,_,_)->x) $ foldl rewspill ([],n,spills) pr
       where 
         n = foldl (\a b -> max a (snd b)) 0 pr -- largest index used
-        rewspill :: ([(ASMInst,Int)],Int) -> (ASMInst, Int) -> ([(ASMInst,Int)],Int)
-        rewspill (is,max) (inst, line) = 
-          let slines = map getASMLine spills in
-          if line `elem` slines then
-            (is++[(inst,line), -- FIGURE OUT MEMORY STORES
-              
-inst' = 
-              case inst of 
-             n@(ASMAddInst op1 op2) -> redef op1 n f
-             n@(ASMSubInst op1 op2) -> redef op1 n f
-             n@(ASMMovInst op1 op2) -> redef op1 n f
-             n@(ASMCmpInst op1 op2) -> redef op1 n f
-             n@(ASMAndInst op1 op2) -> redef op1 n f
-             n@(ASMOrInst  op1 op2) -> redef op1 n f
-             n@(ASMXorInst op1 op2) -> redef op1 n f
+        rewspill :: ([(ASMInst,Int)],Int,Int) -> (ASMInst, Int) -> ([(ASMInst,Int)],Int)
+        rewspill (is,m,count) (inst, line) = 
+          let slines = map getASMLine spills
+              hits = filter ((== line) . fst) $ zip slines spills -- spill keys on this line
+              newlist = 
+                case hits of
+                  hits | length hits == 0 -> [inst]
+                       | otherwise -> 
+                         (concatMap doLoad hits) ++ [inst] ++ (concatMap doLoad hits)
 
-             n@(ASMShlInst op1 op2)  -> redef op1 n f
-             n@(ASMShrInst op1 op2)  -> redef op1 n f
-             n@(ASMShraInst op1 op2) -> redef op1 n f
-                                                   
-             n@(ASMMulInst  op) -> redef' RDX n $ redef' RAX n f
-             n@(ASMDivInst  op) -> redef' RDX n $ redef' RAX n f
-             n@(ASMModInst  op) -> redef' RDX n $ redef' RAX n f
-                                              
-             n@(ASMPushInst op) -> f
-             n@(ASMPopInst  op) -> redef op n f
-             n@(ASMNegInst  op) -> redef op n f
-             n@(ASMNotInst  op) -> redef op n f
+              doLoad (reg,node) =
+                if pairHas reg (getASMSource inst) then load reg else []
+              doStore (reg,node) = 
+                if pairhas reg (getASMTarget inst) then store reg else []
+                  Nothing -> [inst] -- no spill code
+              load reg = []
+              store reg = []
+
+              pairHas :: ASMReg -> (Maybe ASMReg, Maybe ASMReg) -- is reg in the tuple?
+              pairHas reg t = 
+                case t of
+                  (Just r1, Just r2) -> reg == r1 || (reg == r2)
+                  (Just r1, Nothing) -> reg == r1
+                  (Nothing, Just r2) -> reg == r2
+                  (Nothing, Nothing) -> False
+          in (is++newlist, max m line, if length newlist > 0 then count+1 else count)
+
+
+    registers :: Int -> IGraph -> [(ASMInst, Int)] -> ASMProgram
+    registers numspills g pr = ASMProgram pfls pxts $
+                               (dsec, castASMList $ map color pr)
+          where
+            keys = keys g -- all (reg,node) pairs
+
+            sw :: ASMOperand -> Int -> ASMOperand
+            sw (ASMRegOperand reg _) i = 
+              ASMRegOperand 
+              $ let things  = zip3 (map (getASMLine . snd) keys) -- (line#,reg,key)
+                                   (map fst keys) 
+                                   keys
+                    things' = filter (\(l, r, _) -> (l == i) && (r == reg)) things
+                in case things' of
+                     collist | length collist == 0 -> 
+                               error "allocator produced no color for SREG " ++ show (reg,i)
+                             | length collist > 1 -> 
+                               error "allocator produced multiple colors for SREG " ++ show (reg,i)
+                             | case getLabel (third (head collist)) of
+                                 Spill -> error "spill detected in final coloring routine"
+                                 Reg reg' -> reg'
+
+            sw op i = op -- not a reg
+            third (a,b,c) = c
+
+            color :: (ASMInst, Int) -> ASMInst
+            color (inst, i) = 
+              case inst of 
+                (ASMAddInst op1 op2) -> ASMAddInst (sw op1 i) (sw op2 i) 
+                (ASMSubInst op1 op2) -> ASMSubInst (sw op1 i) (sw op2 i)
+                (ASMMovInst op1 op2) -> ASMMovInst (sw op1 i) (sw op2 i)
+                (ASMCmpInst op1 op2) -> ASMCmpInst (sw op1 i) (sw op2 i)
+                (ASMAndInst op1 op2) -> ASMAndInst (sw op1 i) (sw op2 i)
+                (ASMOrInst  op1 op2) -> ASMOrInst  (sw op1 i) (sw op2 i)
+                (ASMXorInst op1 op2) -> ASMXorInst (sw op1 i) (sw op2 i)
+
+                (ASMShlInst op1 op2)  -> ASMShlInst (sw op1 i) (sw op2 i)
+                (ASMShrInst op1 op2)  -> ASMShrInst (sw op1 i) (sw op2 i)
+                (ASMShraInst op1 op2) -> ASMShraInst (sw op1 i) (sw op2 i)
+                
+                (ASMMulInst op1) -> ASMMulInst (sw op1 i)
+                (ASMDivInst op1) -> ASMDivInst (sw op1 i)
+                (ASMModInst op1) -> ASMModInst (sw op1 i)
+                                    
+                (ASMPushInst op1) -> ASMPushInst (sw op1 i)
+                (ASMPopInst  op1) -> ASMPopInst  (sw op1 i)
+                (ASMNegInst  op1) -> ASMNegInst  (sw op1 i)
+                (ASMNotInst  op1) -> ASMNotInst  (sw op1 i)
+
+                (ASMEnterInst _) -> ASMEnterInst numspills -- kind of bad
+
+                other -> other -- no operand, don't change
             
 
-    registers :: IGraph -> [(ASMInst, Int)] -> ASMProgram
-    registers g pr = 
 
 numberListASM :: ASMProgram -> [(ASMInst, Int)]
 numberListASM prog = 
-  let instructions = asmConcat $ filter isText (progSections prog)
-  in zip castAsmToList [1..]
-  where
-    isText (ASMTextSection {}) = True
-    isText _ = False
-
+  let instructions = snd (progSections prog) -- text section
+  in zip (castAsmToList instructions) [1..]
 
 
 {- this moved to Dataflow.hs

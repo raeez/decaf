@@ -1,5 +1,7 @@
 {-# LANGUAGE GADTs, ScopedTypeVariables, TypeSynonymInstances #-}
 
+-- maybe bug: how are precolored registers spilled?
+
 -- | Inteferance graph representation
 module Decaf.RegisterAllocator.IGraph
   ( LabelGraph(..)
