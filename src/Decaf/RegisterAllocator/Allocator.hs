@@ -1,3 +1,5 @@
+{-# LANGUAGE PatternGuards #-}
+
 {- NOTES
 
 When building IGraph:
@@ -9,7 +11,7 @@ we assume they all lie in the same web (right?)
 -}
 
 module Decaf.RegisterAllocator.Allocator 
-  ( allocateRegisters
+  ( colorRegisters
   )
 where
 
@@ -36,6 +38,13 @@ TODO
 type Key = (ASMReg, ASMNode)
 
 type Web = UnionSet Key -- needs to store the register and which line it's on
+
+-- Interferance graph, cost/coalescing graph
+type IGraph = LabelGraph Key Color
+mkIGraph regs = mkLabelGraph regs
+type CGraph = LabelGraph Key Int
+mkCGraph regs = mkLabelGraph regs
+
 
 -- I think type is right
 makeWebs :: Graph ASMNode C C -> Web
@@ -96,25 +105,43 @@ makeWebs g = foldDataFlowFactsFwd DefFact g webadd emptyUnion
 
             
 
-
--- IGraph Int because webs are stored as integers in the unionset
--- this int is found from an asmnode by using find on the UnionSet
-makeIGraph :: Graph ASMNode C C -> Web -> IGraph Key -- Int's represent webs
-makeIGraph g us = snd $ foldDataFlowFactsBwd asmLiveVars g igraphjoin (mkIGraph $ listPartitions us)
+makeIGraph :: Graph ASMNode C C -> Web -> (IGraph, CGraph) -- Int's represent webs
+makeIGraph g us =
+  let g' = snd $ foldDataFlowFactsBwd asmLiveVars g igraphjoin (mkIGraph $ listPartitions us)
+  in precolor g'
   where 
-    igraphjoin :: ASMNode -> VarFact
-               -> Web -> IGraph Int
-               -> (Web, IGraph Int)
-    igraphjoin n livevars us igraph = 
-      if nmop n then 
-        case op of
-          (ASMRegOperand r _) -> foldr (uncurry addEdge) igraph 
-                                 (map (curry id $ (r,n)) (lookupReg r livevars))
-          otherwise -> igraph
-      else
-        foldr (uncurry addEdge) igraph 
-              (concatMap (\rx -> map (curry id $ (rx, n)) (lookupReg r livevars)) [RAX,RDX])
+    -- finds non-symbolic registers and labels them
+    precolor (ig, cg) = (labelWithKey colorNonSymb ig, cg)
       where
+        colorNonSymb :: Key -> Maybe ASMReg
+        colorNonSymb (r,n) = 
+              case r of
+                ASMSREG _ -> Nothing
+                physReg -> Just (Reg physReg)
+
+
+    -- join function for dataflow fold
+    igraphjoin :: ASMNode -> VarFact -> (IGraph, CGraph) -> (IGraph, CGraph)
+    igraphjoin n livevars (igraph, cgraph) = (ijoin igraph, cjoin cgraph)
+      where
+        ijoin igraph = 
+          if mop n then -- mul/div/mod
+            foldr (uncurry addEdge) igraph 
+                  (concatMap (\rx -> map (curry id $ (rx, n)) (lookupReg r livevars)) [RAX,RDX])
+          else if ctrl n then 
+                 igraph
+               else
+                 case op of
+                   (ASMRegOperand r _) -> foldr (uncurry addEdge) igraph 
+                                                (map (curry id $ (r,n)) (lookupReg r livevars))
+                   otherwise -> igraph
+        cjoin cgraph 
+          | (ASMMovNode i op1 op2) <- n
+          , (ASMRegOperand r1 _)   <- op1
+          , (ASMRegOperand r2 _)   <- op2
+          = addEdge (lift (r1,n)) (lift (r2,n)) cgraph -- get the parents in the web
+
+          | otherwise = cgraph
         op = 
           case n of
             n@(ASMAddNode i op1 op2) -> op1
@@ -134,20 +161,73 @@ makeIGraph g us = snd $ foldDataFlowFactsBwd asmLiveVars g igraphjoin (mkIGraph 
             n@(ASMNegNode  i op) -> op
             n@(ASMNotNode  i op) -> op
         
-    nmop n = 
-      case n of
-        n@(ASMMulNode {}) -> False
-        n@(ASMDivNode {}) -> False
-        n@(ASMModNode {}) -> False
-        otherwise -> True
+        mop n = 
+          case n of
+            n@(ASMMulNode {}) -> True
+            n@(ASMDivNode {}) -> True
+            n@(ASMModNode {}) -> True
+            otherwise -> False
+
+        lift key = getParent key us
 
 
--- total function
+-- final function
 colorRegisters :: ASMProgram -> ASMProgram
-colorRegisters prog = 
-  let g = graphASMProgram prog
-      colorIG = colorIGraph numRegisters $ makeIGraph g (makeWebs g)
+colorRegisters prog@(ASMProgram pfls pxts pscs) = loop $ numberListASM prog
+  where
+    loop :: [(ASMInst, Int)] -> ASMProgram
+    loop pr = 
+      let g = graphASMList pr in
+      case colorGraph regs $ makeIGraph g (makeWebs g) of
+        Left spills -> loop $ spill spills pr
+        Right g -> registers g pr
 
+    regs = [RAX, RCX, RDX, RBX, RSP, RBP, RSI, RDI, R8, R9, R10, R11, R12, R13, R14, R15]
+
+    spill :: [Key] -> [ASMNode] -> [(ASMInst, Int)]
+    spill spills pr = foldl rewspill ([],n) pr
+      where 
+        n = foldl (\a b -> max a (snd b)) 0 pr -- largest index used
+        rewspill :: ([(ASMInst,Int)],Int) -> (ASMInst, Int) -> ([(ASMInst,Int)],Int)
+        rewspill (is,max) (inst, line) = 
+          let slines = map getASMLine spills in
+          if line `elem` slines then
+            (is++[(inst,line), -- FIGURE OUT MEMORY STORES
+              
+inst' = 
+              case inst of 
+             n@(ASMAddInst op1 op2) -> redef op1 n f
+             n@(ASMSubInst op1 op2) -> redef op1 n f
+             n@(ASMMovInst op1 op2) -> redef op1 n f
+             n@(ASMCmpInst op1 op2) -> redef op1 n f
+             n@(ASMAndInst op1 op2) -> redef op1 n f
+             n@(ASMOrInst  op1 op2) -> redef op1 n f
+             n@(ASMXorInst op1 op2) -> redef op1 n f
+
+             n@(ASMShlInst op1 op2)  -> redef op1 n f
+             n@(ASMShrInst op1 op2)  -> redef op1 n f
+             n@(ASMShraInst op1 op2) -> redef op1 n f
+                                                   
+             n@(ASMMulInst  op) -> redef' RDX n $ redef' RAX n f
+             n@(ASMDivInst  op) -> redef' RDX n $ redef' RAX n f
+             n@(ASMModInst  op) -> redef' RDX n $ redef' RAX n f
+                                              
+             n@(ASMPushInst op) -> f
+             n@(ASMPopInst  op) -> redef op n f
+             n@(ASMNegInst  op) -> redef op n f
+             n@(ASMNotInst  op) -> redef op n f
+            
+
+    registers :: IGraph -> [(ASMInst, Int)] -> ASMProgram
+    registers g pr = 
+
+numberListASM :: ASMProgram -> [(ASMInst, Int)]
+numberListASM prog = 
+  let instructions = asmConcat $ filter isText (progSections prog)
+  in zip castAsmToList [1..]
+  where
+    isText (ASMTextSection {}) = True
+    isText _ = False
 
 
 

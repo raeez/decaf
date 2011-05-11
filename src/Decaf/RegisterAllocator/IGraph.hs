@@ -3,13 +3,13 @@
 -- | Inteferance graph representation
 module Decaf.RegisterAllocator.IGraph
   ( LabelGraph(..)
-  , IGraph
-  , mkIGraph
-  , Colorable
+  , mkLabelGraph
+  , addEdge, addEdges
+  , colorGraph
   --, manipulation  functions
   )
 where
---import Decaf.IR.LIR
+import Decaf.IR.ASM
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.List hiding (delete)
@@ -36,8 +36,10 @@ mkLabelGraph things =
     n = length things
 
 index :: (Ord a) => a -> M.Map a Int -> Int
-index a m = 
-  fromJust $ M.lookup a m
+index a m =
+ case M.lookup a m of 
+   Just x -> x
+   Nothing -> error "improper index into LabelGraph"
 
 addEdge a b (LabelGraph map labels array) = 
   let i1 = index a map
@@ -82,11 +84,16 @@ adjacent a b g@(LabelGraph m _ array) = index a m `elem` neighbors b g
 label a lab (LabelGraph map labels array) = 
   LabelGraph map (M.insert (index a map) (Just lab) labels) array
 
+labelWithKey :: (k -> Maybe dat) -> (LabelGraph k dat) -> (LabelGraph a dat)
+labelWithKey f (LabelGraph m labels array) = 
+  LabelGraph m (M.mapWithKey (\k _ -> f k) labels) array
+
 getLabel :: a -> LabelGraph a dat -> Maybe dat
 getLabel a (LabelGraph map labels _) = M.lookup (M.lookup a map) labels
 
-keys (LabelGraph m _ _) = M.keys m
 labels (LabelGraph _ l _) = l
+
+keys (LabelGraph m _ _) = M.keys m
 
 -- get set of (non Nothing) adjacent labels (relevant when labels are
 -- colors, and we're graph coloring)
@@ -99,6 +106,23 @@ neighborColors a g = S.filter isReg $ neighborLabels a g
   where isReg (Reg {}) = True
         isReg _ = False
 
+
+-- assumes at most one is already labelled
+merge :: a -> a -> LabelGraph a dat -> LabelGraph a dat
+merge a b g@(LabelGraph map labels array) =
+  let inda = index a map
+      indb = index b map in
+  LabelGraph (M.insert b (fromJust $ M.lookup a map)) -- make b point to a's index
+             (let lb = getLabel b g in
+              if isJust lb then -- in case b is pre-labelled with register
+                M.insert inda lb labels
+              else labels)
+             (array // [((inda,i),True) | i <- neighbors b g] ++ -- add b's neighbors to a
+                       [((i,inda),True) | i <- neighbors b g])
+             
+             
+             
+
 -- isJust :: Maybe a -> Bool
 -- isJust (Just a) = True
 -- isJust Nothing = False
@@ -108,60 +132,38 @@ x = addEdge 'a' 'b' $ mkLabelGraph ['a', 'b', 'c']
 
 
 
--- | Interference Graph
--- change String to LIRReg
-type IGraph a = LabelGraph a Color
-mkIGraph regs = mkLabelGraph regs --Null
 
--- need more?
-class Colorable a where
-  spillCost :: a -> Int
-
-instance Colorable String where
-  spillCost s = 0
-instance Colorable Integer where
-  spillCost s = 0
-
-data ASMReg = RAX | RDX | R10 | R11 
-              deriving (Show, Eq, Ord)
-
-data Color = Reg ASMReg -- change to LIRReg
+data Color = Reg ASMReg
            | Spill
   deriving (Show, Eq, Ord)
 
--- this needs to change
-newColor :: S.Set Color -> S.Set Color -> Color -- might be Spill
-newColor uni used = let left = uni `S.difference` used in
-                    if S.size left == 0 then
-                      Spill
-                    else
-                      S.findMin left -- take the smallest one I guess
 
 
-
+-- CHANGE make coalesce first
 -- :: color set -> interferance graph
 -- -> coalescing/spill cost graph (labels are costs, edges are mov codes)
 -- -> colored interferance graph
-colorIGraph :: forall a. (Colorable a, Ord a) => S.Set Color -> IGraph a -> IGraph a -> IGraph a
-colorIGraph colors g costs = help g []
+colorGraph :: forall a. (Ord a) => S.Set Color  -- colors
+           -> (LabelGraph a Color, LabelGraph a Int) -- IGraph, CGraph
+           -> Either [a] (LabelGraph a Color) -- either list of spills or a colored graph
+colorGraph colors (g, costs) = help g []
   where 
     n = S.size colors
     help :: IGraph a -> [a] -> IGraph a
     help (LabelGraph map labels array) stack | M.size map == 0 = color g stack -- graph empty; color
     help g@(LabelGraph map labels array) stack = 
-      let keys = M.keys map
-          goodnodes = filter ((< n) . ((flip numNeighbors) g)) keys in
-      if not $ null goodnodes then -- try to kill small valence nodes
-        help (deletes goodnodes g) (goodnodes ++ stack)
-      else -- try coalescing
-        case findCoalesce g of 
-          Just (n1,n2) -> help (merge n1 n2 g) stack
-          Nothing      -> -- otherwise spill something
+      case findCoalesce g of -- try coalescing
+        Just (n1,n2) -> help (merge n1 n2 g) stack
+        Nothing      ->  -- try to kill small valence nodes
+          let keys = M.keys map
+              goodnodes = filter ((< n) . ((flip numNeighbors) g)) keys in
+          if length goodnodes > 0 then
+            help (deletes goodnodes g) (goodnodes ++ stack)
+          else -- otherwise (potentially) spill something
             -- runtime error if something isn't labelled with spillcost
-            let spill = argmin $ mapSnd fromJust
+            let spill = argmin $ map (mapSnd fromJust)
                         $ zip keys (Prelude.map spillCost keys) 
             in  help (delete spill g) (spill : stack)
-
 
     findCoalesce gr = find coalOkay $ [(i,j) | i <- k, j <- k]
       where 
@@ -169,17 +171,31 @@ colorIGraph colors g costs = help g []
         -- nodes must have combined valence less than n so as not to induce spills
         -- and must be joined by a mov in the cost graph
         coalOkay :: (a,a) -> Bool
-        coalOkay (n1, n2) = 
-          (size $ neighbors n1 `union` neighbors n2) < n && adjacent n1 n2 costs
+        coalOkay (n1, n2) 
+          = (size $ neighbors n1 `union` neighbors n2) < n 
+          && not (adjacent n1 n2 gr)  -- don't conflict
+          && adjacent n1 n2 costs     -- are connected by a mov
           
 
-    color :: IGraph a -> [a] -> IGraph a
-    color g [] = g
+    color :: LabelGraph a Color -> [a] -> Either [a] (LabelGraph a Color)
+    color g [] = 
+      let spills = filter (== Spill) (labels g) in
+      if size spills == 0 then
+        Right g
+      else Left $ keys spills
+
     color g (node:ns) = 
       let adjcolors = neighborLabels node g in
-        color (label node (newColor colors adjcolors) g) ns
+        color (label node (newColor adjcolors) g) ns
 
     spillCost x = getLabel x costs
+
+    newColor :: S.Set Color -> Color -- might be Spill
+    newColor used = let left = colors `S.difference` used in
+                    if S.size left == 0 then
+                      Spill
+                    else
+                      S.findMin left -- take the smallest one I guess
 
     argmin :: (Ord b) => [(k,b)] -> k
     argmin tuples = fst $ foldl min (head tuples) (tail tuples)

@@ -48,7 +48,7 @@ transfer = mkFTransfer livetran
     livetran n@(ASMAndNode i op1 op2) f = redef op1 n f
     livetran n@(ASMOrNode  i op1 op2) f = redef op1 n f
     livetran n@(ASMXorNode i op1 op2) f = redef op1 n f
-    -- what is this?
+
     livetran n@(ASMShlNode i op1 op2)  f = redef op1 n f
     livetran n@(ASMShrNode i op1 op2)  f = redef op1 n f
     livetran n@(ASMShraNode i op1 op2) f = redef op1 n f

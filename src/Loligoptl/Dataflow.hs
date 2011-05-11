@@ -111,7 +111,7 @@ foldDataflowFactsFwd pass graph func init =
       
   in
     -- curry id :: a -> b -> (a,b)
-    (foldr cat (curry id) $ map block blocks) bottom init
+    foldr cat init $ map (uncurry ($)) $ zip (map (block . dgBlock) blocks) (map dgFact blocks)
 
 foldDataflowFactsbwd :: (Nonlocal n)=> 
                         BwdPass m n f
@@ -156,8 +156,8 @@ foldDataflowFactsBwd pass graph func init =
       blocks = forwardBlockList entries dgBody
       
   in
-    -- curry id :: a -> b -> (a,b)
-    (foldr cat (curry id) $ map block blocks) bottom init -- should be okay CHANGE?
+    -- CHANGE?
+    foldr cat init $ map (uncurry ($)) $ zip (map (block . dgBlock) blocks) (map dgFact blocks)
 
 
 
@@ -245,6 +245,9 @@ data DBlock f n e x = DBlock f (Block n e x) -- ^ block decorated with fact
 instance NonLocal n => NonLocal (DBlock f n) where
   entryLabel (DBlock _ b) = entryLabel b
   successors (DBlock _ b) = successors b
+
+dbFact (DBlock f _)  = f
+dbBlock (DBlock _ b) = b
 
 --- constructors
 

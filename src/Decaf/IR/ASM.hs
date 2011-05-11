@@ -115,6 +115,7 @@ data ASMInst where
     ASMCallInst  :: ASMSym -> ASMInst
     ASMEnterInst :: ASMInt -> ASMInst
     ASMRetInst   :: ASMInst
+             deriving (Data)
 
 data ASMInstructions where
     ASMCons :: ASMInst -> ASMInstructions -> ASMInstructions
@@ -129,9 +130,13 @@ asmAppend (ASMCons x xs) y      = ASMCons x (asmAppend xs y)
 asmConcat :: [ASMInstructions] -> ASMInstructions
 asmConcat = foldr asmAppend ASMNil
 
-castAsmList :: [ASMInst] -> ASMInstructions
-castAsmList [] = ASMNil
-castAsmList (x:xs) = ASMCons x (castAsmList xs)
+castASMList :: [ASMInst] -> ASMInstructions
+castASMList [] = ASMNil
+castASMList (x:xs) = ASMCons x (castAsmList xs)
+
+castASMToList :: ASMInstructions -> [ASMInst]
+castASMToList ASMNil = []
+castASMToList (ASMCons x y) = x:(castAsmToList y)
 
 
 

@@ -48,7 +48,7 @@ transfer = mkBTransfer livetran
     livetran n@(ASMAndNode i op1 op2) f = opinsert op1 n (opinsert op2 n f)
     livetran n@(ASMOrNode  i op1 op2) f = opinsert op1 n (opinsert op2 n f)
     livetran n@(ASMXorNode i op1 op2) f = opinsert op1 n (opinsert op2 n f)
-b    -- what is this?
+    -- what is this?
     livetran n@(ASMShlNode i op1 op2) f = opinsert op1 n (opinsert op2 n f)
     livetran n@(ASMShrNode i op1 op2) f = opinsert op1 n (opinsert op2 n f)
     livetran n@(ASMShraNode i op1 op2) f = opinsert op1 n (opinsert op2 n f)
@@ -62,22 +62,20 @@ b    -- what is this?
     livetran n@(ASMNegNode i  op) f = opinsert op n f
     livetran n@(ASMNotNode i  op) f = opinsert op n f
 
-
-
     -- following two sections probably need to switch (because it's a backwards pass)
-    livetran n@(ASMJmpNode i lab) f = mkFactBase lattice [(lab, f)]
-    livetran n@(ASMJeNode i  lab) f = mkFactBase lattice [(lab, f)]
-    livetran n@(ASMJneNode i lab) f = mkFactBase lattice [(lab, f)]
-    livetran n@(ASMJgNode i  lab) f = mkFactBase lattice [(lab, f)]
-    livetran n@(ASMJgeNode i lab) f = mkFactBase lattice [(lab, f)]
-    livetran n@(ASMJlNode i  lab) f = mkFactBase lattice [(lab, f)]
-    livetran n@(ASMJleNode i lab) f = mkFactBase lattice [(lab, f)]
+    livetran n@(ASMJmpNode i lab) f = mapLookup lab f 
+    livetran n@(ASMJeNode i  lab) f = mapLookup lab f
+    livetran n@(ASMJneNode i lab) f = mapLookup lab f
+    livetran n@(ASMJgNode i  lab) f = mapLookup lab f
+    livetran n@(ASMJgeNode i lab) f = mapLookup lab f
+    livetran n@(ASMJlNode i  lab) f = mapLookup lab f
+    livetran n@(ASMJleNode i lab) f = mapLookup lab f
 
     -- not sure about these yet CHANGE
-    livetran n@(ASMLabelNode i lab) f = f CHANGE
+    livetran n@(ASMLabelNode i lab) f = f
     livetran n@(ASMCallNode  i sym) f = f
     livetran n@(ASMEnterNode i int) f = f
-    livetran n@(ASMRetNode   i)     f = f
+    livetran n@(ASMRetNode   i)     f = bottom
 
 
     -- delete doesn't actually need n

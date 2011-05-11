@@ -48,6 +48,41 @@ data ASMNode e x where
     ASMCallNode  :: Int -> ASMSym -> ASMNode O C
     ASMEnterNode :: Int -> ASMInt -> ASMNode O O
     ASMRetNode   :: Int -> ASMNode O C
+
+getASMLine :: ASMNode -> Int
+getASMLine n = 
+  case n of
+    (ASMAddNode   i _ _) -> i
+    (ASMSubNode   i _ _) -> i
+    (ASMMovNode   i _ _) -> i
+    (ASMCmpNode   i _ _) -> i
+    (ASMAndNode   i _ _) -> i
+    (ASMOrNode    i _ _) -> i
+    (ASMXorNode   i _ _) -> i
+    (ASMShlNode   i _ _) -> i
+    (ASMShrNode   i _ _) -> i
+    (ASMShraNode  i _ _) -> i
+    (ASMMulNode   i _  ) -> i
+    (ASMDivNode   i _  ) -> i
+    (ASMModNode   i _  ) -> i
+    (ASMPushNode  i _  ) -> i
+    (ASMPopNode   i _  ) -> i
+    (ASMNegNode   i _  ) -> i
+    (ASMNotNode   i _  ) -> i
+    (ASMJmpNode   i _  ) -> i
+    (ASMJeNode    i _  ) -> i
+    (ASMJneNode   i _  ) -> i
+    (ASMJgNode    i _  ) -> i
+    (ASMJgeNode   i _  ) -> i
+    (ASMJlNode    i _  ) -> i
+    (ASMJleNode   i _  ) -> i
+    (ASMLabelNode i _  ) -> i
+    (ASMCallNode  i _  ) -> i
+    (ASMEnterNode i _  ) -> i
+    (ASMRetNode   i    ) -> i
+
+        
+
     
 instance NonLocal ASMNode where
   entryLabel (ASMLabelNode l) =  asmtohooplLabel l -- hoopllabel = lirlabel
@@ -62,59 +97,53 @@ instance NonLocal ASMNode where
 asmtohooplLabel (ASMLabel l i ) = LIRLabel l i
 
 
--- Turns ASMProgram into ASMNode Graph with numbered 
-graphASMProgram :: AsmProgram -> Graph ASMNode C C
-graphASMProgram prog =
-        instructions = asmConcat $ filter isText (progSections prog)
-        blocks = makeBlocks instructions
+-- Turns numbered ASMInst list into ASMNode Graph
+graphASMList :: [(ASMInst, Int)] -> Graph ASMNode C C
+graphASMList prog =
+  let blocks = makeBlocks instructions
+  in GMany NothingO (mapFromList (zip (map entryLabel blocks) blocks)) NothingO
 
-    in GMany NothingO (mapFromList (zip (map entryLabel blocks) blocks)) NothingO
-  where
-    isText (ASMTextSection {}) = True
-    isText _ = False
-
-makeBlocks :: ASMInstructions -> [Block ASMNode C C]
+makeBlocks :: [(ASMInst, Int)] -> [Block ASMNode C C]
 makeBlocks insts = startBlock 0 [] insts
   where
-    startBlock  :: Int -> [Block ASMNode C C] -> ASMInstructions -> [Block ASMNode C C]
-    startBlock i bs ASMNil = bs
-    startBlock i bs (ASMCons inst is) = 
+    startBlock  :: [Block ASMNode C C] -> [(ASMInst, Int)] -> [Block ASMNode C C]
+    startBlock bs [] = bs
+    startBlock bs ((inst, i):is) = 
       case inst of
         -- Closed Open nodes
-        ASMLabelInst lab -> (buildBlock (i+1) bs (BFirst $ ASMLabelNode $ lab) is)
-        other -> (startBlock i bs is) -- skip the node; it's dead code (hopefully...)
+        ASMLabelInst lab -> (buildBlock bs (BFirst $ ASMLabelNode i lab) is)
+        other -> (startBlock bs is) -- skip the node; it's dead code (hopefully...)
 
-    buildBlock :: Int -> [Block Node C C] -> Block Node C O -> [ASMInst] -> [Block Node C C]
-    buildBlock i bs b [] = error "unfinished block"
-    buildBlock i bs b (inst:is) = 
+    buildBlock :: [Block Node C C] -> Block Node C O -> [ASMInst] -> [Block Node C C]
+    buildBlock bs b [] = error "unfinished block"
+    buildBlock bs b ((inst,i):is) = 
       case inst of
-        ASMAddInst  op1 op2 -> buildBlock (i+1) bs (b `BHead` (ASMAddNode i op1 op2)) is
-        ASMSubInst  op1 op2 -> buildBlock (i+1) bs (b `BHead` (ASMSubNode i op1 op2)) is
-        ASMMovInst  op1 op2 -> buildBlock (i+1) bs (b `BHead` (ASMMovNode i op1 op2)) is
-        ASMCmpInst  op1 op2 -> buildBlock (i+1) bs (b `BHead` (ASMCmpNode i op1 op2)) is
-        ASMAndInst  op1 op2 -> buildBlock (i+1) bs (b `BHead` (ASMAndNode i op1 op2)) is
-        ASMOrInst   op1 op2 -> buildBlock (i+1) bs (b `BHead` (ASMOrNode  i op1 op2)) is
-        ASMXorInst  op1 op2 -> buildBlock (i+1) bs (b `BHead` (ASMXorNode i op1 op2)) is
-        ASMShlInst  op1 op2 -> buildBlock (i+1) bs (b `BHead` (ASMShlNode i op1 op2)) is
-        ASMShrInst  op1 op2 -> buildBlock (i+1) bs (b `BHead` (ASMShrNode i op1 op2)) is
-        ASMShraInst op1 op2 -> buildBlock (i+1) bs (b `BHead` (ASMShraNode i op1 op2)) is
+        ASMAddInst  op1 op2 -> buildBlock bs (b `BHead` (ASMAddNode i op1 op2)) is
+        ASMSubInst  op1 op2 -> buildBlock bs (b `BHead` (ASMSubNode i op1 op2)) is
+        ASMMovInst  op1 op2 -> buildBlock bs (b `BHead` (ASMMovNode i op1 op2)) is
+        ASMCmpInst  op1 op2 -> buildBlock bs (b `BHead` (ASMCmpNode i op1 op2)) is
+        ASMAndInst  op1 op2 -> buildBlock bs (b `BHead` (ASMAndNode i op1 op2)) is
+        ASMOrInst   op1 op2 -> buildBlock bs (b `BHead` (ASMOrNode  i op1 op2)) is
+        ASMXorInst  op1 op2 -> buildBlock bs (b `BHead` (ASMXorNode i op1 op2)) is
+        ASMShlInst  op1 op2 -> buildBlock bs (b `BHead` (ASMShlNode i op1 op2)) is
+        ASMShrInst  op1 op2 -> buildBlock bs (b `BHead` (ASMShrNode i op1 op2)) is
+        ASMShraInst op1 op2 -> buildBlock bs (b `BHead` (ASMShraNode i op1 op2)) is
 
-        ASMMulInst  op -> buildBlock (i+1) bs (b `BHead` (ASMMulNode i op)) is
-        ASMDivInst  op -> buildBlock (i+1) bs (b `BHead` (ASMDivNode i op)) is
-        ASMModInst  op -> buildBlock (i+1) bs (b `BHead` (ASMModNode i op)) is
-        ASMPushInst op -> buildBlock (i+1) bs (b `BHead` (ASMPushNode i op)) is
-        ASMPopInst  op -> buildBlock (i+1) bs (b `BHead` (ASMPopNode i op)) is
-        ASMNegInst  op -> buildBlock (i+1) bs (b `BHead` (ASMNegNode i op)) is
-        ASMNotInst  op -> buildBlock (i+1) bs (b `BHead` (ASMNotNode i op)) is
+        ASMMulInst  op -> buildBlock bs (b `BHead` (ASMMulNode i op)) is
+        ASMDivInst  op -> buildBlock bs (b `BHead` (ASMDivNode i op)) is
+        ASMModInst  op -> buildBlock bs (b `BHead` (ASMModNode i op)) is
+        ASMPushInst op -> buildBlock bs (b `BHead` (ASMPushNode i op)) is
+        ASMPopInst  op -> buildBlock bs (b `BHead` (ASMPopNode i op)) is
+        ASMNegInst  op -> buildBlock bs (b `BHead` (ASMNegNode i op)) is
+        ASMNotInst  op -> buildBlock bs (b `BHead` (ASMNotNode i op)) is
 
-
-        ASMJmpInst lab -> startBlock (i+1) ((b `BClosed` (BLast $ ASMJmpNode i lab)) : bs) is
-        ASMJeInst  lab -> startBlock (i+1) ((b `BClosed` (BLast $ ASMJeNode  i lab)) : bs) is
-        ASMJneInst lab -> startBlock (i+1) ((b `BClosed` (BLast $ ASMJneNode i lab)) : bs) is
-        ASMJgInst  lab -> startBlock (i+1) ((b `BClosed` (BLast $ ASMJgNode  i lab)) : bs) is
-        ASMJgeInst lab -> startBlock (i+1) ((b `BClosed` (BLast $ ASMJgeNode i lab)) : bs) is
-        ASMJlInst  lab -> startBlock (i+1) ((b `BClosed` (BLast $ ASMJlNode  i lab)) : bs) is
-        ASMJleInst lab -> startBlock (i+1) ((b `BClosed` (BLast $ ASMJleNode i lab)) : bs) is
+        ASMJmpInst lab -> startBlock ((b `BClosed` (BLast $ ASMJmpNode i lab)) : bs) is
+        ASMJeInst  lab -> startBlock ((b `BClosed` (BLast $ ASMJeNode  i lab)) : bs) is
+        ASMJneInst lab -> startBlock ((b `BClosed` (BLast $ ASMJneNode i lab)) : bs) is
+        ASMJgInst  lab -> startBlock ((b `BClosed` (BLast $ ASMJgNode  i lab)) : bs) is
+        ASMJgeInst lab -> startBlock ((b `BClosed` (BLast $ ASMJgeNode i lab)) : bs) is
+        ASMJlInst  lab -> startBlock ((b `BClosed` (BLast $ ASMJlNode  i lab)) : bs) is
+        ASMJleInst lab -> startBlock ((b `BClosed` (BLast $ ASMJleNode i lab)) : bs) is
 
 -- graphToLIR :: Graph' Block Node e x -> [LIRInst]
 -- graphToLIR (GNil) =  []
