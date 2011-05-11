@@ -29,7 +29,9 @@ data SSAUnit = SSAUnit
     , ssaUnitInstructions :: [SSAInst]
     } deriving (Show, Eq, Typeable)
 
-data SSAInst = SSARegAssignInst SSAReg SSAExpr
+
+data SSAInst = SSAPhiAssignInst SSAReg [SSAReg]
+             | SSARegAssignInst SSAReg SSAExpr
              | SSARegOffAssignInst SSAReg SSAReg SSASize SSAOperand
              | SSAStoreInst SSAMemAddr SSAOperand
              | SSALoadInst SSAReg SSAMemAddr
@@ -110,6 +112,7 @@ instance IRNode SSAUnit where
     treeify (SSAUnit label insts) = Node ("SSAUnit: " ++ pp label) (map treeify insts)
 
 instance IRNode SSAInst where
+    pp (SSAPhiAssignInst reg vars) = pp reg ++ " <- PHI" ++ show (map pp vars)
     pp (SSARegAssignInst reg expr) = pp reg ++ " <- " ++ pp expr
     pp (SSARegOffAssignInst reg offset size operand) =
         pp reg ++ "(" ++ pp offset ++ ", " ++ pp size ++ ") <- " ++ pp operand

@@ -21,6 +21,7 @@ options =
  [ Option ['v'] ["debug"] (NoArg Debug) "output debug information"
  , Option ['g'] ["graph"] (NoArg Graph) "output various dot graphs"
  , Option ['o'] ["opt"]   (NoArg Opt)   "enable optimization [all|cse]"
+
  ]
 compilerOpts :: [String] -> IO ([Flag], [String])
 compilerOpts argv = 
@@ -136,6 +137,7 @@ compile chosen source filename =
      let control_flow_graph' = if or (optopts chosen)
                               then optimized
                               else control_flow_graph
+
         -- ^ for now, optimize if any opt flags are present
         -- TODO pick opts on a per-flag basis
 
@@ -162,8 +164,8 @@ compile chosen source filename =
      writeFile newFile asmout
      putStrLn asmout
      putStrLn $ pp program
-     putStrLn $ "Finally DF:\n" ++ show dominanceFrontiers
-     putStrLn "-----"
+     --putStrLn $ "Finally DF:\n" ++ show dominanceFrontiers
+     --putStrLn "-----"
      exitSuccess
   where
     newFile = (fst $ break (=='.') filename) ++ ".asm"
@@ -191,12 +193,18 @@ cseOpt g = do
 ssa :: LIRGraph C C -> M (DominanceFrontiers, DominatorTree)
 ssa g = do
     let entry = LIRLabel "main" (-1)
-    (_, facts, _) <- analyzeAndRewriteFwd domPass
+    (_, domFacts, _) <- analyzeAndRewriteFwd domPass
                                                 (JustC [entry])
                                                 g
                                                 (mapSingleton entry domEntry)
 
-    return (mkDF g facts)
+    (_, varFacts, _) <- analyzeAndRewriteFwd varPass
+                                                (JustC [entry])
+                                                g
+                                                (mapSingleton entry varEntry)
+    let dominanceFrontiers = mkDF g domFacts
+
+    return dominanceFrontiers
 
 basename :: String -> String
 basename f = fst $ break (=='.') f

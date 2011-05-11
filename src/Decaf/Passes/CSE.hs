@@ -35,7 +35,7 @@ data CSEFact = CSEFactMap (M.Map CSEKey CSEData)
              deriving (Show, Eq)
 
 -- join two CSE facts 
-joinCSEFact :: Label -> OldFact CSEFact -> NewFact CSEFact -> (ChangeFlag, CSEFact)
+joinCSEFact :: JoinFun CSEFact
 joinCSEFact l (OldFact x) (NewFact CSEBot) = (NoChange, x)
 joinCSEFact l (OldFact CSEBot) (NewFact y) = (SomeChange, y)
 joinCSEFact l (OldFact (CSEFactMap x)) (NewFact (CSEFactMap y)) = 
@@ -90,11 +90,11 @@ varChanged f x = M.mapWithKey keep f
 
 -- transfer: define CSE lattice transfer function:  a expression (x op y) is available iff ((x,op,y),w) \in Lattice
 -- concerns only RegAssignNode and LoadNode
-exprIsAvail :: FwdTransfer LIRNode CSEFact
-exprIsAvail = mkFTransfer unwrapFactFt
+cseTransfer :: FwdTransfer LIRNode CSEFact
+cseTransfer = mkFTransfer unwrapFactFt
   where
     unwrapFactFt :: LIRNode e x -> CSEFact -> Fact x CSEFact
-    unwrapFactFt n CSEBot = error "exprIsAvail:unwrapFactFt called on CSEBot; should not happen!"
+    unwrapFactFt n CSEBot = error "cseTransfer:unwrapFactFt called on CSEBot; should not happen!"
     unwrapFactFt n (CSEFactMap f) = ft n f
 
     ft :: LIRNode e x -> M.Map CSEKey CSEData -> Fact x CSEFact
@@ -123,8 +123,8 @@ exprIsAvail = mkFTransfer unwrapFactFt
     ft (LIRJumpLabelNode l) f      = mkFactBase cseLattice [(l, CSEFactMap f)]        -- jmp l --> associate f with l 
 
 -- rewrite: define constant folding rewrites
-cse :: Monad m => FwdRewrite m LIRNode CSEFact
-cse  = shallowFwdRw simp
+cseRewrite :: Monad m => FwdRewrite m LIRNode CSEFact
+cseRewrite  = shallowFwdRw simp
   where
     simp :: forall m e x . (ShapeLifter e x, Monad m) => 
             LIRNode e x -> CSEFact -> m (Maybe (Graph LIRNode e x))
@@ -149,6 +149,6 @@ cse  = shallowFwdRw simp
 -- csePass = FuelMonad m => FwdPass m 
 csePass  = FwdPass 
   { fp_lattice = cseLattice
-  , fp_transfer = exprIsAvail
-  , fp_rewrite = cse
+  , fp_transfer = cseTransfer
+  , fp_rewrite = cseRewrite
   }

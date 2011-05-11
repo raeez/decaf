@@ -13,6 +13,7 @@ type SSAGraph = Graph SSANode
 -- nodes
 data SSANode e x where
   SSALabelNode        :: Label -> SSANode C O
+  SSAPhiAssignNode    :: SSAReg -> [SSAReg] -> SSANode O O
   SSARegAssignNode    :: SSAReg -> SSAExpr -> SSANode O O
   SSARegOffAssignNode :: SSAReg -> SSAReg -> SSASize -> SSAOperand -> SSANode O O
   SSAStoreNode        :: SSAMemAddr -> SSAOperand -> SSANode O O
@@ -36,7 +37,8 @@ ssaNodeToG n = singletonG n
 
 instance Show (SSANode e x) where
   show (SSALabelNode label )                       = pp $ SSALabelInst label
-  show (SSARegAssignNode reg expr )                = pp $ SSARegAssignInst reg expr
+  show (SSAPhiAssignNode reg vars)                 = pp $ SSAPhiAssignInst reg vars
+  show (SSARegAssignNode reg expr)                 = pp $ SSARegAssignInst reg expr
   show (SSARegOffAssignNode reg reg' size operand) = "SSARegOffAssignNode"
   show (SSAStoreNode mem operand)                  = "SSAStoreNode"
   show (SSALoadNode reg mem)                       = "SSALoadNode" 

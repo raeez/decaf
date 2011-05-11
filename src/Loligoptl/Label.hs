@@ -20,6 +20,7 @@ import Decaf.IR.LIR
 --Label
 -----------------------------------------------------------------------------
 type Label = LIRLabel
+
 readable (LIRLabel s _) = s
 unLabel (LIRLabel _ i) = i
 

@@ -2,7 +2,7 @@
 {-# OPTIONS_GHC -Wall -fno-warn-name-shadowing #-}
 
 module Decaf.Passes.Dominator
-  ( Doms, DPath(..), domPath, domEntry, domLattice, extendDom
+  ( DomFact, DPath(..), domPath, domEntry, domLattice, extendDom
   , DominatorNode(..), DominatorTree(..), dtree
   , immediateDominators
   , DominanceFrontiers, mkDF, mkIteratedDF, mkDFSet
@@ -15,13 +15,13 @@ import Loligoptl
 import Decaf.LIRNodes
 import Debug.Trace
 
-type Doms = WithBot DPath
+type DomFact = WithBot DPath
 -- ^ List of labels, extended with a standard bottom element
 
 -- | The fact that goes into the entry of a dominator analysis: the first node
 -- is dominated only by the entry point, which is represented by the empty list
 -- of labels.
-domEntry :: Doms
+domEntry :: DomFact
 domEntry = PElem (DPath [])
 
 newtype DPath = DPath [Label]
@@ -32,14 +32,14 @@ newtype DPath = DPath [Label]
 instance Show DPath where
   show (DPath ls) = concat (foldr (\l path -> show l : " -> " : path) ["entry"] ls)
 
-domPath :: Doms -> [Label]
+domPath :: DomFact -> [Label]
 domPath Bot = [] -- lies: an unreachable node appears to be dominated by the entry
 domPath (PElem (DPath ls)) = ls
 
 extendDom :: Label -> DPath -> DPath
 extendDom l (DPath ls) = trace ("found label " ++ show l ++ ", adding it to dpath: " ++ show ls) DPath (l:ls)
 
-domLattice :: DataflowLattice Doms
+domLattice :: DataflowLattice DomFact
 domLattice = addPoints "dominators" extend
 
 extend :: JoinFun DPath
@@ -63,7 +63,7 @@ extend _ (OldFact (DPath l)) (NewFact (DPath l')) =
 
 
 -- | Dominator pass
-domPass :: (NonLocal n, Monad m) => FwdPass m n Doms
+domPass :: (NonLocal n, Monad m) => FwdPass m n DomFact
 domPass = FwdPass
   { fp_lattice = domLattice
   , fp_transfer = (mkFTransfer3 first (const id) distributeFact)
@@ -80,7 +80,7 @@ data DominatorTree = Dominates DominatorNode [DominatorTree]
 
 -- | Map from a FactBase for dominator lists into a
 -- dominator tree.  
-dtree :: [(Label, Doms)] -> DominatorTree
+dtree :: [(Label, DomFact)] -> DominatorTree
 dtree facts = Dominates Entry $ merge $ map reverse $ map mkList facts
    -- This code has been lightly tested.  The key insight is this: to
    -- find lists that all have the same head, convert from a list of
@@ -107,7 +107,7 @@ dominatorWalk (Dominates Entry children)      = concatMap dominatorWalk children
 dominatorWalk (Dominates (Labelled l) [])     = [l]
 dominatorWalk (Dominates (Labelled l) children) = concatMap dominatorWalk children ++ [l]
 
-mkImDom :: FactBase Doms -> LabelMap [Label]
+mkImDom :: FactBase DomFact -> LabelMap [Label]
 mkImDom f = mapFromList
                       $ map (foldl (\(a,b) (c,d) -> (c, d:b)) (undefined, []))
                       $ groupBy (\(a, b) (c, d) -> a == c) . sort
@@ -119,10 +119,10 @@ graphToMap (GMany entry labels exit) = mapMap successors labels
 
 type DominanceFrontiers = LabelMap [Label]
 
-mkDF :: LIRGraph C C -> FactBase Doms -> (DominanceFrontiers, DominatorTree)
+mkDF :: LIRGraph C C -> FactBase DomFact -> (DominanceFrontiers, DominatorTree)
 mkDF g facts =
     let domList = (mapToList facts)
-        imDoms = trace ("IMDOMS: " ++ show (mkImDom facts)) (mkImDom facts)
+        imDomFact = trace ("IMDOMS: " ++ show (mkImDom facts)) (mkImDom facts)
         dominatorTree = dtree domList
         postOrder = dominatorWalk dominatorTree
         program = graphToMap g
@@ -139,7 +139,7 @@ mkDF g facts =
                 filter (\y -> y `notElem` iDom) successors
               where
                 iDom :: [Label]
-                iDom = case (mapLookup node imDoms) of
+                iDom = case (mapLookup node imDomFact) of
                               Just res -> res
                               Nothing -> []
 
@@ -150,7 +150,7 @@ mkDF g facts =
                 zf z = filter (\y -> y `notElem` iDom) (queryDF z)
 
                 iDom :: [Label]
-                iDom = case (mapLookup node imDoms) of
+                iDom = case (mapLookup node imDomFact) of
                                 Just res -> res
                                 Nothing -> []
 
@@ -206,7 +206,7 @@ instance Show DominatorNode where
 
 -- | Takes FactBase from dominator analysis and returns a map from each 
 -- label to its immediate dominator, if any
-immediateDominators :: FactBase Doms -> LabelMap Label
+immediateDominators :: FactBase DomFact -> LabelMap Label
 immediateDominators = mapFoldWithKey add mapEmpty
     where add l (PElem (DPath (idom:_))) = mapInsert l idom 
           add _ _ = id
@@ -214,8 +214,3 @@ immediateDominators = mapFoldWithKey add mapEmpty
 -- | This utility function handles a common case in which a transfer function
 -- for a last node takes the incoming fact unchanged and simply distributes
 -- that fact over the outgoing edges.
-
-distributeFact :: NonLocal n => n O C -> f -> FactBase f
-distributeFact n f = mapFromList [ (l, f) | l <- successors n ]
-   -- because the same fact goes out on every edge,
-   -- there's no need for 'mkFactBase' here.
