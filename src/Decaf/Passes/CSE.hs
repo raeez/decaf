@@ -100,7 +100,7 @@ cseTransfer = mkFTransfer unwrapFactFt
     unwrapFactFt n CSEBot = error "cseTransfer:unwrapFactFt called on CSEBot; should not happen!"
     unwrapFactFt n (CSEFactMap f) = ft n f
 
-    ft :: LIRNode e x -> CSEFact -> Fact x CSEFact
+    ft :: LIRNode e x -> M.Map CSEKey CSEData -> Fact x CSEFact
     ft (LIRLabelNode {}) f         = CSEFactMap f
     ft (LIRRegAssignNode x (LIRBinExpr a op b)) f
                                    = CSEFactMap $ M.insert (CSEKey a op b) (CSEReg x) (varChanged f x) -- a op b -> x

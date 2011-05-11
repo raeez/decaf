@@ -184,10 +184,10 @@ optimize g = do
         g''' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (constOpt g'')
     return (g'', dt, df)
 
-constOp :: LIRGraph C C -> M (LIRGraph C C)
-constOp g = do
+constOpt :: LIRGraph C C -> M (LIRGraph C C)
+constOpt g = do
     let entry = LIRLabel "main" (-1)
-    (g', facts, _) <- analyzeAndRewriteBwd constPass
+    (g', facts, _) <- analyzeAndRewriteFwd constPass
                                               (JustC [entry])
                                               g
                                               (mapSingleton entry constTop)

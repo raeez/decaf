@@ -11,6 +11,7 @@ import Decaf.LIRNodes
 import Loligoptl.Combinators
 import Debug.Trace
 import Data.Maybe
+import Data.Int
 import Loligoptl
 
 --------------------------------------------------
@@ -42,7 +43,7 @@ simplify = mkFRewrite simp
             LADD -> (+)
             LSUB -> (-)
             LMUL -> (*)
-            LDIV -> (/)
+            LDIV -> div
             LMOD -> mod
             LAND -> liftedOp (&&)
             LOR -> liftedOp (||)
