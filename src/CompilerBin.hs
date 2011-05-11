@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs, RankNTypes #-}
 module Main where
 import Decaf
 import Decaf.RegisterAllocator -- different module than below!!
@@ -22,6 +23,7 @@ options =
  [ Option ['v'] ["debug"] (NoArg Debug) "output debug information"
  , Option ['g'] ["graph"] (NoArg Graph) "output various dot graphs"
  , Option ['o'] ["opt"]   (NoArg Opt)   "enable optimization [all|cse]"
+
  ]
 compilerOpts :: [String] -> IO ([Flag], [String])
 compilerOpts argv = 
@@ -132,11 +134,12 @@ compile chosen source filename =
          control_flow_graph = graphProgram (top numberedTable) parsed_program (rc + mc)
          -- ^ convert to control flow graph
  
-     (optimized, dominatorTree) <- optimize control_flow_graph
+     (optimized, dominatorTree, dominanceFrontiers) <- optimize control_flow_graph
 
      let control_flow_graph' = if or (optopts chosen)
                               then optimized
                               else control_flow_graph
+
         -- ^ for now, optimize if any opt flags are present
         -- TODO pick opts on a per-flag basis
 
@@ -166,6 +169,8 @@ compile chosen source filename =
      writeFile newFile asmout
      putStrLn asmout
      putStrLn $ pp program
+     --putStrLn $ "Finally DF:\n" ++ show dominanceFrontiers
+     --putStrLn "-----"
      exitSuccess
   where
     newFile = (fst $ break (=='.') filename) ++ ".asm"
@@ -175,32 +180,62 @@ compile chosen source filename =
 
 --type M = CheckingFuelMonad (SimpleUniqueMonad)
 
-optimize :: DecafGraph C C -> IO (DecafGraph C C, DominatorTree)
+optimize :: LIRGraph C C -> IO (LIRGraph C C, DominatorTree, DominanceFrontiers)
 optimize g = do
-  let g' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (cseOpt g)
-      dominatorTree = runSimpleUniqueMonad $ runWithFuel infiniteFuel (doms g')
-  return (g', dominatorTree)
+    let g' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (cseOpt g)
+        g'' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (constOpt g')
+        g''' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (liveOpt g'')
+        (df, dt) = runSimpleUniqueMonad $ runWithFuel infiniteFuel (ssa g)
+    return (g'', dt, df)
 
-cseOpt :: DecafGraph C C -> M (DecafGraph C C)
+constOpt :: LIRGraph C C -> M (LIRGraph C C)
+constOpt g = do
+    let entry = LIRLabel "main" (-1)
+    (g', facts, _) <- analyzeAndRewriteFwd constPass
+                                              (JustC [entry])
+                                              g
+                                              (mapSingleton entry constTop)
+    return g'
+
+liveOpt :: LIRGraph C C -> M (LIRGraph C C)
+liveOpt g = do
+    let entry = LIRLabel "main" (-1)
+    (g', facts, _) <- analyzeAndRewriteBwd livePass
+                                              (JustC [entry])
+                                              g
+                                              mapEmpty
+    return g'
+
+cseOpt :: LIRGraph C C -> M (LIRGraph C C)
 cseOpt g = do
-  let entry = LIRLabel "main" (-1)
-  (g', facts, _) <- analyzeAndRewriteFwd csePass
-                                                (JustC [entry])
-                                                g
-                                                (mapSingleton entry cseTop)
-  return g'
+    let entry = LIRLabel "main" (-1)
+    (g', facts, _) <- analyzeAndRewriteFwd csePass
+                                              (JustC [entry])
+                                              g
+                                              (mapSingleton entry cseTop)
+    return g'
 
-doms :: DecafGraph C C -> M DominatorTree
-doms g = do
-  let entry = LIRLabel "main" (-1)
-  (_, facts, _) <- analyzeAndRewriteFwd domPass
-                                                (JustC [entry])
-                                                g
-                                                (mapSingleton entry domEntry)
-  let domList = (mapToList facts)
-      dominatorTree = dtree $ trace ("\n\n\nDOMINATOR LIST:\n" ++ show domList ++ "\n\n\n") domList
-  return dominatorTree
+ssa :: LIRGraph C C -> M (DominanceFrontiers, DominatorTree)
+ssa g = do
+    let entry = LIRLabel "main" (-1)
+    (_, domFacts, _) <- analyzeAndRewriteFwd domPass
+                                              (JustC [entry])
+                                              g
+                                              (mapSingleton entry domEntry)
 
+    (_, varFacts, fptr) <- analyzeAndRewriteFwd varPass
+                                              (JustC [entry])
+                                              g
+                                              (mapSingleton entry (varEntry entry))
+    let dominanceFrontiers = mkDF g domFacts
+    
+    let varMap =  varFacts
+
+    return $ trace ("varFactMap: " ++ show varMap ++ "\n\n" ++ fshow fptr) dominanceFrontiers
+  where
+    fshow :: forall t e. Show t => MaybeO e t -> String
+    fshow (JustO r) = show r
+    fshow (NothingO) = "NOTHING"
 
 basename :: String -> String
 basename f = fst $ break (=='.') f
@@ -210,4 +245,3 @@ buildFilename f i ext = basename f ++ "." ++ show i ++ "." ++ ext
 
 convertToPNG :: String -> String -> IO ()
 convertToPNG graphFile imageFile = runCommand ("dot -Tpng " ++ graphFile ++ " -o" ++ imageFile) >> putStrLn ""
-

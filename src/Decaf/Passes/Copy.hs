@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables, NoMonomorphismRestriction #-}
 
-module Decaf.Passes.CSE where
+module Decaf.Passes.Copy where
 import qualified Data.Map as Map
 import Decaf.IR.LIR
 import Decaf.IR.IRNode
@@ -9,7 +9,6 @@ import Decaf.LIRNodes
 import Loligoptl.Combinators
 import Debug.Trace
 import Data.Maybe
-import Decaf.Passes.Simplify
 import Loligoptl
 
 import qualified Data.Map as M
@@ -34,16 +33,6 @@ data CSEData = CSETop
 data CSEFact = CSEFactMap (M.Map CSEKey CSEData)
              | CSEBot
              deriving (Show, Eq)
-
--- define const lattice
-cseBottom = fact_bot cseLattice
-cseTop = CSEFactMap $ M.empty
-cseLattice :: DataflowLattice CSEFact
-cseLattice = DataflowLattice
-  { fact_name = "Common Subexpression Elimination"
-  , fact_bot  = CSEBot
-  , fact_join = joinCSEFact
-  }
 
 -- join two CSE facts 
 joinCSEFact :: JoinFun CSEFact
@@ -70,6 +59,14 @@ joinCSEFact l (OldFact (CSEFactMap x)) (NewFact (CSEFactMap y)) =
     changed :: M.Map CSEKey (ChangeFlag, CSEData) -> Bool
     changed x = or $ map snd (M.toList (M.map ((== SomeChange) . fst) x))
 
+-- define const lattice
+cseBottom = fact_bot cseLattice
+cseTop = CSEFactMap $ M.empty
+cseLattice :: DataflowLattice CSEFact
+cseLattice = DataflowLattice
+  { fact_name = "CommonSubexpressionMap"
+  , fact_bot  = CSEBot
+  , fact_join = joinCSEFact }
 
 -- aux: remvoe all records containing x, because x has been changed
 varChanged :: M.Map CSEKey CSEData -> LIRReg -> M.Map CSEKey CSEData
@@ -127,7 +124,7 @@ cseTransfer = mkFTransfer unwrapFactFt
 
 -- rewrite: define constant folding rewrites
 cseRewrite :: FuelMonad m => FwdRewrite m LIRNode CSEFact
-cseRewrite  = mkFRewrite simp
+cseRewrite  = shallowFwdRw simp
   where
     simp :: forall m e x . (ShapeLifter e x, FuelMonad m) => 
             LIRNode e x -> CSEFact -> m (Maybe (Graph LIRNode e x))
@@ -153,5 +150,5 @@ cseRewrite  = mkFRewrite simp
 csePass  = FwdPass 
   { fp_lattice = cseLattice
   , fp_transfer = cseTransfer
-  , fp_rewrite = cseRewrite `thenFwdRw` simplify
+  , fp_rewrite = cseRewrite
   }

@@ -17,9 +17,10 @@ import qualified Data.IntSet as S
 import Decaf.IR.LIR
 
 -----------------------------------------------------------------------------
---		Label
+--Label
 -----------------------------------------------------------------------------
 type Label = LIRLabel
+
 readable (LIRLabel s _) = s
 unLabel (LIRLabel _ i) = i
 
@@ -41,8 +42,8 @@ instance IsSet LabelSet where
   setUnion (LS s1) (LS s2) = LS (S.union s1 s2)
   setEmpty = LS S.empty
   setFromList list = LS (S.fromList (map unLabel list))
-  setMember a (LS s) = S.member (unLabel a) s
-
+  setMember k (LS s) = S.member (unLabel k) s
+  setInsert k (LS s) = LS (S.insert (unLabel k) s)
   {-
   setNull (LS s) = setNull s
   setSize (LS s) = setSize s
@@ -50,7 +51,6 @@ instance IsSet LabelSet where
 
   -- setEmpty = LS setEmpty
   setSingleton (Label k) = LS (setSingleton k)
-  setInsert (Label k) (LS s) = LS (setInsert k s)
   setDelete (Label k) (LS s) = LS (setDelete k s)
 
   -- setUnion (LS x) (LS y) = LS (setUnion x y)
@@ -91,7 +91,8 @@ instance IsMap LabelMap where
   mapToList (LM m s) = map (\((k,a),(k',st)) -> (LIRLabel st k, a)) $ zip (M.toList m) (M.toList s)
   mapSingleton key a = LM (M.singleton (unLabel key) a)
                           (M.singleton (unLabel key) (readable key))
-  mapMap f (LM m s) = LM (M.map f m) s
+  mapMap f (LM m s)        = LM (M.map f m) s
+  mapMapWithKey f (LM m s) = LM (M.mapWithKey (f . LIRLabel "") m) s
   mapUnion (LM m1 s1) (LM m2 s2) = LM (M.union m1 m2) (M.union s1 s2)
 
   mapFromList pairs = 

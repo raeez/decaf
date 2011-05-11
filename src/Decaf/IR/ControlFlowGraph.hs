@@ -2,15 +2,14 @@
   , GADTs #-}
 
 module Decaf.IR.ControlFlowGraph where
---import Decaf.IR.Class
 import Data.Int
 import qualified Data.Map as Map
 import Decaf.IR.IRNode
 import Decaf.IR.AST
 import Decaf.IR.LIR
 import Decaf.IR.SymbolTable
-import Decaf.Translator
-import Decaf.HooplNodes
+import Decaf.LIRTranslator
+import Decaf.LIRNodes
 import Decaf.RegisterAllocator
 import System.IO.Unsafe
 import Loligoptl
@@ -22,10 +21,10 @@ mkBasicBlock :: [LIRInst] -> ControlNode
 mkBasicBlock = BasicBlock
 
 -- converts CFGExprInsts into CFGLIRInsts
-shortCircuit :: [CFGInst] -> Translator [CFGInst]
+shortCircuit :: [CFGInst] -> LIRTranslator [CFGInst]
 shortCircuit is = liftM concat $ mapM help is
   where 
-    help :: CFGInst -> Translator [CFGInst]
+    help :: CFGInst -> LIRTranslator [CFGInst]
     help inst = 
       case inst of
         CFGExprInst (CFGLogExpr expr1 op expr2 reg) ->
@@ -56,14 +55,14 @@ symToInt  reg = error "attempted to label if using non-symbolic register"
 --symToInt (LIRIntOperand x) = error "attempted to label if using int literal"
 
 -- | Main function.  Takes HIR and turns it into Hoopl graph
-graphProgram :: SymbolTree -> DecafProgram -> Int -> DecafGraph C C
+graphProgram :: SymbolTree -> DecafProgram -> Int -> LIRGraph C C
 graphProgram st dp rc =
     let g (CFGUnit lab insts) = (CFGLIRInst $ LIRLabelInst lab) : insts 
         (res, Namespace _ _ _ _ _ sm) = -- grab the successor map
-            runTranslator (do prog <- translateProgram st dp
-                              mapM (shortCircuit.g) (cgProgUnits prog) 
+            runLIR (do prog <- translateProgram st dp
+                       mapM (shortCircuit.g) (cgProgUnits prog) 
                                      >>= (return . (map stripCFG)))
-                          (mkNamespace rc)
+                       (mkNamespace rc)
         resProg = LIRProgram (LIRLabel "" 0) (map (LIRUnit (LIRLabel "" 0)) res) 
         (res', _, _) = allocateRegisters st resProg
         instructions = ((mapRet sm) . (concatMap lirUnitInstructions) . lirProgUnits) res'
@@ -78,10 +77,10 @@ graphProgram st dp rc =
                           Just v  -> v
                           Nothing -> []
 
-makeBlocks :: [LIRInst] -> [Block Node C C]
+makeBlocks :: [LIRInst] -> [Block LIRNode C C]
 makeBlocks insts = startBlock [] insts
   where
-    startBlock  :: [Block Node C C] -> [LIRInst] -> [Block Node C C]
+    startBlock  :: [Block LIRNode C C] -> [LIRInst] -> [Block LIRNode C C]
     startBlock bs [] = bs
     startBlock bs (inst:is) = 
       case inst of
@@ -89,7 +88,7 @@ makeBlocks insts = startBlock [] insts
         LIRLabelInst lab -> (buildBlock bs (BFirst $ LIRLabelNode $ lab) is)
         other -> (startBlock bs is) -- skip the node; it's dead code (hopefully...)
 
-    buildBlock :: [Block Node C C] -> Block Node C O -> [LIRInst] -> [Block Node C C]
+    buildBlock :: [Block LIRNode C C] -> Block LIRNode C O -> [LIRInst] -> [Block LIRNode C C]
     buildBlock bs b [] = error "unfinished block"
     buildBlock bs b (inst:is) = 
       case inst of
@@ -115,7 +114,7 @@ makeBlocks insts = startBlock [] insts
         LIREnterInst int ->
           buildBlock bs (b `BHead` (LIREnterNode int)) is
 
-graphToLIR :: Graph' Block Node e x -> [LIRInst]
+graphToLIR :: Graph' Block LIRNode e x -> [LIRInst]
 graphToLIR (GNil) =  []
 graphToLIR (GUnit unit) = blockToLIR unit
 graphToLIR (GMany entry labels exit) = (mapEntry ++ mapLabel ++ mapExit)
@@ -130,7 +129,7 @@ graphToLIR (GMany entry labels exit) = (mapEntry ++ mapLabel ++ mapExit)
                   NothingO -> []
     mapLabel = concatMap (blockToLIR.snd) (mapToList labels)
 
-blockToLIR :: Block Node e x -> [LIRInst]
+blockToLIR :: Block LIRNode e x -> [LIRInst]
 blockToLIR (BFirst node)   = nodeToLIR node
 blockToLIR (BMiddle node)  = nodeToLIR node
 blockToLIR (BLast node)    = nodeToLIR node
@@ -139,7 +138,7 @@ blockToLIR (BHead b n)     = blockToLIR b  ++ nodeToLIR n
 blockToLIR (BTail n b)     = nodeToLIR n   ++ blockToLIR b
 blockToLIR (BClosed b1 b2) = blockToLIR b1 ++ blockToLIR b2
 
-nodeToLIR :: Node e x -> [LIRInst]
+nodeToLIR :: LIRNode e x -> [LIRInst]
 nodeToLIR (LIRLabelNode l)                = [LIRLabelInst l]
 nodeToLIR (LIRRegAssignNode r e)          = [LIRRegAssignInst r e]
 nodeToLIR (LIRRegOffAssignNode r1 r2 s o) = [LIRRegOffAssignInst r1 r2 s o]
