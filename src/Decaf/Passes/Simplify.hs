@@ -1,50 +1,90 @@
 {-# OPTIONS_GHC -Wall -fwarn-incomplete-patterns #-}
 {-# LANGUAGE ScopedTypeVariables, GADTs, PatternGuards #-}
-module Simplify (simplify) where
+module Decaf.Passes.Simplify (simplify) where
 
 import Control.Monad
-import Compiler.Hoopl
-import IR
-import OptSupport
-
-type Node = Insn
+import qualified Data.Map as Map
+import Decaf.IR.LIR
+import Decaf.IR.IRNode
+import Control.Monad
+import Decaf.LIRNodes
+import Loligoptl.Combinators
+import Debug.Trace
+import Data.Maybe
+import Loligoptl
 
 --------------------------------------------------
 -- Simplification ("constant folding")
-simplify :: forall m f. FuelMonad m => FwdRewrite m Node f
-simplify = deepFwdRw simp
+simplify :: forall m f. FuelMonad m => FwdRewrite m LIRNode f
+simplify = mkFRewrite simp
  where
-  simp :: forall e x. Node e x -> f -> m (Maybe (Graph Node e x))
-  simp node _ = return $ liftM insnToG $ s_node node
-  s_node :: Node e x -> Maybe (Node e x)
-  s_node (Cond (Lit (Bool b)) t f)
-    = Just $ Branch (if b then t else f)
-  s_node n = (mapEN . mapEE) s_exp n
-  s_exp (Binop Add (Lit (Int n1)) (Lit (Int n2)))
-    = Just $ Lit $ Int $ n1 + n2
-    -- ... more cases for constant folding
--- @ end cprop.tex
-  s_exp (Binop opr e1 e2)
-    | (Just op, Lit (Int i1), Lit (Int i2)) <- (intOp opr, e1, e2) =
-        Just $ Lit $ Int  $ op i1 i2
-    | (Just op, Lit (Int i1), Lit (Int i2)) <- (cmpOp opr, e1, e2) =
-        Just $ Lit $ Bool $ op i1 i2
-  s_exp _ = Nothing
-  intOp Add = Just (+)
-  intOp Sub = Just (-)
-  intOp Mul = Just (*)
-  intOp Div = Just div
-  intOp _   = Nothing
-  cmpOp Eq  = Just (==)
-  cmpOp Ne  = Just (/=)
-  cmpOp Gt  = Just (>)
-  cmpOp Lt  = Just (<)
-  cmpOp Gte = Just (>=)
-  cmpOp Lte = Just (<=)
-  cmpOp _   = Nothing
+    simp :: forall m e x f. (ShapeLifter e x, FuelMonad m) =>
+            LIRNode e x -> f -> m (Maybe (Graph LIRNode e x))
+    simp node _ = return $ liftM nodeToG $ s_node node
+    s_node :: LIRNode e x -> Maybe (LIRNode e x)
+    s_node (LIRRegAssignNode x e)        = Just $ LIRRegAssignNode x (rewriteExpr e)
+    s_node (LIRIfNode e tl fl) = let e' = rewriteRelExpr e
+                                 in case e' of
+                                    (LIRNotRelExpr (LIRIntOperand i))
+                                        -> Just $ LIRJumpLabelNode (if i == asmFalse then tl else fl) 
 
--- Defining the forward dataflow pass
-constPropPass = FwdPass
-  { fp_lattice  = constLattice
-  , fp_transfer = varHasLit
-  , fp_rewrite  = constProp `thenFwdRw` simplify }
+                                    (LIROperRelExpr (LIRIntOperand i))
+                                        -> Just $ LIRJumpLabelNode (if i == asmTrue then tl else fl)
+
+                                    _   -> Just $ LIRIfNode e' tl fl
+    s_node _ = Nothing
+    unOp op  = case op of
+            LNEG -> (-) 0
+            LNOT -> toLIRBool . not . toHaskBool
+
+    -- binOp :: forall i. Fractional i => LIRBinOp -> i -> i
+    binOp op = case op of
+            LADD -> (+)
+            LSUB -> (-)
+            LMUL -> (*)
+            LDIV -> (/)
+            LMOD -> mod
+            LAND -> liftedOp (&&)
+            LOR -> liftedOp (||)
+            LIRBinRelOp LEQ _ -> liftedOp (==) 
+            LIRBinRelOp LNEQ _ -> liftedOp (/=)
+            LIRBinRelOp LGT _ -> liftedOp (>)
+            LIRBinRelOp LGTE _ -> liftedOp (>=)
+            LIRBinRelOp LLT _ -> liftedOp (<)
+            LIRBinRelOp LLTE _ -> liftedOp (<=)
+
+    relBinOp op = case op of
+            LEQ -> (==)
+            LNEQ -> (/=)
+            LGT -> (>)
+            LGTE -> (>=)
+            LLT -> (<)
+            LLTE -> (<=)
+
+    liftedOp op i i' = toLIRBool $ (toHaskBool i) `op` (toHaskBool i')
+
+    toHaskBool i = if i == asmTrue
+                    then True
+                    else False
+    toLIRBool b = if True
+                    then asmTrue
+                    else asmFalse
+
+    rewriteExpr (LIRBinExpr (LIRIntOperand i) op (LIRIntOperand i')) =
+        LIROperExpr $ LIRIntOperand $ (binOp op) i i'
+    rewriteExpr (LIRBinExpr o1 op o2) = LIRBinExpr o1 op o2
+    rewriteExpr (LIRUnExpr op (LIRIntOperand i)) =
+        LIROperExpr $ LIRIntOperand $ (unOp op) i
+    rewriteExpr (LIRUnExpr a o)      = LIRUnExpr a o
+    rewriteExpr (LIROperExpr o)      = LIROperExpr o
+
+
+    rewriteRelExpr (LIRBinRelExpr (LIRIntOperand i) op (LIRIntOperand i')) =
+        LIROperRelExpr $ LIRIntOperand $ toLIRBool $ (relBinOp op) (toHaskBool i) (toHaskBool i')
+    rewriteRelExpr (LIRBinRelExpr o1 a o2) = LIRBinRelExpr o1 a o2
+    rewriteRelExpr (LIRNotRelExpr (LIRIntOperand i)) =
+        LIROperRelExpr $ LIRIntOperand $ if i == asmTrue
+                                            then asmFalse
+                                            else asmTrue
+    rewriteRelExpr (LIRNotRelExpr o)       = LIRNotRelExpr o
+    rewriteRelExpr (LIROperRelExpr o)      = LIROperRelExpr o

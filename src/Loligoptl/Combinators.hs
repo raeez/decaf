@@ -2,10 +2,9 @@
  NoMonomorphismRestriction #-}
 
 module Loligoptl.Combinators
-  ( mkFTransfer
-  , shallowFwdRw, deepFwdRw, deepFwdRw3, iterFwdRw
+  ( shallowFwdRw, deepFwdRw, deepFwdRw3, iterFwdRw
   , thenFwdRw
-  , mkFTransfer , mkFTransfer3 , noFwdRewrite
+  , mkFTransfer , mkFTransfer3 , mkFRewrite, noFwdRewrite
   , mkBTransfer, mkBTransfer3, noBwdRewrite
   , thenBwdRw
   , deepBwdRw3, deepBwdRw, iterBwdRw
@@ -29,8 +28,10 @@ deepFwdRw3 :: FuelMonad m
            -> (n O O -> f -> m (Maybe (Graph n O O)))
            -> (n O C -> f -> m (Maybe (Graph n O C)))
            -> (FwdRewrite m n f)
-deepFwdRw :: FuelMonad m
-          => (forall e x . n e x -> f -> m (Maybe (Graph n e x))) -> FwdRewrite m n f
+deepFwdRw :: forall m e x n f. (FuelMonad m)
+           => (forall e x . (ShapeLifter e x)
+           =>  n e x -> f -> m (Maybe (Graph n e x)))
+           -> FwdRewrite m n f
 deepFwdRw3 f m l = iterFwdRw $ mkFRewrite3 f m l
 deepFwdRw f = deepFwdRw3 f f f
 
@@ -55,11 +56,9 @@ thenFwdRw rw3 rw3' = wrapFR2 thenrw rw3 rw3'
      where fwdRes Nothing   = rw' n f
            fwdRes (Just gr) = return $ Just $ fadd_rw rw3' gr
 
--- @ start iterf.tex
 iterFwdRw :: forall m n f. Monad m 
           => FwdRewrite m n f 
           -> FwdRewrite m n f
--- @ end iterf.tex
 iterFwdRw rw3 = wrapFR iter rw3
  where iter :: forall a m1 m2 e x t.
                (Monad m2, Monad m1) =>
@@ -164,6 +163,12 @@ mkFRewrite3 f m l = FwdRewrite3 (lift f, lift m, lift l)
         lift rw node fact = liftM (liftM asRew) (withFuel =<< rw node fact)
         asRew :: forall t. t -> (t, FwdRewrite m n f)
         asRew g = (g, noFwdRewrite)
+
+mkFRewrite :: forall m e x n f. (FuelMonad m)
+           => (forall e x . (ShapeLifter e x)
+           =>  n e x -> f -> m (Maybe (Graph n e x)))
+           -> FwdRewrite m n f
+mkFRewrite f = mkFRewrite3 f f f
 
 noFwdRewrite :: Monad m => FwdRewrite m n f
 noFwdRewrite = FwdRewrite3 (noRewrite, noRewrite, noRewrite)

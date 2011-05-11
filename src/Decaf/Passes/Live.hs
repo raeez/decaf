@@ -34,12 +34,12 @@ liveness = mkBTransfer live
                                        = addUses f n
     live n@(LIRStoreNode {}) f         = addUses f n
     live n@(LIRLoadNode x _) f         = addUses (S.delete x f) n
-    live n@(LIRCallNode proc ret) f    = addUses S.empty n
-    live n@(LIRCalloutNode {}) f       = f
     live n@(LIREnterNode {}) f         = f
-    live n@(LIRRetNode successors _) f = addUses (fact_bot liveLattice) n
-    live n@(LIRIfNode expr tl fl) f    = addUses (fact f tl `S.union` fact f fl) n
+    live n@(LIRCalloutNode {}) f       = f
     live n@(LIRJumpLabelNode l) f      = addUses (fact f l) n
+    live n@(LIRIfNode expr tl fl) f    = addUses (fact f tl `S.union` fact f fl) n
+    live n@(LIRCallNode proc ret) f    = addUses (fact f proc `S.union` fact f ret) n
+    live n@(LIRRetNode successors _) f = addUses (fact_bot liveLattice) n
 
     fact :: FactBase (S.Set LIRReg) -> Label -> LiveFact
     fact f l = trace ("looking up label [" ++ pp l ++ "]") $ fromMaybe S.empty (mapLookup l f)

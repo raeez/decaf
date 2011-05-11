@@ -181,7 +181,17 @@ optimize g = do
     let g' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (cseOpt g)
         (df, dt) = runSimpleUniqueMonad $ runWithFuel infiniteFuel (ssa g')
         g'' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (liveOpt g')
+        g''' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (constOpt g'')
     return (g'', dt, df)
+
+constOp :: LIRGraph C C -> M (LIRGraph C C)
+constOp g = do
+    let entry = LIRLabel "main" (-1)
+    (g', facts, _) <- analyzeAndRewriteBwd constPass
+                                              (JustC [entry])
+                                              g
+                                              (mapSingleton entry constTop)
+    return g'
 
 liveOpt :: LIRGraph C C -> M (LIRGraph C C)
 liveOpt g = do
