@@ -5,7 +5,7 @@ module Decaf.Passes.Const where
 import Data.Map as Map
 import Decaf.IR.LIR
 import Control.Monad
-import Decaf.HooplNodes
+import Decaf.LIRNodes
 import Loligoptl.Dataflow
 import Loligoptl.Graph 
 import Loligoptl.Fuel 

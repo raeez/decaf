@@ -4,7 +4,7 @@ module Transform where
 import Loligoptl.Label
 import Loligoptl.Graph
 import Decaf.IR.LIR
-import Decaf.HooplNodes
+import Decaf.LIRNodes
 
 graphToLIR :: Graph' Block Node e x -> [LIRInst]
 graphToLIR (GNil) = []

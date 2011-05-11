@@ -57,7 +57,7 @@ data SSARelExpr = SSABinRelExpr SSAOperand SSARelOp SSAOperand
                 | SSAOperRelExpr SSAOperand
                 deriving (Show, Eq, Typeable)
 
-data LIRBinOp = SADD
+data SSABinOp = SADD
               | SSUB
               | SMUL
               | SDIV
@@ -91,25 +91,7 @@ data SSAOperand = SSARegOperand SSAReg
                 | SSAStrOperand String
                 deriving (Show, Eq, Typeable, Ord)
 
-data SSAReg = SRAX Int -- Int is the subscript, starting at 0
-            | SRBX Int
-            | SRCX Int
-            | SRDX Int
-            | SRBP Int
-            | SRSP Int
-            | SRSI Int
-            | SRDI Int
-            | SR8 Int
-            | SR9 Int
-            | SR10 Int
-            | SR11 Int
-            | SR12 Int
-            | SR13 Int
-            | SR14 Int
-            | SR15 Int
-            | GI Int Int
-            | SREG Int Int
-            | MEM String Int
+data SSAReg = SSAReg LIRReg Int -- Int is the subscript
             deriving (Show, Eq, Typeable, Ord)
 
 instance IRNode SSAProgram where
@@ -232,23 +214,5 @@ instance IRNode SSAOperand where
     treeify a = Node (pp a) []
 
 instance IRNode SSAReg where
-    pp (LRAX s) = "RAX[" ++ show s ++ "]"
-    pp (LRBX s) = "RBX" ++ "[" ++ show s ++ "]"
-    pp (LRCX s) = "RCX" ++ "[" ++ show s ++ "]"
-    pp (LRDX s) = "RDX" ++ "[" ++ show s ++ "]"
-    pp (LRBP s) = "RBP" ++ "[" ++ show s ++ "]"
-    pp (LRSP s) = "RSP" ++ "[" ++ show s ++ "]"
-    pp (LRSI s) = "RSI" ++ "[" ++ show s ++ "]"
-    pp (LRDI s) = "RDI" ++ "[" ++ show s ++ "]"
-    pp (LR8 s)  = "R8" ++ "[" ++ show s ++ "]"
-    pp (LR9 s)  = "R9" ++ "[" ++ show s ++ "]"
-    pp (LR10 s) = "R10" ++ "[" ++ show s ++ "]"
-    pp (LR11 s) = "R11" ++ "[" ++ show s ++ "]"
-    pp (LR12 s) = "R12" ++ "[" ++ show s ++ "]"
-    pp (LR13 s) = "R13" ++ "[" ++ show s ++ "]"
-    pp (LR14 s) = "R14" ++ "[" ++ show s ++ "]"
-    pp (LR15 s) = "R15" ++ "[" ++ show s ++ "]"
-    pp (GI i s) = "g"++(show i) ++ "[" ++ show s ++ "]"
-    pp (MEM s su)  = s ++ "[" ++ show su ++ "]"
-    pp (SREG i s) = "s" ++ (show i) ++ "[" ++ show s ++ "]"
+    pp (SSAReg r s) = pp r ++ "[" ++ show s ++ "]"
     treeify a = Node (pp a) []

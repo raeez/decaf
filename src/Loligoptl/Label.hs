@@ -90,7 +90,8 @@ instance IsMap LabelMap where
   mapToList (LM m s) = map (\((k,a),(k',st)) -> (LIRLabel st k, a)) $ zip (M.toList m) (M.toList s)
   mapSingleton key a = LM (M.singleton (unLabel key) a)
                           (M.singleton (unLabel key) (readable key))
-  mapMap f (LM m s) = LM (M.map f m) s
+  mapMap f (LM m s)        = LM (M.map f m) s
+  mapMapWithKey f (LM m s) = LM (M.mapWithKey (f . LIRLabel "") m) s
   mapUnion (LM m1 s1) (LM m2 s2) = LM (M.union m1 m2) (M.union s1 s2)
 
   mapFromList pairs = 

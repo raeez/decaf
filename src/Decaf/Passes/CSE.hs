@@ -5,7 +5,7 @@ import qualified Data.Map as Map
 import Decaf.IR.LIR
 import Decaf.IR.IRNode
 import Control.Monad
-import Decaf.HooplNodes
+import Decaf.LIRNodes
 import Loligoptl.Combinators
 import Debug.Trace
 import Data.Maybe
@@ -90,14 +90,14 @@ varChanged f x = M.mapWithKey keep f
 
 -- transfer: define CSE lattice transfer function:  a expression (x op y) is available iff ((x,op,y),w) \in Lattice
 -- concerns only RegAssignNode and LoadNode
-exprIsAvail :: FwdTransfer Node CSEFact
+exprIsAvail :: FwdTransfer LIRNode CSEFact
 exprIsAvail = mkFTransfer unwrapFactFt
   where
-    unwrapFactFt :: Node e x -> CSEFact -> Fact x CSEFact
+    unwrapFactFt :: LIRNode e x -> CSEFact -> Fact x CSEFact
     unwrapFactFt n CSEBot = error "exprIsAvail:unwrapFactFt called on CSEBot; should not happen!"
     unwrapFactFt n (CSEFactMap f) = ft n f
 
-    ft :: Node e x -> M.Map CSEKey CSEData -> Fact x CSEFact
+    ft :: LIRNode e x -> M.Map CSEKey CSEData -> Fact x CSEFact
     ft (LIRLabelNode {}) f         = CSEFactMap f
     ft (LIRRegAssignNode x (LIRBinExpr a op b)) f
                                    = CSEFactMap $ M.insert (CSEKey a op b) (CSEReg x) (varChanged f x) -- a op b -> x
@@ -123,17 +123,17 @@ exprIsAvail = mkFTransfer unwrapFactFt
     ft (LIRJumpLabelNode l) f      = mkFactBase cseLattice [(l, CSEFactMap f)]        -- jmp l --> associate f with l 
 
 -- rewrite: define constant folding rewrites
-cse :: Monad m => FwdRewrite m Node CSEFact
+cse :: Monad m => FwdRewrite m LIRNode CSEFact
 cse  = shallowFwdRw simp
   where
     simp :: forall m e x . (ShapeLifter e x, Monad m) => 
-            Node e x -> CSEFact -> m (Maybe (Graph Node e x))
+            LIRNode e x -> CSEFact -> m (Maybe (Graph LIRNode e x))
     simp node CSEBot = error "cse: called on CSEBot; shoudl not happen!"
     -- simp node (CSEFactMap f) = return $ liftM nodeToG $ s_node (trace ("REWRITING NODE [" ++ show node ++ "] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {\n" ++ unlines(map show $ M.toList f) ++ "}") node)
     simp node (CSEFactMap f) = return $ liftM nodeToG $ s_node node
   
       where
-        s_node :: Node e x -> Maybe (Node e x)
+        s_node :: LIRNode e x -> Maybe (LIRNode e x)
         -- x = lit op lit     
         s_node (LIRRegAssignNode reg (LIRBinExpr o1 binop o2)) = 
           case M.lookup (CSEKey o1 binop o2) f of

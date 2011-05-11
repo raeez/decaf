@@ -41,10 +41,10 @@ Library
                       Decaf.Util.Report,
                       Decaf.IR.IRNode,
                       Decaf.IR.ControlFlowGraph,
-                      Decaf.Translator,
+                      Decaf.LIRTranslator,
+                      Decaf.SSATranslator
                       Decaf.Passes.CSE
                       Decaf.Passes.Dominator
-                      Decaf.Passes.SSA
                       Loligoptl,
                       Loligoptl.Combinators,
                       Loligoptl.Fuel,

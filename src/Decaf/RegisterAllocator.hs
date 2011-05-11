@@ -8,8 +8,8 @@ import Decaf.IR.SymbolTable
 import Decaf.IR.IRNode
 import Decaf.IR.AST
 import Decaf.IR.LIR
-import Decaf.Translator
 import Decaf.Data.Zipper
+import Decaf.LIRTranslator
 
 import qualified Data.Map as Map
 import Data.Typeable

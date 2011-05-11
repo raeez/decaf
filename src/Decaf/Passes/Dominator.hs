@@ -5,11 +5,14 @@ module Decaf.Passes.Dominator
   ( Doms, DPath(..), domPath, domEntry, domLattice, extendDom
   , DominatorNode(..), DominatorTree(..), dtree
   , immediateDominators
+  , DominanceFrontiers, mkDF, mkIteratedDF, mkDFSet
   , domPass
   )
 where
 import Data.Maybe
+import Data.List
 import Loligoptl
+import Decaf.LIRNodes
 import Debug.Trace
 
 type Doms = WithBot DPath
@@ -84,6 +87,7 @@ dtree facts = Dominates Entry $ merge $ map reverse $ map mkList facts
    -- lists to a finite map, in 'children'.  Then, to convert from the
    -- finite map to list of dominator trees, use the invariant that
    -- each key dominates all the lists of values.
+   --
   where merge lists = mapTree $ children $ filter (not . null) lists
         children = foldl addList noFacts
         addList :: FactBase [[Label]] -> [Label] -> FactBase [[Label]]
@@ -95,6 +99,83 @@ dtree facts = Dominates Entry $ merge $ map reverse $ map mkList facts
                                                     (x, lists) <- mapToList map]
         mkList (l, doms) = l : domPath doms
 
+
+-- |'dominatorWalk' performs a post-order walk of the dominator tree
+dominatorWalk :: DominatorTree -> [Label]
+dominatorWalk (Dominates Entry [])            = []
+dominatorWalk (Dominates Entry children)      = concatMap dominatorWalk children
+dominatorWalk (Dominates (Labelled l) [])     = [l]
+dominatorWalk (Dominates (Labelled l) children) = concatMap dominatorWalk children ++ [l]
+
+mkImDom :: FactBase Doms -> LabelMap [Label]
+mkImDom f = mapFromList
+                      $ map (foldl (\(a,b) (c,d) -> (c, d:b)) (undefined, []))
+                      $ groupBy (\(a, b) (c, d) -> a == c) . sort
+                      $ map (\(a,b) -> (b,a))
+                            $ mapToList (immediateDominators f)
+
+graphToMap :: LIRGraph C C -> LabelMap [Label]
+graphToMap (GMany entry labels exit) = mapMap successors labels
+
+type DominanceFrontiers = LabelMap [Label]
+
+mkDF :: LIRGraph C C -> FactBase Doms -> (DominanceFrontiers, DominatorTree)
+mkDF g facts =
+    let domList = (mapToList facts)
+        imDoms = trace ("IMDOMS: " ++ show (mkImDom facts)) (mkImDom facts)
+        dominatorTree = dtree domList
+        postOrder = dominatorWalk dominatorTree
+        program = graphToMap g
+        dominanceFrontier :: LabelMap [Label]
+        dominanceFrontier = mapUnion localDF upDF
+          where
+            localDF :: LabelMap [Label]
+            localDF = mapMapWithKey localDominanceFrontier program
+
+            upDF :: LabelMap [Label]
+            upDF = mapMapWithKey upDominanceFrontier program
+
+            localDominanceFrontier node successors =
+                filter (\y -> y `notElem` iDom) successors
+              where
+                iDom :: [Label]
+                iDom = case (mapLookup node imDoms) of
+                              Just res -> res
+                              Nothing -> []
+
+            upDominanceFrontier node successors =
+                concatMap zf iDom
+              where
+                zf :: Label -> [Label]
+                zf z = filter (\y -> y `notElem` iDom) (queryDF z)
+
+                iDom :: [Label]
+                iDom = case (mapLookup node imDoms) of
+                                Just res -> res
+                                Nothing -> []
+
+        queryDF z = case (mapLookup z dominanceFrontier) of
+                        Just res -> res
+                        Nothing -> []
+    in (dominanceFrontier, dominatorTree)
+
+mkDFSet :: DominanceFrontiers -> [Label] -> [Label]
+mkDFSet df labels =
+    concatMap ($df) (map lookup' labels)
+  where
+    lookup' :: Label -> DominanceFrontiers -> [Label]
+    lookup' key map = case mapLookup key map of
+                        Just res -> res
+                        Nothing -> []
+
+mkIteratedDF :: DominanceFrontiers -> [Label]  -> [Label]
+mkIteratedDF df labels =
+    loop (mkDFSet df labels)
+  where
+    loop dfp = let dfp' = mkDFSet df (union dfp labels)
+               in if dfp /= dfp'
+                    then loop dfp'
+                    else dfp
 
 instance Show DominatorTree where
   show = tree2dot
@@ -133,6 +214,7 @@ immediateDominators = mapFoldWithKey add mapEmpty
 -- | This utility function handles a common case in which a transfer function
 -- for a last node takes the incoming fact unchanged and simply distributes
 -- that fact over the outgoing edges.
+
 distributeFact :: NonLocal n => n O C -> f -> FactBase f
 distributeFact n f = mapFromList [ (l, f) | l <- successors n ]
    -- because the same fact goes out on every edge,

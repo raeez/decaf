@@ -131,7 +131,7 @@ compile chosen source filename =
          control_flow_graph = graphProgram (top numberedTable) parsed_program (rc + mc)
          -- ^ convert to control flow graph
  
-     (optimized, dominatorTree) <- optimize control_flow_graph
+     (optimized, dominatorTree, dominanceFrontiers) <- optimize control_flow_graph
 
      let control_flow_graph' = if or (optopts chosen)
                               then optimized
@@ -162,6 +162,8 @@ compile chosen source filename =
      writeFile newFile asmout
      putStrLn asmout
      putStrLn $ pp program
+     putStrLn $ "Finally DF:\n" ++ show dominanceFrontiers
+     putStrLn "-----"
      exitSuccess
   where
     newFile = (fst $ break (=='.') filename) ++ ".asm"
@@ -171,32 +173,30 @@ compile chosen source filename =
 
 type M = CheckingFuelMonad (SimpleUniqueMonad)
 
-optimize :: DecafGraph C C -> IO (DecafGraph C C, DominatorTree)
+optimize :: LIRGraph C C -> IO (LIRGraph C C, DominatorTree, DominanceFrontiers)
 optimize g = do
   let g' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (cseOpt g)
-      dominatorTree = runSimpleUniqueMonad $ runWithFuel infiniteFuel (doms g')
-  return (g', dominatorTree)
+      (df, dt) = runSimpleUniqueMonad $ runWithFuel infiniteFuel (ssa g')
+  return (g', dt, df)
 
-cseOpt :: DecafGraph C C -> M (DecafGraph C C)
+cseOpt :: LIRGraph C C -> M (LIRGraph C C)
 cseOpt g = do
   let entry = LIRLabel "main" (-1)
   (g', facts, _) <- analyzeAndRewriteFwd csePass
-                                                (JustC [entry])
-                                                g
-                                                (mapSingleton entry cseTop)
+                                              (JustC [entry])
+                                              g
+                                              (mapSingleton entry cseTop)
   return g'
 
-doms :: DecafGraph C C -> M DominatorTree
-doms g = do
-  let entry = LIRLabel "main" (-1)
-  (_, facts, _) <- analyzeAndRewriteFwd domPass
+ssa :: LIRGraph C C -> M (DominanceFrontiers, DominatorTree)
+ssa g = do
+    let entry = LIRLabel "main" (-1)
+    (_, facts, _) <- analyzeAndRewriteFwd domPass
                                                 (JustC [entry])
                                                 g
                                                 (mapSingleton entry domEntry)
-  let domList = (mapToList facts)
-      dominatorTree = dtree $ trace ("\n\n\nDOMINATOR LIST:\n" ++ show domList ++ "\n\n\n") domList
-  return dominatorTree
 
+    return (mkDF g facts)
 
 basename :: String -> String
 basename f = fst $ break (=='.') f
