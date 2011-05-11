@@ -34,7 +34,7 @@ liveness = mkBTransfer live
                                        = addUses f n
     live n@(LIRStoreNode {}) f         = addUses f n
     live n@(LIRLoadNode x _) f         = addUses (S.delete x f) n
-    live n@(LIRCallNode proc ret) f    = addUses (fact f proc) n
+    live n@(LIRCallNode proc ret) f    = addUses S.empty n
     live n@(LIRCalloutNode {}) f       = f
     live n@(LIREnterNode {}) f         = f
     live n@(LIRRetNode successors _) f = addUses (fact_bot liveLattice) n
@@ -42,20 +42,25 @@ liveness = mkBTransfer live
     live n@(LIRJumpLabelNode l) f      = addUses (fact f l) n
 
     fact :: FactBase (S.Set LIRReg) -> Label -> LiveFact
-    fact f l = fromMaybe S.empty (mapLookup l f)
+    fact f l = trace ("looking up label [" ++ pp l ++ "]") $ fromMaybe S.empty (mapLookup l f)
     
     addUses :: S.Set LIRReg -> LIRNode e x -> LiveFact
     addUses f (LIRLabelNode _)              = f
     addUses f (LIRRegAssignNode x e)        = trackExpr f e
     addUses f (LIRRegOffAssignNode _ _ _ o) = trackOperand f o
     addUses f (LIRStoreNode _ o)            = trackOperand f o
-    addUses f (LIRLoadNode r _)             = f
+    addUses f (LIRLoadNode _ _)             = f
     addUses f (LIRCallNode _ _)             = f
     addUses f (LIRCalloutNode _)            = f
     addUses f (LIREnterNode _)              = f
     addUses f (LIRRetNode _ _)              = f
-    addUses f (LIRIfNode _ _ _)             = f
+    addUses f (LIRIfNode e _ _)             = trackRelExpr f e
     addUses f (LIRJumpLabelNode _)          = f
+
+    trackRelExpr :: S.Set LIRReg -> LIRRelExpr -> S.Set LIRReg
+    trackRelExpr f (LIRBinRelExpr o1 _ o2) = trackOperand (trackOperand f o1) o2
+    trackRelExpr f (LIRNotRelExpr o)       = trackOperand f o
+    trackRelExpr f (LIROperRelExpr o)      = trackOperand f o
 
     trackExpr :: S.Set LIRReg -> LIRExpr -> S.Set LIRReg
     trackExpr f (LIRBinExpr o1 _ o2) = trackOperand (trackOperand f o1) o2
@@ -77,24 +82,31 @@ deadAsstElim :: FuelMonad m => BwdRewrite m LIRNode LiveFact
 deadAsstElim = mkBRewrite d
   where
     d :: forall e x m. FuelMonad m => LIRNode e x -> Fact x LiveFact -> m (Maybe (Graph LIRNode e x))
-    -- d n@(LIRRegAssignNode x@(SREG {}) _) live
-        -- | not (x `S.member` live) = trace ("rewriting " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
+    d n@(LIRRegAssignNode x@(SREG {}) _) live
+        | not (x `S.member` live) = trace ("KILLING " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
 
-    -- d n@(LIRRegAssignNode x@(MEM {}) _) live
-        -- | not (x `S.member` live) = trace ("rewriting " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
+    d n@(LIRRegAssignNode x@(MEM {}) _) live
+        | not (x `S.member` live) = trace ("KILLING " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
 
-    -- d n@(LIRRegAssignNode x@(GI {}) _) live
-        -- | not (x `S.member` live) = trace ("rewriting " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
+    d n@(LIRRegAssignNode x@(GI {}) _) live
+        | not (x `S.member` live) = trace ("KILLING " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
 
-    -- d n@(LIRLoadNode x@(SREG {}) _) live
-        -- | not (x `S.member` live) = trace ("rewriting " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
+    d n@(LIRLoadNode x@(SREG {}) _) live
+        | not (x `S.member` live) = trace ("KILLING " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
 
-    -- d n@(LIRLoadNode x@(MEM {}) _) live
-        -- | not (x `S.member` live) = trace ("rewriting " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
+    d n@(LIRLoadNode x@(MEM {}) _) live
+        | not (x `S.member` live) = trace ("KILLING " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
 
-    -- d n@(LIRLoadNode x@(GI {}) _) live
-        -- | not (x `S.member` live) = trace ("rewriting " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
-    d _ _ = return Nothing
+    d n@(LIRLoadNode x@(GI {}) _) live
+        | not (x `S.member` live) = trace ("KILLING " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
+ 
+    d n@(LIRLabelNode _) live =
+        trace("passing through " ++ show n ++ " with fact: " ++ show live) (return Nothing)
+
+    d n@(LIRJumpLabelNode _) live =
+        trace("passing through " ++ show n ++ " with fact: " ++ show live) (return Nothing)
+
+    d n live = trace ("passing through " ++ show n) (return Nothing)
 
 -- livePass :: (NonLocal n, Monad m) => BwdPass m n LiveFact
 livePass = BwdPass
