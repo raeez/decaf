@@ -182,7 +182,7 @@ optimize g = do
         g'' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (constOpt g')
         g''' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (liveOpt g'')
         (df, dt) = runSimpleUniqueMonad $ runWithFuel infiniteFuel (ssa g)
-    return (g'', dt, df)
+    return (g''', dt, df)
 
 constOpt :: LIRGraph C C -> M (LIRGraph C C)
 constOpt g = do
