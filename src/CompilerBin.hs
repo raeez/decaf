@@ -179,9 +179,9 @@ type M = CheckingFuelMonad (SimpleUniqueMonad)
 optimize :: LIRGraph C C -> IO (LIRGraph C C, DominatorTree, DominanceFrontiers)
 optimize g = do
     let g' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (cseOpt g)
-        (df, dt) = runSimpleUniqueMonad $ runWithFuel infiniteFuel (ssa g')
-        g'' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (liveOpt g')
-        g''' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (constOpt g'')
+        g'' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (constOpt g')
+        g''' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (liveOpt g'')
+        (df, dt) = runSimpleUniqueMonad $ runWithFuel infiniteFuel (ssa g)
     return (g'', dt, df)
 
 constOpt :: LIRGraph C C -> M (LIRGraph C C)

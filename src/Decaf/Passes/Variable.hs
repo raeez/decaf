@@ -72,7 +72,7 @@ varTransfer = mkFTransfer unwrapFactFt
     ft (LIRCalloutNode {}) vm       = VarFactMap vm
     ft (LIREnterNode {}) vm         = VarFactMap vm
     ft (LIRRetNode successors _) vm = mkFactBase varLattice (map (\x -> (x, VarFactMap vm)) successors)
-    ft (LIRIfNode expr tl fl) vm    = mkFactBase varLattice [(tl, VarFactMap vm), (fl, VarFactMap vm)]
+    ft (LIRIfNode expr fl tl) vm    = mkFactBase varLattice [(fl, VarFactMap vm), (tl, VarFactMap vm)]
     ft (LIRJumpLabelNode l) vm      = mkFactBase varLattice [(l, VarFactMap vm)]
 
     -- updateFact :: LIRReg -> VarMap -> VarFact

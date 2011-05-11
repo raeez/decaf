@@ -122,7 +122,7 @@ cseTransfer = mkFTransfer unwrapFactFt
     ft (LIRCalloutNode {}) f       = CSEFactMap f
     ft (LIREnterNode {}) f         = CSEFactMap f
     ft (LIRRetNode successors _) f = mkFactBase cseLattice [] -- (map (\x -> (x, f)) successors)
-    ft (LIRIfNode expr tl fl) f    = mkFactBase cseLattice [(tl, CSEFactMap f), (fl, CSEFactMap f)]  -- if expr the jmp tl else jmp fl
+    ft (LIRIfNode expr fl tl) f    = mkFactBase cseLattice [(fl, CSEFactMap f), (tl, CSEFactMap f)]  -- if expr the jmp tl else jmp fl
     ft (LIRJumpLabelNode l) f      = mkFactBase cseLattice [(l, CSEFactMap f)]        -- jmp l --> associate f with l 
 
 -- rewrite: define constant folding rewrites

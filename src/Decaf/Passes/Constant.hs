@@ -92,7 +92,7 @@ constTransfer = mkFTransfer unwrapFactFt
     ft (LIRCalloutNode {}) f       = ConstFactMap f
     ft (LIREnterNode {}) f         = ConstFactMap f
     ft (LIRRetNode successors _) f = mkFactBase constLattice [] -- (map (\x -> (x, f)) successors)
-    ft (LIRIfNode expr tl fl) f    = mkFactBase constLattice [(tl, ConstFactMap f), (fl, ConstFactMap f)]  -- if expr the jmp tl else jmp fl
+    ft (LIRIfNode expr fl tl) f    = mkFactBase constLattice [(tl, ConstFactMap f), (fl, ConstFactMap f)]  -- if expr the jmp tl else jmp fl
     ft (LIRJumpLabelNode l) f      = mkFactBase constLattice [(l, ConstFactMap f)]        -- jmp l --> associate f with l 
 
 constRewrite :: forall m. FuelMonad m => FwdRewrite m LIRNode ConstFact

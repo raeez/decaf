@@ -24,55 +24,58 @@ simplify = mkFRewrite simp
     simp node _ = return $ liftM nodeToG $ s_node node
     s_node :: LIRNode e x -> Maybe (LIRNode e x)
     s_node (LIRRegAssignNode x e)        = Just $ LIRRegAssignNode x (rewriteExpr e)
-    s_node (LIRIfNode e tl fl) = let e' = rewriteRelExpr e
+    s_node (LIRIfNode e fl tl) = let e' = trace ("collapsing branch with expr: " ++ pp (rewriteRelExpr e)) rewriteRelExpr e
                                  in case e' of
                                     (LIRNotRelExpr (LIRIntOperand i))
-                                        -> Just $ LIRJumpLabelNode (if i == asmFalse then tl else fl) 
+                                        -> Just $ LIRJumpLabelNode (case i of
+                                                                    asmTrue -> trace ("picked false branch: " ++ pp fl) fl
+                                                                    asmFalse -> trace ("picked true branch: " ++ pp tl) tl
+                                                                    other -> error $ "tried to collapse an if node with an invalid relexpr of value: " ++ pp i)
 
                                     (LIROperRelExpr (LIRIntOperand i))
-                                        -> Just $ LIRJumpLabelNode (if i == asmTrue then tl else fl)
+                                        -> Just $ LIRJumpLabelNode (case i of
+                                                                    asmTrue -> trace ("rel: picked true branch: " ++ pp tl) tl
+                                                                    asmFalse -> trace ("rel: picked false branch: " ++ pp fl) fl
+                                                                    other -> error $ "tried to collapse an if node with an invalid relexpr of value: " ++ pp i)
 
-                                    _   -> Just $ LIRIfNode e' tl fl
+                                    _   -> trace "FAIL: could not collapse branch" $ Just $ LIRIfNode e' fl tl
     s_node _ = Nothing
     unOp op  = case op of
             LNEG -> (-) 0
             LNOT -> toLIRBool . not . toHaskBool
 
-    -- binOp :: forall i. Fractional i => LIRBinOp -> i -> i
-    binOp op = case op of
-            LADD -> (+)
-            LSUB -> (-)
-            LMUL -> (*)
-            LDIV -> div
-            LMOD -> mod
-            LAND -> liftedOp (&&)
-            LOR -> liftedOp (||)
-            LIRBinRelOp LEQ _ -> liftedOp (==) 
-            LIRBinRelOp LNEQ _ -> liftedOp (/=)
-            LIRBinRelOp LGT _ -> liftedOp (>)
-            LIRBinRelOp LGTE _ -> liftedOp (>=)
-            LIRBinRelOp LLT _ -> liftedOp (<)
-            LIRBinRelOp LLTE _ -> liftedOp (<=)
+    binOp :: LIRBinOp -> LIRInt -> LIRInt -> LIRInt
+    binOp op o1 o2 = case op of
+            LADD -> (+) o1 o2
+            LSUB -> (-) o1 o2
+            LMUL -> (*) o1 o2
+            LDIV -> div o1 o2
+            LMOD -> mod o1 o2
+            LAND -> toLIRBool $ (&&) (toHaskBool o1) (toHaskBool o2)
+            LOR ->  toLIRBool $ (||) (toHaskBool o1) (toHaskBool o2)
+            LIRBinRelOp op' _ ->  trace ("redirecting to relBinOp") relBinOp op' o1 o2
 
-    relBinOp op = case op of
-            LEQ -> (==)
-            LNEQ -> (/=)
-            LGT -> (>)
-            LGTE -> (>=)
-            LLT -> (<)
-            LLTE -> (<=)
+    relBinOp :: LIRRelOp -> LIRInt -> LIRInt -> LIRInt
+    relBinOp op o1 o2 = trace ("called relBinOp with " ++ pp op) $ case op of
+            LEQ ->  toLIRBool $ trace ("called EQ than on " ++ pp o1 ++ " vs " ++ pp o2)  $ (==) o1 o2
+            LNEQ -> toLIRBool $ trace ("called NEQ than on " ++ pp o1 ++ " vs " ++ pp o2) $ (/=) o1 o2
+            LGT ->  toLIRBool $ trace ("called GT than on " ++ pp o1 ++ " vs " ++ pp o2)  $ (>) o1 o2
+            LGTE -> toLIRBool $ trace ("called GTE than on " ++ pp o1 ++ " vs " ++ pp o2) $(>=) o1 o2
+            LLT ->  toLIRBool $ trace ("called LT than on " ++ pp o1 ++ " vs " ++ pp o2)  $(<) o1 o2
+            LLTE -> toLIRBool $ trace ("called LTE than on " ++ pp o1 ++ " vs " ++ pp o2) $(<=) o1 o2
 
-    liftedOp op i i' = toLIRBool $ (toHaskBool i) `op` (toHaskBool i')
 
     toHaskBool i = if i == asmTrue
                     then True
                     else False
-    toLIRBool b = if True
-                    then asmTrue
-                    else asmFalse
 
-    rewriteExpr (LIRBinExpr (LIRIntOperand i) op (LIRIntOperand i')) =
-        LIROperExpr $ LIRIntOperand $ (binOp op) i i'
+    toLIRBool b = if b
+                    then trace ("returning asmTrue") asmTrue
+                    else trace ("returning asmFalse") asmFalse
+
+    rewriteExpr a@(LIRBinExpr (LIRIntOperand i) op (LIRIntOperand i')) =
+        let target = LIROperExpr $ LIRIntOperand $ binOp op i i'
+        in trace ("binexpr; rewrote " ++ pp a ++ " to " ++ pp target) target
     rewriteExpr (LIRBinExpr o1 op o2) = LIRBinExpr o1 op o2
     rewriteExpr (LIRUnExpr op (LIRIntOperand i)) =
         LIROperExpr $ LIRIntOperand $ (unOp op) i
@@ -80,12 +83,14 @@ simplify = mkFRewrite simp
     rewriteExpr (LIROperExpr o)      = LIROperExpr o
 
 
-    rewriteRelExpr (LIRBinRelExpr (LIRIntOperand i) op (LIRIntOperand i')) =
-        LIROperRelExpr $ LIRIntOperand $ toLIRBool $ (relBinOp op) (toHaskBool i) (toHaskBool i')
+    rewriteRelExpr a@(LIRBinRelExpr (LIRIntOperand i) op (LIRIntOperand i')) =
+        let target = LIROperRelExpr $ LIRIntOperand $ relBinOp op i i'
+        in trace ("binrelexpr: rewrote " ++ pp a ++ " to " ++ pp target) target
     rewriteRelExpr (LIRBinRelExpr o1 a o2) = LIRBinRelExpr o1 a o2
-    rewriteRelExpr (LIRNotRelExpr (LIRIntOperand i)) =
-        LIROperRelExpr $ LIRIntOperand $ if i == asmTrue
-                                            then asmFalse
-                                            else asmTrue
+    rewriteRelExpr a@(LIRNotRelExpr (LIRIntOperand i)) =
+        LIROperRelExpr $ LIRIntOperand $ let target = if i == asmTrue
+                                                        then asmFalse
+                                                        else asmTrue
+                                         in trace ("notrelexpr: rewrote " ++ pp a ++ " to " ++ pp target) target
     rewriteRelExpr (LIRNotRelExpr o)       = LIRNotRelExpr o
     rewriteRelExpr (LIROperRelExpr o)      = LIROperRelExpr o
