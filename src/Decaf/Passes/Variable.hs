@@ -4,6 +4,7 @@
 module Decaf.Passes.Variable
   ( VarFact, VarMap(..), varEntry, varLattice
   , varPass
+  , writeFactMap
   )
 where
 import Data.Maybe
@@ -45,11 +46,13 @@ varLattice = DataflowLattice
   , fact_join = joinVar }
 
 joinVar :: JoinFun VarFact
-joinVar _ (OldFact VarBot) (NewFact a) = (SomeChange, a)
-joinVar _ (OldFact a) (NewFact VarBot) = (SomeChange, a)
+joinVar _ (OldFact VarBot) (NewFact a) = trace ("join called") (SomeChange, a)
+joinVar _ (OldFact a) (NewFact VarBot) = trace ("join called") (SomeChange, a)
 joinVar _ (OldFact (VarFactMap (VarMap vm _))) (NewFact (VarFactMap (VarMap vm' _))) =
-    (changeIf $ (vm `M.difference` vm') /= M.empty
-    , (VarFactMap $ VarMap (M.union vm vm') (LIRLabel "unset" (-2))))
+    (changeIf $
+      (trace ("difference: " ++ show (vm `M.difference` vm')) (vm `M.difference` vm'))
+            /= M.empty
+    , VarFactMap $ VarMap (M.union vm vm') (LIRLabel "unset" (-2)))
 
 varTransfer :: FwdTransfer LIRNode VarFact
 varTransfer = mkFTransfer unwrapFactFt
@@ -72,13 +75,14 @@ varTransfer = mkFTransfer unwrapFactFt
     ft (LIRIfNode expr tl fl) vm    = mkFactBase varLattice [(tl, VarFactMap vm), (fl, VarFactMap vm)]
     ft (LIRJumpLabelNode l) vm      = mkFactBase varLattice [(l, VarFactMap vm)]
 
-    updateFact :: LIRReg -> VarMap -> VarFact
+    -- updateFact :: LIRReg -> VarMap -> VarFact
     updateFact k (VarMap vm current) =
         let newList = case M.lookup k vm of
               Just res -> current:res
               Nothing -> [current]
             newMap = M.insert k newList vm 
-        in VarFactMap (VarMap newMap current)
+            newFactMap = VarFactMap (VarMap newMap current)
+        in newFactMap -- mkFactBase varLattice [(current, trace ("newFactMap: " ++ show newFactMap) newFactMap)]
 
 -- | var pass
 --varPass :: (NonLocal n, Monad m) => FwdPass m n VarFact

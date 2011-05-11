@@ -6,10 +6,12 @@ module Loligoptl.Combinators
   , shallowFwdRw, deepFwdRw, deepFwdRw3, iterFwdRw
   , thenFwdRw
   , mkFTransfer , mkFTransfer3 , noFwdRewrite
+  , mkBTransfer, mkBTransfer3, noBwdRewrite
   , thenBwdRw
   , deepBwdRw3, deepBwdRw, iterBwdRw
   , pairFwd, pairBwd, pairLattice
   , distributeFact
+  , mkBRewrite
   )
 where
   
@@ -364,3 +366,9 @@ wrapBR2 :: (forall e x . Shape x
 wrapBR2 wrap2 (BwdRewrite3 (f1, m1, l1)) (BwdRewrite3 (f2, m2, l2)) =
     BwdRewrite3 (wrap2 Open f1 f2, wrap2 Open m1 m2, wrap2 Closed l1 l2)
 
+-- | Functions passed to 'mkBRewrite' should not be aware of the fuel supply.
+-- The result returned by 'mkBRewrite' respects fuel.
+mkBRewrite :: FuelMonad m 
+           => (forall e x . n e x -> Fact x f -> m (Maybe (Graph n e x)))
+           -> BwdRewrite m n f
+mkBRewrite f = mkBRewrite3 f f f

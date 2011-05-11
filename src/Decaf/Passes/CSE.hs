@@ -123,12 +123,12 @@ cseTransfer = mkFTransfer unwrapFactFt
     ft (LIRJumpLabelNode l) f      = mkFactBase cseLattice [(l, CSEFactMap f)]        -- jmp l --> associate f with l 
 
 -- rewrite: define constant folding rewrites
-cseRewrite :: Monad m => FwdRewrite m LIRNode CSEFact
+cseRewrite :: FuelMonad m => FwdRewrite m LIRNode CSEFact
 cseRewrite  = shallowFwdRw simp
   where
-    simp :: forall m e x . (ShapeLifter e x, Monad m) => 
+    simp :: forall m e x . (ShapeLifter e x, FuelMonad m) => 
             LIRNode e x -> CSEFact -> m (Maybe (Graph LIRNode e x))
-    simp node CSEBot = error "cse: called on CSEBot; shoudl not happen!"
+    simp node CSEBot = error "cse: called on CSEBot; should not happen!"
     -- simp node (CSEFactMap f) = return $ liftM nodeToG $ s_node (trace ("REWRITING NODE [" ++ show node ++ "] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {\n" ++ unlines(map show $ M.toList f) ++ "}") node)
     simp node (CSEFactMap f) = return $ liftM nodeToG $ s_node node
   

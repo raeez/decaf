@@ -1,90 +1,104 @@
-{-# LANGUAGE ScopedTypeVariables, RankNTypes, TypeFamilies #-}
-module Decaf.Passes.Live 
-  ( NodeWithVars(..), AssignmentNode(..)
-  , liveLattice, liveness, -- deadAsstElim
-  ) 
-where
+{-# OPTIONS_GHC -Wall -fno-warn-incomplete-patterns #-}
+{-# LANGUAGE GADTs, NoMonomorphismRestriction,ScopedTypeVariables, GADTs #-}
+module Decaf.Passes.Live (liveLattice, liveness, deadAsstElim, livePass) where
 
+import Decaf.IR.LIR
+import Decaf.IR.IRNode
+import Control.Monad
+import Decaf.LIRNodes
+import Loligoptl
+import Debug.Trace
 import Data.Maybe
+import Loligoptl
 import qualified Data.Set as S
 
-import Compiler.Hoopl
+type LiveFact = S.Set LIRReg
+liveLattice :: DataflowLattice LiveFact
+liveLattice = DataflowLattice
+  { fact_name = "LiveFact variables"
+  , fact_bot  = S.empty
+  , fact_join = add
+  }
+    where add _ (OldFact old) (NewFact new) = (ch, j)
+            where
+              j = new `S.union` old
+              ch = changeIf (S.size j > S.size old)
 
-class HooplNode n => NodeWithVars n where
-  data Var    n :: * -- ^ Variable or machine register.  Unequal variables don't alias.
-  data VarSet n :: *
-  foldVarsUsed :: forall e x a . (Var n -> a -> a) -> n e x -> a -> a
-  foldVarsDefd :: forall e x a . (Var n -> a -> a) -> n e x -> a -> a
-  killsAllVars :: forall e x . n e x -> Bool
-  emptyVarSet       :: VarSet n
-  unitVarSet        :: Var n -> VarSet n
-  insertVarSet      :: Var n -> VarSet n -> VarSet n
-  mkVarSet          :: [Var n] -> VarSet n
-  unionVarSets      :: VarSet n -> VarSet n -> VarSet n
-  unionManyVarSets  :: [VarSet n] -> VarSet n
-  minusVarSet       :: VarSet n -> VarSet n -> VarSet n
-  memberVarSet      :: Var n -> VarSet n -> Bool
-  varSetElems       :: VarSet n -> [Var n]
-  nullVarSet        :: VarSet n -> Bool
-  varSetSize        :: VarSet n -> Int
-  delFromVarSet     :: Var n -> VarSet n -> VarSet n
-  delListFromVarSet :: [Var n] -> VarSet n -> VarSet n
-  foldVarSet        :: (Var n -> b -> b) -> b -> VarSet n -> b -- ^ like Data.Set
-  filterVarSet      :: (Var n -> Bool) -> VarSet n -> VarSet n
-  intersectVarSets  :: VarSet n -> VarSet n -> VarSet n
+liveness :: BwdTransfer LIRNode LiveFact
+liveness = mkBTransfer live
+  where
+    live :: LIRNode e x -> Fact x LiveFact -> LiveFact
+    live n@(LIRLabelNode _) f          = f
+    live n@(LIRRegAssignNode x _) f    = addUses (S.delete x f) n
+    live n@(LIRRegOffAssignNode x _ _ _) f
+                                       = addUses f n
+    live n@(LIRStoreNode {}) f         = addUses f n
+    live n@(LIRLoadNode x _) f         = addUses (S.delete x f) n
+    live n@(LIRCallNode proc ret) f    = addUses (fact f proc) n
+    live n@(LIRCalloutNode {}) f       = f
+    live n@(LIREnterNode {}) f         = f
+    live n@(LIRRetNode successors _) f = addUses (fact_bot liveLattice) n
+    live n@(LIRIfNode expr tl fl) f    = addUses (fact f tl `S.union` fact f fl) n
+    live n@(LIRJumpLabelNode l) f      = addUses (fact f l) n
 
-{-
-  unitVarSet x     = insertVarSet x emptyVarSet
-  mkVarSet         = foldr insertVarSet emptyVarSet
-  unionManyVarSets = foldr unionVarSets emptyVarSet
-  delListFromVarSet= flip (foldr delFromVarSet)
--}
+    fact :: FactBase (S.Set LIRReg) -> Label -> LiveFact
+    fact f l = fromMaybe S.empty (mapLookup l f)
+    
+    addUses :: S.Set LIRReg -> LIRNode e x -> LiveFact
+    addUses f (LIRLabelNode _)              = f
+    addUses f (LIRRegAssignNode x e)        = trackExpr f e
+    addUses f (LIRRegOffAssignNode _ _ _ o) = trackOperand f o
+    addUses f (LIRStoreNode _ o)            = trackOperand f o
+    addUses f (LIRLoadNode r _)             = f
+    addUses f (LIRCallNode _ _)             = f
+    addUses f (LIRCalloutNode _)            = f
+    addUses f (LIREnterNode _)              = f
+    addUses f (LIRRetNode _ _)              = f
+    addUses f (LIRIfNode _ _ _)             = f
+    addUses f (LIRJumpLabelNode _)          = f
 
-class NodeWithVars n => AssignmentNode n where
-  isVarAssign :: n O O -> Maybe (VarSet n) -- ^ Returns 'Just xs' if /all/ the node
-                                           -- does is assign to the given variables
+    trackExpr :: S.Set LIRReg -> LIRExpr -> S.Set LIRReg
+    trackExpr f (LIRBinExpr o1 _ o2) = trackOperand (trackOperand f o1) o2
+    trackExpr f (LIRUnExpr _ o)      = trackOperand f o
+    trackExpr f (LIROperExpr o)      = trackOperand f o
 
-type Live n = WithTop (VarSet n)
+    trackOperand :: S.Set LIRReg -> LIROperand -> S.Set LIRReg
+    trackOperand f (LIRRegOperand r@(SREG {})) = trackRegister f r
+    trackOperand f (LIRRegOperand r@(MEM {})) = trackRegister f r
+    trackOperand f (LIRRegOperand r@(GI {})) = trackRegister f r
+    trackOperand f _                 = f
 
-liveLattice :: forall n . NodeWithVars n => DataflowLattice (Live n)
-liveLattice = addTop lat
-  where lat :: DataflowLattice (VarSet n)
-        lat = DataflowLattice
-                { fact_name       = "Live variables"
-                , fact_bot        = empty
-                , fact_extend     = add
-                , fact_do_logging = False
-                }
-        empty :: VarSet n
-        empty = (emptyVarSet :: VarSet n)
-        add :: JoinFun (VarSet n)
-        add _ (OldFact old) (NewFact new) = (change, j)
-          where j = new `unionVarSets` old
-                change = error "type troubles"
-                -- change = changeIf $ varSetSize j > varSetSize old
-
-liveness :: NodeWithVars n => BwdTransfer n (VarSet n)
-liveness = mkBTransfer first mid last
-  where first f = gen_kill f
-        mid   m = gen_kill m
-        last  l = gen_kill l . unionManyVarSets . successorFacts l
-
-gen_kill :: NodeWithVars n => n e x -> VarSet n -> VarSet n
-gen_kill n = gen n . kill n . if killsAllVars n then const emptyVarSet else id
+    trackRegister :: S.Set LIRReg -> LIRReg -> S.Set LIRReg
+    trackRegister f r = trace ("tracking register[" ++ pp r ++ "]") $ S.insert r f
 
 
--- | The transfer equations use the traditional 'gen' and 'kill'
--- notations, which should be familiar from the dragon book.
-gen, kill :: NodeWithVars n => n e x -> VarSet n -> VarSet n
-gen  = foldVarsUsed insertVarSet
-kill = foldVarsDefd delFromVarSet
-     
-{-
-deadAsstElim :: AssignmentNode n => BwdRewrite n (VarSet n)
-deadAsstElim = shallowBwdRw (noRewriteMono, dead, noRewriteMono)
-  where dead n live
-             | Just xs <- isVarAssign n =
-                 if nullVarSet (xs `intersectVarSets` live) then Nothing
-                 else Just emptyGraph
-             | otherwise = Nothing
--}
+-- deadAsstElim :: forall m . FuelMonad m => BwdRewrite m LIRNode LiveFact
+deadAsstElim :: FuelMonad m => BwdRewrite m LIRNode LiveFact
+deadAsstElim = mkBRewrite d
+  where
+    d :: forall e x m. FuelMonad m => LIRNode e x -> Fact x LiveFact -> m (Maybe (Graph LIRNode e x))
+    -- d n@(LIRRegAssignNode x@(SREG {}) _) live
+        -- | not (x `S.member` live) = trace ("rewriting " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
+
+    -- d n@(LIRRegAssignNode x@(MEM {}) _) live
+        -- | not (x `S.member` live) = trace ("rewriting " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
+
+    -- d n@(LIRRegAssignNode x@(GI {}) _) live
+        -- | not (x `S.member` live) = trace ("rewriting " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
+
+    -- d n@(LIRLoadNode x@(SREG {}) _) live
+        -- | not (x `S.member` live) = trace ("rewriting " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
+
+    -- d n@(LIRLoadNode x@(MEM {}) _) live
+        -- | not (x `S.member` live) = trace ("rewriting " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
+
+    -- d n@(LIRLoadNode x@(GI {}) _) live
+        -- | not (x `S.member` live) = trace ("rewriting " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
+    d _ _ = return Nothing
+
+-- livePass :: (NonLocal n, Monad m) => BwdPass m n LiveFact
+livePass = BwdPass
+    { bp_lattice = liveLattice
+    , bp_transfer = liveness
+    , bp_rewrite = deadAsstElim
+    }

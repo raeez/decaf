@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs, RankNTypes #-}
 module Main where
 import Decaf
 import Decaf.RegisterAllocator
@@ -177,34 +178,50 @@ type M = CheckingFuelMonad (SimpleUniqueMonad)
 
 optimize :: LIRGraph C C -> IO (LIRGraph C C, DominatorTree, DominanceFrontiers)
 optimize g = do
-  let g' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (cseOpt g)
-      (df, dt) = runSimpleUniqueMonad $ runWithFuel infiniteFuel (ssa g')
-  return (g', dt, df)
+    let g' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (cseOpt g)
+        (df, dt) = runSimpleUniqueMonad $ runWithFuel infiniteFuel (ssa g')
+        g'' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (liveOpt g')
+    return (g'', dt, df)
+
+liveOpt :: LIRGraph C C -> M (LIRGraph C C)
+liveOpt g = do
+    let entry = LIRLabel "main" (-1)
+    (g', facts, _) <- analyzeAndRewriteBwd livePass
+                                              (JustC [entry])
+                                              g
+                                              mapEmpty
+    return g'
 
 cseOpt :: LIRGraph C C -> M (LIRGraph C C)
 cseOpt g = do
-  let entry = LIRLabel "main" (-1)
-  (g', facts, _) <- analyzeAndRewriteFwd csePass
+    let entry = LIRLabel "main" (-1)
+    (g', facts, _) <- analyzeAndRewriteFwd csePass
                                               (JustC [entry])
                                               g
                                               (mapSingleton entry cseTop)
-  return g'
+    return g'
 
 ssa :: LIRGraph C C -> M (DominanceFrontiers, DominatorTree)
 ssa g = do
     let entry = LIRLabel "main" (-1)
     (_, domFacts, _) <- analyzeAndRewriteFwd domPass
-                                                (JustC [entry])
-                                                g
-                                                (mapSingleton entry domEntry)
+                                              (JustC [entry])
+                                              g
+                                              (mapSingleton entry domEntry)
 
-    (_, varFacts, _) <- analyzeAndRewriteFwd varPass
-                                                (JustC [entry])
-                                                g
-                                                (mapSingleton entry varEntry)
+    (_, varFacts, fptr) <- analyzeAndRewriteFwd varPass
+                                              (JustC [entry])
+                                              g
+                                              (mapSingleton entry (varEntry entry))
     let dominanceFrontiers = mkDF g domFacts
+    
+    let varMap =  varFacts
 
-    return dominanceFrontiers
+    return $ trace ("varFactMap: " ++ show varMap ++ "\n\n" ++ fshow fptr) dominanceFrontiers
+  where
+    fshow :: forall t e. Show t => MaybeO e t -> String
+    fshow (JustO r) = show r
+    fshow (NothingO) = "NOTHING"
 
 basename :: String -> String
 basename f = fst $ break (=='.') f

@@ -180,7 +180,7 @@ arfGraph :: forall m n f e x .
             Entries e -> Graph n e x -> Fact e f -> m (DG f n e x, Fact x f)
 arfGraph pass entries = graph
   where
-    {- nested type synonyms would be so lovely here 
+    {- nested type synonyms would be so lovely here
     type ARF  thing = forall e x . thing e x -> f        -> m (DG f n e x, Fact x f)
     type ARFX thing = forall e x . thing e x -> Fact e f -> m (DG f n e x, Fact x f)
     -}
