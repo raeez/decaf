@@ -85,14 +85,15 @@ deadAsstElim :: FuelMonad m => BwdRewrite m LIRNode LiveFact
 deadAsstElim = mkBRewrite d
   where
     d :: forall e x m. FuelMonad m => LIRNode e x -> Fact x LiveFact -> m (Maybe (Graph LIRNode e x))
+
     d n@(LIRRegAssignNode x@(SREG {}) _) live
         | not (x `S.member` live) = trace ("KILLING " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
 
     d n@(LIRRegAssignNode x@(MEM {}) _) live
         | not (x `S.member` live) = trace ("KILLING " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
 
-    d n@(LIRRegAssignNode x@(GI {}) _) live
-        | not (x `S.member` live) = trace ("KILLING " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
+    -- d n@(LIRRegAssignNode x@(GI {}) _) live
+        -- | not (x `S.member` live) = trace ("KILLING " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
 
     d n@(LIRLoadNode x@(SREG {}) _) live
         | not (x `S.member` live) = trace ("KILLING " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
@@ -100,14 +101,14 @@ deadAsstElim = mkBRewrite d
     d n@(LIRLoadNode x@(MEM {}) _) live
         | not (x `S.member` live) = trace ("KILLING " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
 
-    d n@(LIRLoadNode x@(GI {}) _) live
-        | not (x `S.member` live) = trace ("KILLING " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
+    -- d n@(LIRLoadNode x@(GI {}) _) live
+        -- | not (x `S.member` live) = trace ("KILLING " ++ show n ++ " with fact: " ++ show live) $ return $ Just GNil
  
-    d n@(LIRLabelNode _) live =
-        trace("passing through " ++ show n ++ " with fact: " ++ show live) (return Nothing)
+    -- d n@(LIRLabelNode _) live =
+        -- trace("passing through " ++ show n ++ " with fact: " ++ show live) (return Nothing)
 
-    d n@(LIRJumpLabelNode _) live =
-        trace("passing through " ++ show n ++ " with fact: " ++ show live) (return Nothing)
+    --d n@(LIRJumpLabelNode _) live =
+        -- trace("passing through " ++ show n ++ " with fact: " ++ show live) (return Nothing)
 
     d n live = trace ("passing through " ++ show n) (return Nothing)
 

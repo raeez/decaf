@@ -451,7 +451,7 @@ translateLocation st loc =
                checkCode <- arrayBoundsCheck st arr index
                (instructions, mem) <- arrayMemaddr arr ar index
                return (prep
-                       ++ checkCode
+                       -- ++ checkCode
                        ++ (map CFGLIRInst instructions)
                        ++ [CFGLIRInst $ LIRLoadInst (SREG t) mem], LIRRegOperand (SREG t))
 

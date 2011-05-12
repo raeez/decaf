@@ -180,11 +180,10 @@ optimize :: LIRGraph C C -> IO (LIRGraph C C, DominatorTree, DominanceFrontiers)
 optimize g = do
     let cse1 = runSimpleUniqueMonad $ runWithFuel infiniteFuel (cseOpt g)
         const2 = runSimpleUniqueMonad $ runWithFuel infiniteFuel (constOpt cse1)
-        copy3 = runSimpleUniqueMonad $ runWithFuel infiniteFuel (copyOpt g)
-        live4 = runSimpleUniqueMonad $ runWithFuel infiniteFuel (liveOpt const2)
+        copy3 = runSimpleUniqueMonad $ runWithFuel infiniteFuel (copyOpt const2)
+        live4 = runSimpleUniqueMonad $ runWithFuel infiniteFuel (liveOpt copy3)
         (df, dt) = runSimpleUniqueMonad $ runWithFuel infiniteFuel (ssa g)
     return (live4, dt, df)
-
 
 copyOpt :: LIRGraph C C -> M (LIRGraph C C)
 copyOpt g = do

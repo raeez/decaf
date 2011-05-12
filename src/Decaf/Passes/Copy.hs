@@ -75,7 +75,7 @@ copyTransfer = mkFTransfer unwrapFactFt
     ft (LIRRegAssignNode x (LIROperExpr (LIRRegOperand r))) f
                                    = CopyFactMap $ skipForbidden
       where
-        forbidden =  [LRDI, LRAX, LRDI, LRSI, LRCX, LRDX, LR8, LR9]
+        forbidden =  [LRAX, LRSP, LRBP, LRDI, LRSI, LRCX, LRDX, LR8, LR9]
         skipForbidden = if (x `notElem` forbidden) && (r `notElem` forbidden)
                           then M.insert x (CopyReg r) (varChanged f x)
                           else f
@@ -94,6 +94,8 @@ copyTransfer = mkFTransfer unwrapFactFt
           where
             f' _ _    = CopyTop
             f' LRAX _ = CopyTop
+            f' LRBP _ = CopyTop
+            f' LRSP _ = CopyTop
             f' LRDI _ = CopyTop
             f' LRSI _ = CopyTop
             f' LRCX _ = CopyTop
@@ -140,8 +142,8 @@ copyRewrite = mkFRewrite cp
         rewriteExpr (LIRUnExpr a o)      = LIRUnExpr a (rewriteOperand o)
         rewriteExpr (LIROperExpr o)      = LIROperExpr (rewriteOperand o)
 
-        rewriteMemAddr (LIRMemAddr r1 (Just r2) o s) = LIRMemAddr (rewriteReg r1) (Just (rewriteReg r2)) o s
-        rewriteMemAddr (LIRMemAddr r1 Nothing o s)   = LIRMemAddr (rewriteReg r1) Nothing o s
+        rewriteMemAddr m@(LIRMemAddr r1 (Just r2) o s) = m -- LIRMemAddr (rewriteReg r1) (Just (rewriteReg r2)) o s
+        rewriteMemAddr m@(LIRMemAddr r1 Nothing o s)   = m -- LIRMemAddr (rewriteReg r1) Nothing o s
 
         rewriteRelExpr (LIRBinRelExpr o1 a o2) = LIRBinRelExpr (rewriteOperand o1) a (rewriteOperand o2)
         rewriteRelExpr (LIRNotRelExpr o)       = LIRNotRelExpr (rewriteOperand o)

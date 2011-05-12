@@ -230,12 +230,10 @@ badd_rw :: Monad m
 badd_rw rw2 (g, rw1) = (g, rw1 `thenBwdRw` rw2)
 
 
--- @ start pairf.tex
 pairFwd :: forall m n f f'. Monad m
         => FwdPass m n f
         -> FwdPass m n f' 
         -> FwdPass m n (f, f')
--- @ end pairf.tex
 pairFwd pass1 pass2 = FwdPass lattice transfer rewrite
   where
     lattice = pairLattice (fp_lattice pass1) (fp_lattice pass2)
