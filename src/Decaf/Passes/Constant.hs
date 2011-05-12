@@ -107,7 +107,7 @@ constTransfer = mkFTransfer unwrapFactFt
     ft (LIRJumpLabelNode l) f      = mkFactBase constLattice [(l, ConstFactMap f)]        -- jmp l --> associate f with l 
 
 constRewrite :: forall m. FuelMonad m => FwdRewrite m LIRNode ConstFact
-constRewrite = deepFwdRw cp
+constRewrite = mkFRewrite cp
  where
     cp :: forall m e x . (ShapeLifter e x, FuelMonad m) =>
             LIRNode e x -> ConstFact -> m (Maybe (Graph LIRNode e x))
