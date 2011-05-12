@@ -120,13 +120,14 @@ makeBlocks insts = startBlock [] insts
 
 graphToLIRProgram :: [Label] -> LIRGraph C C -> LIRProgram
 graphToLIRProgram procLabels g@(GMany _ labels _)
-    = LIRProgram (LIRLabel "" 0) units -- units
+    = LIRProgram (LIRLabel "" 0) (map (LIRUnit (LIRLabel "" 0)) (snd units)) -- units -- units
   where
     entry = LIRLabel "main" (-1)
     functions = entry:(delete entry procLabels)
-    units = map (\l -> LIRUnit l (searchGraph Set.empty [l])) (trace ("procedure labels: " ++ show functions) functions)
-    searchGraph :: (Set.Set Label) -> [Label] -> [LIRInst]
-    searchGraph _ [] = []
+    units = foldl (\(s, uns) l -> let (s', uns') = searchGraph s [l]
+                                  in (s', uns ++ [uns'])) (Set.empty, []) functions
+    searchGraph :: (Set.Set Label) -> [Label] -> (Set.Set Label, [LIRInst])
+    searchGraph s [] = (s, [])
     searchGraph s (l:ls) = if l `Set.member` s
                             then searchGraph s ls
                             else  case mapLookup l labels of
@@ -135,7 +136,8 @@ graphToLIRProgram procLabels g@(GMany _ labels _)
                                         let b = blockToLIR block
                                             s' = Set.insert l s
                                             safeSuccessors = filter (\l -> l `notElem` functions) (successors block)
-                                        in b ++ searchGraph s' (ls ++ safeSuccessors)
+                                            (s'', b'') = searchGraph s' (ls ++ safeSuccessors)
+                                        in (s'', b ++ b'')
 
 
 graphToLIR :: Graph' Block LIRNode e x -> [LIRInst]
