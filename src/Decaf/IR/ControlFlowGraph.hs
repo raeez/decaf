@@ -120,15 +120,17 @@ makeBlocks insts = startBlock [] insts
 
 graphToLIRProgram :: [Label] -> LIRGraph C C -> LIRProgram
 graphToLIRProgram procLabels (GMany _ labels _)
-    = LIRProgram (LIRLabel "" 0) (map (LIRUnit (LIRLabel "" 0)) (snd units))
+    = LIRProgram (LIRLabel "" 0) (map mkUnit (snd units))
   where
     entry :: LIRLabel
     entry = LIRLabel "main" (-1)
-
     procedures :: [Label]
     procedures = entry:(delete entry procLabels) -- esure 'main' always comes first
 
-    units :: (Set.Set Label, [[LIRInst]]) -- folded value corresponds to completely searched program
+    mkUnit :: [LIRInst] -> LIRUnit
+    mkUnit = LIRUnit (LIRLabel "" 0)
+
+    units :: (Set.Set Label, [[LIRInst]]) -- folded value corresponds to completely searched program state
     units = foldl (\(s, uns) l -> let (s', uns') = searchGraph s [l]
                                   in (s', uns ++ [uns'])) (Set.empty, []) procedures
 
