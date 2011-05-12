@@ -4,6 +4,7 @@
 module Decaf.IR.ControlFlowGraph where
 import Data.Int
 import Data.Maybe
+import Data.List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Decaf.IR.IRNode
@@ -122,7 +123,8 @@ graphToLIRProgram procLabels g@(GMany _ labels _)
     = LIRProgram (LIRLabel "" 0) units -- units
   where
     entry = LIRLabel "main" (-1)
-    units = map (\l -> LIRUnit l (searchGraph Set.empty [l])) (trace ("procedure labels: " ++ show procLabels) procLabels)
+    functions = entry:(delete entry procLabels)
+    units = map (\l -> LIRUnit l (searchGraph Set.empty [l])) (trace ("procedure labels: " ++ show functions) functions)
     searchGraph :: (Set.Set Label) -> [Label] -> [LIRInst]
     searchGraph _ [] = []
     searchGraph s (l:ls) = if l `Set.member` s
@@ -132,10 +134,8 @@ graphToLIRProgram procLabels g@(GMany _ labels _)
                                     Just block ->
                                         let b = blockToLIR block
                                             s' = Set.insert l s
-                                            safeSuccessors = filter (\l -> l `notElem` procLabels) (successors block)
+                                            safeSuccessors = filter (\l -> l `notElem` functions) (successors block)
                                         in b ++ searchGraph s' (ls ++ safeSuccessors)
-                    
-    find l = fromMaybe (error $ "wtf, label ["++ (show l) ++ "] not in map") (mapLookup l labels)
 
 
 graphToLIR :: Graph' Block LIRNode e x -> [LIRInst]
