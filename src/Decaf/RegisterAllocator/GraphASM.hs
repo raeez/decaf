@@ -16,6 +16,8 @@ import Loligoptl.Fuel
 import Loligoptl.Label 
 import Data.Int
 
+import Debug.Trace
+
 -- Graph
 type ASMGraph = Graph ASMNode'
 
@@ -24,6 +26,8 @@ type HooplLabel = Loligoptl.Label.Label
 
 -- nodes
 data ASMNode' e x where
+    ASMLabelNode' :: Int -> ASMLabel -> ASMNode' C O
+
     ASMAddNode'   :: Int -> ASMOperand -> ASMOperand -> ASMNode' O O
     ASMSubNode'   :: Int -> ASMOperand -> ASMOperand -> ASMNode' O O
     ASMMovNode'   :: Int -> ASMOperand -> ASMOperand -> ASMNode' O O
@@ -41,17 +45,20 @@ data ASMNode' e x where
     ASMPopNode'   :: Int -> ASMOperand -> ASMNode' O O
     ASMNegNode'   :: Int -> ASMOperand -> ASMNode' O O
     ASMNotNode'   :: Int -> ASMOperand -> ASMNode' O O
-    ASMJmpNode'   :: Int -> ASMLabel -> ASMNode' O C
-    ASMJeNode'    :: Int -> ASMLabel -> ASMNode' O C
-    ASMJneNode'   :: Int -> ASMLabel -> ASMNode' O C
-    ASMJgNode'    :: Int -> ASMLabel -> ASMNode' O C
-    ASMJgeNode'   :: Int -> ASMLabel -> ASMNode' O C
-    ASMJlNode'    :: Int -> ASMLabel -> ASMNode' O C
-    ASMJleNode'   :: Int -> ASMLabel -> ASMNode' O C
-    ASMLabelNode' :: Int -> ASMLabel -> ASMNode' C O
+    ASMJmpNode'   :: Int -> ASMLabel -> ASMLabel -> ASMNode' O C
+    ASMJeNode'    :: Int -> ASMLabel -> ASMLabel -> ASMNode' O C
+    ASMJneNode'   :: Int -> ASMLabel -> ASMLabel -> ASMNode' O C
+    ASMJgNode'    :: Int -> ASMLabel -> ASMLabel -> ASMNode' O C
+    ASMJgeNode'   :: Int -> ASMLabel -> ASMLabel -> ASMNode' O C
+    ASMJlNode'    :: Int -> ASMLabel -> ASMLabel -> ASMNode' O C
+    ASMJleNode'   :: Int -> ASMLabel -> ASMLabel -> ASMNode' O C
+
     ASMCallNode'  :: Int -> ASMSym -> ASMNode' O C
     ASMEnterNode' :: Int -> ASMInt -> ASMNode' O O
     ASMRetNode'   :: Int -> ASMNode' O C
+
+instance Show (ASMNode' e x) where
+  show n = show $ asmDropPrime n
 
 data ASMNode where
     ASMAddNode   :: Int -> ASMOperand -> ASMOperand -> ASMNode  
@@ -142,13 +149,13 @@ asmDropPrime n =
     (ASMModNode' i op) -> (ASMModNode i op)
     (ASMEnterNode' i o  ) -> (ASMEnterNode i o)
 
-    (ASMJmpNode' i o  ) -> (ASMJmpNode i o)
-    (ASMJeNode'  i o  ) -> (ASMJeNode i o)
-    (ASMJneNode' i o  ) -> (ASMJneNode i o)
-    (ASMJgNode'  i o  ) -> (ASMJgNode i o)
-    (ASMJgeNode' i o  ) -> (ASMJgeNode i o)
-    (ASMJlNode'  i o  ) -> (ASMJlNode i o)
-    (ASMJleNode' i o  ) -> (ASMJleNode i o)
+    (ASMJmpNode' i o o') -> (ASMJmpNode i o)
+    (ASMJeNode'  i o o') -> (ASMJeNode i o)
+    (ASMJneNode' i o o') -> (ASMJneNode i o)
+    (ASMJgNode'  i o o') -> (ASMJgNode i o)
+    (ASMJgeNode' i o o') -> (ASMJgeNode i o)
+    (ASMJlNode'  i o o') -> (ASMJlNode i o)
+    (ASMJleNode' i o o') -> (ASMJleNode i o)
     (ASMCallNode' i o  ) -> (ASMCallNode i o)
     (ASMRetNode' i  ) -> (ASMRetNode i)
 
@@ -236,13 +243,13 @@ instance HasLine O C where
     
 instance NonLocal ASMNode' where
   entryLabel (ASMLabelNode' _ l) =  asmLabeltoHoopl l -- hoopllabel = lirlabel
-  successors (ASMJmpNode' _ l) = [asmLabeltoHoopl l]
-  successors (ASMJeNode' _ l)  = [asmLabeltoHoopl l]
-  successors (ASMJneNode' _ l) = [asmLabeltoHoopl l]
-  successors (ASMJgNode' _ l)  = [asmLabeltoHoopl l]
-  successors (ASMJgeNode' _ l) = [asmLabeltoHoopl l]
-  successors (ASMJlNode' _ l)  = [asmLabeltoHoopl l]
-  successors (ASMJleNode' _ l) = [asmLabeltoHoopl l]
+  successors (ASMJmpNode' _ l l') = [asmLabeltoHoopl l, asmLabeltoHoopl l']
+  successors (ASMJeNode' _ l l')  = [asmLabeltoHoopl l, asmLabeltoHoopl l']
+  successors (ASMJneNode' _ l l') = [asmLabeltoHoopl l, asmLabeltoHoopl l']
+  successors (ASMJgNode' _ l l')  = [asmLabeltoHoopl l, asmLabeltoHoopl l']
+  successors (ASMJgeNode' _ l l') = [asmLabeltoHoopl l, asmLabeltoHoopl l']
+  successors (ASMJlNode' _ l l')  = [asmLabeltoHoopl l, asmLabeltoHoopl l']
+  successors (ASMJleNode' _ l l') = [asmLabeltoHoopl l, asmLabeltoHoopl l']
 
 asmLabeltoHoopl (ASMLabel l i ) = LIRLabel l i
 
@@ -265,7 +272,8 @@ makeBlocks insts = startBlock [] insts
         other -> (startBlock bs is) -- skip the node; it's dead code (hopefully...)
 
     buildBlock :: [Block ASMNode' C C] -> Block ASMNode' C O -> [(ASMInst, Int)] -> [Block ASMNode' C C]
-    buildBlock bs b [] = error "unfinished block"
+--    buildBlock bs b [] = error ("unfinished block: " ++ (show b))
+    buildBlocks bs b [] = bs -- drop the unfinished block
     buildBlock bs b ((inst,i):is) = 
       case inst of
         ASMAddInst  op1 op2 -> buildBlock bs (b `BHead` (ASMAddNode' i op1 op2)) is
@@ -289,15 +297,37 @@ makeBlocks insts = startBlock [] insts
 
         ASMEnterInst int -> buildBlock bs (b `BHead` (ASMEnterNode' i int)) is
 
-        ASMJmpInst lab -> startBlock ((b `BClosed` (BLast $ ASMJmpNode' i lab)) : bs) is
-        ASMJeInst  lab -> startBlock ((b `BClosed` (BLast $ ASMJeNode'  i lab)) : bs) is
-        ASMJneInst lab -> startBlock ((b `BClosed` (BLast $ ASMJneNode' i lab)) : bs) is
-        ASMJgInst  lab -> startBlock ((b `BClosed` (BLast $ ASMJgNode'  i lab)) : bs) is
-        ASMJgeInst lab -> startBlock ((b `BClosed` (BLast $ ASMJgeNode' i lab)) : bs) is
-        ASMJlInst  lab -> startBlock ((b `BClosed` (BLast $ ASMJlNode'  i lab)) : bs) is
-        ASMJleInst lab -> startBlock ((b `BClosed` (BLast $ ASMJleNode' i lab)) : bs) is
+
+--         ASMJmpInst lab -> startBlock ((b `BClosed` (BLast $ ASMJmpNode' i lab)) : bs) is
+--         ASMJeInst  lab -> startBlock ((b `BClosed` (BLast $ ASMJeNode'  i lab)) : bs) is
+--         ASMJneInst lab -> startBlock ((b `BClosed` (BLast $ ASMJneNode' i lab)) : bs) is
+--         ASMJgInst  lab -> startBlock ((b `BClosed` (BLast $ ASMJgNode'  i lab)) : bs) is
+--         ASMJgeInst lab -> startBlock ((b `BClosed` (BLast $ ASMJgeNode' i lab)) : bs) is
+--         ASMJlInst  lab -> startBlock ((b `BClosed` (BLast $ ASMJlNode'  i lab)) : bs) is
+--         ASMJleInst lab -> startBlock ((b `BClosed` (BLast $ ASMJleNode' i lab)) : bs) is
+--         ASMCallInst sym -> startBlock ((b `BClosed` (BLast $ ASMCallNode' i sym)) : bs) is
+--         ASMRetInst     -> startBlock ((b `BClosed` (BLast $ ASMRetNode' i)) : bs) is 
+        ASMJmpInst lab -> processJump ASMJmpNode' lab
+        ASMJeInst  lab -> processJump ASMJeNode'  lab
+        ASMJneInst lab -> processJump ASMJneNode' lab
+        ASMJgInst  lab -> processJump ASMJgNode'  lab
+        ASMJgeInst lab -> processJump ASMJgeNode' lab
+        ASMJlInst  lab -> processJump ASMJlNode'  lab
+        ASMJleInst lab -> processJump ASMJleNode' lab
         ASMCallInst sym -> startBlock ((b `BClosed` (BLast $ ASMCallNode' i sym)) : bs) is
         ASMRetInst     -> startBlock ((b `BClosed` (BLast $ ASMRetNode' i)) : bs) is 
+        other -> error ("bad inst: " ++ show other ++ "\n" ++ unlines (map show bs) ++ show b) --buildBlock bs b is -- skip redundant label
+
+      where newlab = (ASMLabel "imagine" (-i)) -- does the minus thing work??
+            processJump :: (Int -> ASMLabel -> ASMLabel -> ASMNode' O C) 
+                        -> ASMLabel -> [Block ASMNode' C C]
+            processJump const lab = 
+              case is of -- if next inst is a label, fall through to it, otherwise make new label
+                ((ASMLabelInst nextlab),j):xs -> 
+                  startBlock ((b `BClosed` (BLast $ const i lab nextlab)) : bs) is
+                otherwise ->
+                  startBlock ((b `BClosed` (BLast $ const i lab newlab)) : bs)
+                               (((ASMLabelInst newlab), (-i)) : is)
 
 -- graphToLIR :: Graph' Block Node e x -> [LIRInst]
 -- graphToLIR (GNil) =  []

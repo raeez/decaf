@@ -29,6 +29,9 @@ lookupReg r f = S.toList $ S.filter ((== r) . fst) f
 -- join two CSE facts 
 join lab (OldFact f) (NewFact g) = if f == g then (NoChange, f) else (SomeChange, S.union f g)
 
+--fromJust (Just x) = x
+--fromJust (Nothing) = error "from just error live vars"
+
 
 transfer :: BwdTransfer ASMNode' VarFact
 transfer = mkBTransfer livetran
@@ -60,15 +63,18 @@ transfer = mkBTransfer livetran
     livetran n@(ASMEnterNode' i int) f = f
 
     -- following two sections probably need to switch (because it's a backwards pass)
-    livetran n@(ASMJmpNode' i lab) f = fromJust $ mapLookup (asmLabeltoHoopl lab) f 
-    livetran n@(ASMJeNode' i  lab) f = fromJust $ mapLookup (asmLabeltoHoopl lab) f
-    livetran n@(ASMJneNode' i lab) f = fromJust $ mapLookup (asmLabeltoHoopl lab) f
-    livetran n@(ASMJgNode' i  lab) f = fromJust $ mapLookup (asmLabeltoHoopl lab) f
-    livetran n@(ASMJgeNode' i lab) f = fromJust $ mapLookup (asmLabeltoHoopl lab) f
-    livetran n@(ASMJlNode' i  lab) f = fromJust $ mapLookup (asmLabeltoHoopl lab) f
-    livetran n@(ASMJleNode' i lab) f = fromJust $ mapLookup (asmLabeltoHoopl lab) f
+    livetran n@(ASMJmpNode' i lab o) f = (fact lab f) `S.union` (fact o f)
+                                         
+    livetran n@(ASMJeNode' i  lab o) f = (fact lab f) `S.union` (fact o f)
+    livetran n@(ASMJneNode' i lab o) f = (fact lab f) `S.union` (fact o f)
+    livetran n@(ASMJgNode' i  lab o) f = (fact lab f) `S.union` (fact o f)
+    livetran n@(ASMJgeNode' i lab o) f = (fact lab f) `S.union` (fact o f)
+    livetran n@(ASMJlNode' i  lab o) f = (fact lab f) `S.union` (fact o f)
+    livetran n@(ASMJleNode' i lab o) f = (fact lab f) `S.union` (fact o f)
     livetran n@(ASMRetNode'   i)     f = bottom
     livetran n@(ASMCallNode'  i sym) f = bottom 
+
+    fact lab f = fromMaybe S.empty $ mapLookup (asmLabeltoHoopl lab) f 
     -- not sure about these yet CHANGE
 
 
@@ -77,6 +83,7 @@ transfer = mkBTransfer livetran
     -- delete doesn't actually need n
     opdelete, opinsert :: ASMOperand -> ASMNode' e x -> VarFact -> VarFact
     opdelete (ASMRegOperand r i) n = S.filter (\(x,y) -> (x /= r))
+    opdelete _ _ = id
     -- only inserts registers
     opinsert (ASMRegOperand r i) n = S.insert (r,asmDropPrime n)
     opinsert _ _ = id

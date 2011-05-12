@@ -44,8 +44,12 @@ class SymbolicAssembler a where
 data ASMProgram = ASMProgram
     { progFlags    :: Set ASMFlag
     , progExterns  :: Set ASMExternDecl
-    , progSections :: (ASMSection, ASMSection)
+    , progSections :: (ASMSection, ASMSection) -- data, text
     }
+
+instance Show ASMProgram where
+  show (ASMProgram _ _ (_, (ASMTextSection insts))) = 
+    unlines $ map show $ castASMToList insts
 
 -- |Represents a general assembler flag; usually assembler-specific.
 newtype ASMFlag = ASMFlag String
@@ -116,6 +120,7 @@ data ASMInst where
     ASMCallInst  :: ASMSym -> ASMInst
     ASMEnterInst :: ASMInt -> ASMInst
     ASMRetInst   :: ASMInst
+                    deriving (Show, Eq, Ord)
 
 getASMTarget :: ASMInst -> (Maybe ASMReg, Maybe ASMReg)
 getASMTarget n = 

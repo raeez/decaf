@@ -20,7 +20,7 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import Data.List hiding (delete)
 import Data.Array hiding (index)
-import Data.Maybe
+import Data.Maybe hiding (fromJust)
 
 import Debug.Trace
 
@@ -30,6 +30,11 @@ data LabelGraph a dat
                (M.Map Int dat)
                (Array (Int, Int) Bool)
   deriving (Show, Eq)
+
+
+fromJust (Just x) = x
+fromJust (Nothing) = error "from just error IGraph"
+
 
 -- graph with no edges, vertices entered into map
 mkLabelGraph :: (Ord a) => [a] -> LabelGraph a dat

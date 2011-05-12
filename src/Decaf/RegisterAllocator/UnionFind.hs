@@ -7,7 +7,13 @@ module Decaf.RegisterAllocator.UnionFind
   , assocFind
   )
 where
-import Data.Maybe
+--import Data.Maybe
+
+fromJust1 (Just x) = x
+fromJust1 (Nothing) = error "from just error union find 1"
+fromJust2 (Just x) = x
+fromJust2 (Nothing) = error "from just error union find 2"
+
 
 -- The list !! i = positive, then 
 data  UnionSet a = UnionSet [(a, Int)] [Int] 
@@ -41,7 +47,14 @@ modify i num (UnionSet m l) =
 -- finds parent and size
 find :: Eq a => a -> UnionSet a -> (Int,Int)
 find a (UnionSet m l) = 
-  help (fromJust $ lookup a m) l
+  help (fromJust1 $ lookup a m) l
+  where 
+    help i l = if l !! i < 0 then (i, -(l !! i)) else help (l !! i) l
+find' :: Eq a => a -> UnionSet a -> Maybe (Int,Int)
+find' a (UnionSet m l) = 
+  case lookup a m of 
+    Just x -> Just $ help x l
+    Nothing -> Nothing
   where 
     help i l = if l !! i < 0 then (i, -(l !! i)) else help (l !! i) l
 
@@ -80,16 +93,19 @@ join a b u =
 
 -- m  is a list of ((reg,node),int), for instance
 assocFind :: Eq a => a -> UnionSet (a,b) -> (a,b)
-assocFind key (UnionSet m l) = (key, fromJust $ lookup key (map fst m))
+assocFind key (UnionSet m l) = (key, fromJust2 $ lookup key (map fst m))
 
 
 -- gets parent node
-getParent :: Eq a => a -> UnionSet a -> a
+getParent :: (Eq a, Show a) => a -> UnionSet a -> a
 getParent a us@(UnionSet m l) = 
-  let (p, _) = find a us 
+  let (p, _) = case find' a us of 
+                 Just x -> x
+                 Nothing -> error ("find error getParent" ++ show a ++ "\n"
+                                   ++ (unlines $ map (show . fst) m))
   in fst $ m !! p
 --lists the parent of each web
-listPartitions :: Eq a => UnionSet a -> [a]
+listPartitions :: (Show a, Eq a) => UnionSet a -> [a]
 listPartitions us@(UnionSet m _) = foldl appendnew [] m
   where
 --    appendnew :: [a] -> (a,Int) -> [a]

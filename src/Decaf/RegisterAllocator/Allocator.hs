@@ -32,8 +32,9 @@ import Loligoptl
 import Decaf.LIRNodes
 
 import Data.Int
-import Data.Maybe
+--import Data.Maybe
 
+import Debug.Trace
 
 import qualified Data.Set as S
 
@@ -60,6 +61,10 @@ mkIGraph regs = mkLabelGraph regs
 type CGraph = LabelGraph Key Int
 mkCGraph regs = mkLabelGraph regs
 
+fromJust (Just x) = x
+fromJust (Nothing) = error "from just error allocator"
+
+
 
 -- I think type is right
 makeWebs :: Graph ASMNode' C C -> Web
@@ -73,7 +78,9 @@ makeWebs g = foldDataflowFactsFwd asmReachingDefs g webadd emptyUnion
     webjoins' :: [ASMReg] -> DefFact -> ASMNode -> Web -> Web
     webjoins' [] f n w = w
     webjoins' (reg:regs) f n w = webjoins' regs f n 
-                                 $ join (reg, n) (reg,(getDef reg f)) w
+                                 $ case getDef reg f of 
+                                     Just k -> join (reg, n) (reg,k) w
+                                     Nothing -> w
 
     webadd :: ASMNode' e x -> DefFact -> Web -> Web
     webadd n' f = if nmop n then webjoins ops f n else webjoins' [RDX,RAX] f n
@@ -142,13 +149,13 @@ makeIGraph g us =
 
     -- join function for dataflow fold
     igraphjoin :: ASMNode' e x ->  Fact x VarFact -> (IGraph, CGraph) -> (IGraph, CGraph)
-    igraphjoin (ASMJmpNode'   i _ ) = \f -> id
-    igraphjoin (ASMJeNode'    i _ ) = \f -> id
-    igraphjoin (ASMJneNode'   i _ ) = \f -> id
-    igraphjoin (ASMJgNode'    i _ ) = \f -> id
-    igraphjoin (ASMJgeNode'   i _ ) = \f -> id
-    igraphjoin (ASMJlNode'    i _ ) = \f -> id
-    igraphjoin (ASMJleNode'   i _ ) = \f -> id
+    igraphjoin (ASMJmpNode'   i _ _) = \f -> id
+    igraphjoin (ASMJeNode'    i _ _) = \f -> id
+    igraphjoin (ASMJneNode'   i _ _) = \f -> id
+    igraphjoin (ASMJgNode'    i _ _) = \f -> id
+    igraphjoin (ASMJgeNode'   i _ _) = \f -> id
+    igraphjoin (ASMJlNode'    i _ _) = \f -> id
+    igraphjoin (ASMJleNode'   i _ _) = \f -> id
     igraphjoin (ASMCallNode'  i _ ) = \f -> id
     igraphjoin (ASMRetNode'   i   ) = \f -> id
 
@@ -324,11 +331,11 @@ mkSpillState i = SpillState [] [] i
 
 -- final function
 colorRegisters :: ASMProgram -> ASMProgram
-colorRegisters prog@(ASMProgram pfls pxts (dsec, tsec)) = loop 0 $ numberListASM prog
+colorRegisters prog@(ASMProgram pfls pxts (dsec, tsec)) = loop 0 $ trace "numberlist 1" $ numberListASM prog
   where
     loop :: SpillNo -> [(ASMInst, Int)] -> ASMProgram
     loop numspills pr = 
-      let g = graphASMList pr in
+      let g = trace "graph asm\n" $ graphASMList pr in
       case colorGraph regs $ makeIGraph g (makeWebs g) of
         Left spills -> loop (numspills + length spills) $ spill (zip [numspills..] spills) pr
         Right g -> registers numspills g pr
@@ -445,7 +452,7 @@ numberListASM prog =
   let instructions = case snd (progSections prog) of -- text section
                        (ASMTextSection insts) -> insts
                        otherwise -> error "text and data sections out of order; see Allocator.hs"
-  in zip (castASMToList instructions) [1..]
+  in zip (reverse $ castASMToList instructions) [1..]
 
 
 {- this moved to Dataflow.hs

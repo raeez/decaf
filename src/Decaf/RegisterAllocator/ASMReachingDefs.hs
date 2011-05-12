@@ -28,11 +28,11 @@ import qualified Data.Set as S
 
 type DefFact = S.Set (ASMReg, ASMNode)
 
-getDef :: ASMReg -> DefFact -> ASMNode
-getDef r f = case lookup r $ S.toAscList f of -- returns the first one
-               Nothing -> error "tried to look up register without preceeding definition in ASMReachingDefs line 32"
+getDef :: ASMReg -> DefFact -> Maybe ASMNode
+getDef r f =  lookup r $ S.toAscList f -- returns the first one
+{-               Nothing -> error ("tried to look up register without preceeding definition in ASMReachingDefs line 32 " ++ (show r))
                Just n -> n
-
+-}
 join lab (OldFact f) (NewFact g) = if f == g then (NoChange, f) else (SomeChange, S.union f g)
 
 transfer :: FwdTransfer ASMNode' DefFact
@@ -66,13 +66,20 @@ transfer = mkFTransfer livetran
 
     livetran n@(ASMLabelNode' i lab) f = f
 
-    livetran n@(ASMJmpNode' i   lab) f = mkFactBase lattice [(asmLabeltoHoopl lab, f)]
-    livetran n@(ASMJeNode'  i   lab) f = mkFactBase lattice [(asmLabeltoHoopl lab, f)]
-    livetran n@(ASMJneNode' i   lab) f = mkFactBase lattice [(asmLabeltoHoopl lab, f)]
-    livetran n@(ASMJgNode'  i   lab) f = mkFactBase lattice [(asmLabeltoHoopl lab, f)]
-    livetran n@(ASMJgeNode' i   lab) f = mkFactBase lattice [(asmLabeltoHoopl lab, f)]
-    livetran n@(ASMJlNode'  i   lab) f = mkFactBase lattice [(asmLabeltoHoopl lab, f)]
-    livetran n@(ASMJleNode' i   lab) f = mkFactBase lattice [(asmLabeltoHoopl lab, f)]
+    livetran n@(ASMJmpNode' i lab o) f = mkFactBase lattice [(asmLabeltoHoopl lab, f)
+                                                            ,(asmLabeltoHoopl o, f)]
+    livetran n@(ASMJeNode'  i lab o) f = mkFactBase lattice [(asmLabeltoHoopl lab, f)
+                                                            ,(asmLabeltoHoopl o, f)]
+    livetran n@(ASMJneNode' i lab o) f = mkFactBase lattice [(asmLabeltoHoopl lab, f)
+                                                            ,(asmLabeltoHoopl o, f)]
+    livetran n@(ASMJgNode'  i lab o) f = mkFactBase lattice [(asmLabeltoHoopl lab, f)
+                                                            ,(asmLabeltoHoopl o, f)]
+    livetran n@(ASMJgeNode' i lab o) f = mkFactBase lattice [(asmLabeltoHoopl lab, f)
+                                                            ,(asmLabeltoHoopl o, f)]
+    livetran n@(ASMJlNode'  i lab o) f = mkFactBase lattice [(asmLabeltoHoopl lab, f)
+                                                            ,(asmLabeltoHoopl o, f)]
+    livetran n@(ASMJleNode' i lab o) f = mkFactBase lattice [(asmLabeltoHoopl lab, f)
+                                                            ,(asmLabeltoHoopl o, f)]
     -- don't propagate 
     livetran n@(ASMCallNode'  i sym) f = mkFactBase lattice []
     livetran n@(ASMRetNode'   i)     f = mkFactBase lattice []

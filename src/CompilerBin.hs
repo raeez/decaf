@@ -155,7 +155,7 @@ compile chosen source filename =
          (asmprogram, _) = runAssembler assembler mkAssemblerState
          -- ^ translate to pre-assembly
 
-         withRegs = colorRegisters asmprogram
+         withRegs = {-trace ("prog: " ++ show asmprogram) $ -} colorRegisters asmprogram
          -- ^ color registers and rewrite
  
          asmout = nasm withRegs

@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, EmptyDataDecls, TypeFamilies #-}
+{-# LANGUAGE GADTs, EmptyDataDecls, TypeFamilies, FlexibleContexts #-}
 
 module Loligoptl.Graph 
   ( O, C, Block(..), Body, Body'(..), Graph, Graph'(..)
@@ -44,6 +44,12 @@ data Block n e x where
   BTail   :: n O O       -> Block n O C -> Block n O C  
 
   BClosed :: Block n C O -> Block n O C -> Block n C C -- the zipper
+
+instance (Show (n C O),Show (n O O),Show (n O C)) => Show (Block n e x) where
+  show (BHead b n) = show b ++ " bhead " ++ show n
+  show (BFirst n) = "(First "++show n++")"
+  show (BClosed b c) = show b ++ " bclosed " ++ show c
+  show (BLast n) = "(Last "++show n++")"
 
 -- | A (possibly empty) collection of closed/closed blocks
 type Body n = LabelMap (Block n C C)
