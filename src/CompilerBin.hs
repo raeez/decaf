@@ -130,7 +130,7 @@ compile chosen source filename =
                                  (CounterState mkCounter)
          -- ^ run the register counter
          --
-         control_flow_graph = graphProgram (top numberedTable) parsed_program (rc + mc)
+         (cfgProg, control_flow_graph) = graphProgram (top numberedTable) parsed_program (rc + mc)
          -- ^ convert to control flow graph
  
      (optimized, dominatorTree, dominanceFrontiers) <- optimize control_flow_graph
@@ -143,9 +143,8 @@ compile chosen source filename =
         -- TODO pick opts on a per-flag basis
 
 
-         program = LIRProgram (LIRLabel "" 0)
-                              [LIRUnit (LIRLabel "" 0)
-                              (graphToLIR control_flow_graph')]
+         program = graphToLIRProgram (map cgUnitLabel $ cgProgUnits cfgProg) control_flow_graph'
+        --
         -- ^ translate back to LIR
 
          assembler = programAssembler (content numberedTable) program

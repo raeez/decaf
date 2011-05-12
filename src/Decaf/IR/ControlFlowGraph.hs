@@ -3,7 +3,9 @@
 
 module Decaf.IR.ControlFlowGraph where
 import Data.Int
+import Data.Maybe
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Decaf.IR.IRNode
 import Decaf.IR.AST
 import Decaf.IR.LIR
@@ -16,6 +18,7 @@ import Loligoptl
 import Debug.Trace
 import Control.Monad
 import Data.Int
+import Decaf.LIRNodes
 
 mkBasicBlock :: [LIRInst] -> ControlNode
 mkBasicBlock = BasicBlock
@@ -55,20 +58,20 @@ symToInt  reg = error "attempted to label if using non-symbolic register"
 --symToInt (LIRIntOperand x) = error "attempted to label if using int literal"
 
 -- | Main function.  Takes HIR and turns it into Hoopl graph
-graphProgram :: SymbolTree -> DecafProgram -> Int -> LIRGraph C C
+graphProgram :: SymbolTree -> DecafProgram -> Int -> (CFGProgram, LIRGraph C C)
 graphProgram st dp rc =
     let g (CFGUnit lab insts) = (CFGLIRInst $ LIRLabelInst lab) : insts 
-        (res, Namespace _ _ _ _ _ sm _) = -- grab the successor map
+        ((prog, res), Namespace _ _ _ _ _ sm _) = -- grab the successor map
             runLIR (do prog <- translateProgram st dp
-                       mapM (shortCircuit.g) (cgProgUnits prog) 
-                                     >>= (return . (map stripCFG)))
+                       temp <- mapM (shortCircuit.g) (cgProgUnits prog) 
+                       return (prog, map stripCFG temp))
                        (mkNamespace rc)
         resProg = LIRProgram (LIRLabel "" 0) (map (LIRUnit (LIRLabel "" 0)) res) 
         (res', _, _) = allocateRegisters st resProg
         instructions = ((mapRet sm) . (concatMap lirUnitInstructions) . lirProgUnits) res'
         blocks = makeBlocks (trace (pp resProg) instructions)
 
-    in GMany NothingO (mapFromList (zip (map entryLabel blocks) blocks)) NothingO
+    in (prog, GMany NothingO (mapFromList (zip (map entryLabel blocks) blocks)) NothingO)
   where
     mapRet sm = map (fillret sm)
     fillret sm (LIRRetInst [] meth) = LIRRetInst (smLookup sm meth) meth
@@ -113,6 +116,27 @@ makeBlocks insts = startBlock [] insts
           buildBlock bs (b `BHead` (LIRLoadNode reg mem)) is
         LIREnterInst int ->
           buildBlock bs (b `BHead` (LIREnterNode int)) is
+
+graphToLIRProgram :: [Label] -> LIRGraph C C -> LIRProgram
+graphToLIRProgram procLabels g@(GMany _ labels _)
+    = LIRProgram (LIRLabel "" 0) units -- units
+  where
+    entry = LIRLabel "main" (-1)
+    units = map (\l -> LIRUnit l (searchGraph Set.empty [l])) (trace ("procedure labels: " ++ show procLabels) procLabels)
+    searchGraph :: (Set.Set Label) -> [Label] -> [LIRInst]
+    searchGraph _ [] = []
+    searchGraph s (l:ls) = if l `Set.member` s
+                            then searchGraph s ls
+                            else  case mapLookup l labels of
+                                    Nothing -> searchGraph s ls
+                                    Just block ->
+                                        let b = blockToLIR block
+                                            s' = Set.insert l s
+                                            safeSuccessors = filter (\l -> l `notElem` procLabels) (successors block)
+                                        in b ++ searchGraph s' (ls ++ safeSuccessors)
+                    
+    find l = fromMaybe (error $ "wtf, label ["++ (show l) ++ "] not in map") (mapLookup l labels)
+
 
 graphToLIR :: Graph' Block LIRNode e x -> [LIRInst]
 graphToLIR (GNil) =  []
