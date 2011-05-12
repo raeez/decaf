@@ -10,5 +10,5 @@ for f in *.asm
     nasm -f elf64 $f
     done
 
-scp buildscript *.o *.out le05@silver.csail.mit.edu:final
-ssh le05@silver.csail.mit.edu "./buildscript"
+scp buildscript *.o le05@silver.csail.mit.edu:final
+ssh le05@silver.csail.mit.edu "cd final && ./buildscript"
