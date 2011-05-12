@@ -82,7 +82,7 @@ liveness = mkBTransfer live
 
 -- deadAsstElim :: forall m . FuelMonad m => BwdRewrite m LIRNode LiveFact
 deadAsstElim :: FuelMonad m => BwdRewrite m LIRNode LiveFact
-deadAsstElim = mkBRewrite d
+deadAsstElim = deepBwdRw d
   where
     d :: forall e x m. FuelMonad m => LIRNode e x -> Fact x LiveFact -> m (Maybe (Graph LIRNode e x))
 

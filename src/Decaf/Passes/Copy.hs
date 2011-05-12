@@ -123,7 +123,7 @@ copyTransfer = mkFTransfer unwrapFactFt
     ft (LIRJumpLabelNode l) f      = mkFactBase copyLattice [(l, CopyFactMap f)]        -- jmp l --> associate f with l 
 
 copyRewrite :: forall m. FuelMonad m => FwdRewrite m LIRNode CopyFact
-copyRewrite = mkFRewrite cp
+copyRewrite = deepFwdRw cp
  where
     cp :: forall m e x . (ShapeLifter e x, FuelMonad m) =>
             LIRNode e x -> CopyFact -> m (Maybe (Graph LIRNode e x))

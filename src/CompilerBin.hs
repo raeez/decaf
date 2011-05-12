@@ -178,12 +178,22 @@ type M = CheckingFuelMonad (SimpleUniqueMonad)
 
 optimize :: LIRGraph C C -> IO (LIRGraph C C, DominatorTree, DominanceFrontiers)
 optimize g = do
-    let cse1 = runSimpleUniqueMonad $ runWithFuel infiniteFuel (cseOpt g)
-        const2 = runSimpleUniqueMonad $ runWithFuel infiniteFuel (constOpt cse1)
-        copy3 = runSimpleUniqueMonad $ runWithFuel infiniteFuel (copyOpt const2)
-        live4 = runSimpleUniqueMonad $ runWithFuel infiniteFuel (liveOpt copy3)
+    let fwd   = runSimpleUniqueMonad $ runWithFuel infiniteFuel (fwdOpt g)
+        final = runSimpleUniqueMonad $ runWithFuel infiniteFuel (liveOpt fwd)
         (df, dt) = runSimpleUniqueMonad $ runWithFuel infiniteFuel (ssa g)
-    return (live4, dt, df)
+    return (final, dt, df)
+
+fwdOpt :: LIRGraph C C -> M (LIRGraph C C)
+fwdOpt g = do
+    let entry = LIRLabel "main" (-1)
+    (g', facts, _) <- analyzeAndRewriteFwd fwdPass
+                                            (JustC [entry])
+                                            g
+                                            (mapSingleton entry entryFact)
+    return g'
+  where
+    fwdPass   = pairFwd (pairFwd constPass copyPass) csePass
+    entryFact = ((constTop, copyTop), cseTop)
 
 copyOpt :: LIRGraph C C -> M (LIRGraph C C)
 copyOpt g = do

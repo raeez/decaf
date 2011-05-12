@@ -127,7 +127,7 @@ cseTransfer = mkFTransfer unwrapFactFt
 
 -- rewrite: define constant folding rewrites
 cseRewrite :: FuelMonad m => FwdRewrite m LIRNode CSEFact
-cseRewrite  = mkFRewrite simp
+cseRewrite  = deepFwdRw simp
   where
     simp :: forall m e x . (ShapeLifter e x, FuelMonad m) => 
             LIRNode e x -> CSEFact -> m (Maybe (Graph LIRNode e x))
