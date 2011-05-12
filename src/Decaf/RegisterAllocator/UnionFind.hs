@@ -1,8 +1,11 @@
 module Decaf.RegisterAllocator.UnionFind
-{-  ( UnionSet
+  ( UnionSet
   , emptyUnion
   , join
-  )-}
+  , getParent
+  , listPartitions
+  , assocFind
+  )
 where
 import Data.Maybe
 

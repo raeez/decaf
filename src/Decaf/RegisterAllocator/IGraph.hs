@@ -8,6 +8,9 @@ module Decaf.RegisterAllocator.IGraph
   , mkLabelGraph
   , addEdge, addEdges
   , colorGraph
+  , Color(..)
+  , getLabel
+  , labelWithKey
   --, manipulation  functions
   )
 where

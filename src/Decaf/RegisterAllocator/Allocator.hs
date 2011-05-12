@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE PatternGuards, GADTs #-}
 
 {- NOTES
 
@@ -25,12 +25,14 @@ where
 import Decaf.RegisterAllocator.IGraph
 import Decaf.RegisterAllocator.ASMLiveVars
 import Decaf.RegisterAllocator.ASMReachingDefs
-import Loligoptl.Dataflow
-import Decaf.HooplNodes
+import Decaf.RegisterAllocator.UnionFind
+import Decaf.RegisterAllocator.GraphASM
+import Decaf.IR.ASM
+import Loligoptl
+import Decaf.LIRNodes
 
+import qualified Data.Set as S
 
-
-type VarDataGraph = DG VarFact Node C C
 
 {- -> attach web information to each line of code
 
@@ -56,8 +58,8 @@ mkCGraph regs = mkLabelGraph regs
 
 
 -- I think type is right
-makeWebs :: Graph ASMNode C C -> Web
-makeWebs g = foldDataFlowFactsFwd DefFact g webadd emptyUnion
+makeWebs :: Graph ASMNode' C C -> Web
+makeWebs g = foldDataflowFactsFwd asmReachingDefs g webadd emptyUnion
   where 
     -- add a list of operands
     webjoins :: [ASMOperand] -> DefFact -> ASMNode -> Web -> Web
@@ -66,11 +68,14 @@ makeWebs g = foldDataFlowFactsFwd DefFact g webadd emptyUnion
             isReg _ = []
     webjoins' :: [ASMReg] -> DefFact -> ASMNode -> Web -> Web
     webjoins' [] f n w = w
-    webjoins' (reg:regs) f n w = webjoins' regs f n $ join (reg,n) (reg,(getDef reg f)) w
+    webjoins' (reg:regs) f n w = webjoins' regs f n 
+                                 $ join (reg, n) (reg,(getDef reg f)) w
 
-    webadd :: ASMNode -> DefFact -> Web -> Web
-    webadd n reachingdefs = if nmop n then webjoins ops f n else webjoins' [RDX,RAX] f n
+    webadd :: ASMNode' e x -> DefFact -> Web -> Web
+    webadd n' f = if nmop n then webjoins ops f n else webjoins' [RDX,RAX] f n
       where 
+       n = asmDropPrime n'
+
        nmop n = 
         case n of
          n@(ASMMulNode {}) -> False
@@ -109,20 +114,22 @@ makeWebs g = foldDataFlowFactsFwd DefFact g webadd emptyUnion
          n@(ASMJlNode  i lab) -> []
          n@(ASMJleNode i lab) -> [] 
     -- don't propagate 
-         n@(ASMCallNode i sym -> []
-         n@(ASMRetNode  i ->  []
+         n@(ASMCallNode i sym) -> []
+         n@(ASMRetNode  i) ->  []
 
             
 
-makeIGraph :: Graph ASMNode C C -> Web -> (IGraph, CGraph) -- Int's represent webs
+makeIGraph :: Graph ASMNode' C C -> Web -> (IGraph, CGraph) -- Int's represent webs
 makeIGraph g us =
-  let g' = snd $ foldDataFlowFactsBwd asmLiveVars g igraphjoin (mkIGraph $ listPartitions us)
-  in precolor g'
+  let ginit = mkIGraph $ listPartitions us
+      (g',cg) = foldDataflowFactsBwd asmLiveVars g igraphjoin (ginit, ginit)
+  in (precolor g',cg)
   where 
     -- finds non-symbolic registers and labels them
-    precolor (ig, cg) = (labelWithKey colorNonSymb ig, cg)
+    
+    precolor ig = labelWithKey colorNonSymb ig
       where
-        colorNonSymb :: Key -> Maybe ASMReg
+        colorNonSymb :: Key -> Maybe Color
         colorNonSymb (r,n) = 
               case r of
                 ASMSREG _ -> Nothing
@@ -130,11 +137,55 @@ makeIGraph g us =
 
 
     -- join function for dataflow fold
-    igraphjoin :: ASMNode e x -> Fact x VarFact -> (IGraph, CGraph) -> (IGraph, CGraph)
+    igraphjoin :: ASMNode' e x -> Fact x VarFact -> (IGraph, CGraph) -> (IGraph, CGraph)
     igraphjoin n livevars (igraph, cgraph) = (ijoin igraph, cjoin cgraph)
       where
+        addConflicts (ASMRegOperand r _) livs = addConflicts' r livs
+        addConflicts _ _ = igraph
+        addConflicts' :: ASMReg -> S.Set Key -> IGraph
+        addConflicts' r livs =
+          foldr (uncurry addEdge) igraph 
+                (map (pair (lift (r, asmDropPrime n) us)) livs)
+                          
+                -- ^  pair the current (r,n) with each live var; add edges
+
+        -- add conflicts to igraph
+        ijoin :: IGraph -> IGraph
         ijoin igraph = 
-          if mop n then -- mul/div/mod
+          case asmDropPrime n of 
+            (ASMLabelNode i lab) -> igraph
+
+            (ASMAddNode i op1 op2) -> addConflicts op1
+            (ASMSubNode i op1 op2) -> addConflicts op1
+            (ASMMovNode i op1 op2) -> addConflicts op1
+            (ASMCmpNode i op1 op2) -> addConflicts op1
+            (ASMAndNode i op1 op2) -> addConflicts op1
+            (ASMOrNode  i op1 op2) -> addConflicts op1
+            (ASMXorNode i op1 op2) -> addConflicts op1
+            (ASMShlNode i op1 op2) -> addConflicts op1
+            (ASMShrNode i op1 op2) -> addConflicts op1
+            (ASMShraNode i op1 op2) -> addConflicts op1
+            (ASMMulNode {}) -> addConflicts' RAX $ addConflicts' RDX  
+            (ASMDivNode {}) -> addConflicts' RAX $ addConflicts' RDX  
+            (ASMModNode {}) -> addConflicts' RAX $ addConflicts' RDX  
+
+            (ASMPushNode i op) -> igraph
+            (ASMPopNode  i op) -> addConflicts op
+            (ASMNegNode  i op) -> addConflicts op
+            (ASMNotNode  i op) -> addConflicts op
+            (ASMEnterNode i int) -> igraph
+
+            (ASMJmpNode i lab) -> igraph
+            (ASMJeNode  i lab) -> igraph
+            (ASMJneNode i lab) -> igraph 
+            (ASMJgNode  i lab) -> igraph
+            (ASMJgeNode i lab) -> igraph
+            (ASMJlNode  i lab) -> igraph
+            (ASMJleNode i lab) -> igraph 
+            (ASMCallNode i sym) -> igraph
+            (ASMRetNode  i) ->  igraph
+
+{-          if mop n then -- mul/div/mod
             foldr (uncurry addEdge) igraph 
                   (concatMap (\rx -> map (curry id $ (rx, n)) (lookupReg r livevars)) [RAX,RDX])
           else if narith n then 
@@ -143,15 +194,17 @@ makeIGraph g us =
                  case op of
                    (ASMRegOperand r _) -> foldr (uncurry addEdge) igraph 
                                                 (map (curry id $ (r,n)) (lookupReg r livevars))
-                   otherwise -> igraph
+                   otherwise -> igraph-}
+        -- add mov links to cgraph
+        cjoin :: CGraph -> CGraph
         cjoin cgraph 
-          | (ASMMovNode i op1 op2) <- n
+          | (ASMMovNode i op1 op2) <- asmDropPrime n
           , (ASMRegOperand r1 _)   <- op1
           , (ASMRegOperand r2 _)   <- op2
           = addEdge (lift (r1,n)) (lift (r2,n)) cgraph -- get the parents in the web
 
           | otherwise = cgraph
-        op = 
+{-        op = 
           case n of
             n@(ASMAddNode i op1 op2) -> op1
             n@(ASMSubNode i op1 op2) -> op1
@@ -192,80 +245,107 @@ makeIGraph g us =
             (ASMRetInst      ) -> True
             otherwise -> False
             
-            
+  -}          
+-- UTILITY
+-- get parent in web; necessary for accessing IGraph
+lift key us = getParent key us
+pair x y = (x, y)
+maxL = foldl max 0
 
-        lift key = getParent key us
+type SpillNo = Int
 
+data SpillState = 
+  SpillState
+  { progL :: [(ASMInst, Int)]
+  , toSpill :: [(ASMInst)]
+  , lineCount :: Int 
+  }
+mkSpillState i = SpillState [] [] i
 
 -- final function
 colorRegisters :: ASMProgram -> ASMProgram
 colorRegisters prog@(ASMProgram pfls pxts (dsec, tsec)) = loop 0 $ numberListASM prog
   where
-    loop :: [(ASMInst, Int)] -> Int -> ASMProgram
-    loop pr numspills = 
+    loop :: SpillNo -> [(ASMInst, Int)] -> ASMProgram
+    loop numspills pr = 
       let g = graphASMList pr in
       case colorGraph regs $ makeIGraph g (makeWebs g) of
-        Left spills -> loop (numspills + length spills) $ spill spills pr
+        Left spills -> loop (numspills + length spills) $ spill (zip [numspills..] spills) pr
         Right g -> registers numspills g pr
 
-    regs = [RAX, RCX, RDX, RBX, RSP, RBP, RSI, RDI, R8, R9, R10, R11, R12, R13, R14, R15]
+    regs = S.fromList $ map Reg [ RAX, RCX, RDX, RBX, RSP, RBP, RSI, RDI
+                                , R8, R9, R10, R11, R12, R13, R14, R15]
 
     -- rewrite spills
-    spill :: [Key] -> [(ASMInst, Int)] -> [(ASMInst, Int)]
-    spill spills pr = (\(x,_,_)->x) $ foldl rewspill ([],n,spills) pr
+    spill ::[(SpillNo,Key)] -> [(ASMInst, Int)] -> [(ASMInst, Int)]
+    spill spills pr = dospill (mkSpillState $ maxL (map snd pr)) pr
       where 
         n = foldl (\a b -> max a (snd b)) 0 pr -- largest index used
-        rewspill :: ([(ASMInst,Int)],Int,Int) -> (ASMInst, Int) -> ([(ASMInst,Int)],Int)
-        rewspill (is,m,count) (inst, line) = 
-          let slines = map getASMLine spills
+        dospill :: SpillState -> [(ASMInst, Int)] -> [(ASMInst, Int)]
+        dospill (SpillState p (x:xs) c) more = 
+          dospill (SpillState (p++[(x,c)]) xs (c+1)) more
+        dospill (SpillState p [] c) ((inst, line):xs) = 
+          let slines = map (getASMLine . snd . snd) spills
               hits = filter ((== line) . fst) $ zip slines spills -- spill keys on this line
               newlist = 
                 case hits of
-                  hits | length hits == 0 -> [inst]
+                  hits | length hits == 0 -> [(inst,line)]
                        | otherwise -> 
-                         (concatMap doLoad hits) ++ [inst] ++ (concatMap doLoad hits)
+                         let loads = map (doLoad . snd) hits -- [int -> (
+                             stores = map (doStore . snd) hits 
+                             -- is reg involved in current inst?
+                             doLoad (off, (reg,node)) =
+                               if pairHas reg (getASMSource inst) then load reg off else []
+                             doStore (off, (reg,node)) = 
+                               if pairHas reg (getASMTarget inst) then store reg off else []
+                             load reg off  = [] -- use off!
+                             store reg off = [] -- use off!
+                             -- is reg in the tuple?
+                             pairHas :: ASMReg -> (Maybe ASMReg, Maybe ASMReg) -> Bool 
+                             pairHas reg t = 
+                               case t of
+                                 (Just r1, Just r2) -> reg == r1 || (reg == r2)
+                                 (Just r1, Nothing) -> reg == r1
+                                 (Nothing, Just r2) -> reg == r2
+                                 (Nothing, Nothing) -> False
 
-              doLoad (reg,node) =
-                if pairHas reg (getASMSource inst) then load reg else []
-              doStore (reg,node) = 
-                if pairhas reg (getASMTarget inst) then store reg else []
-                  Nothing -> [inst] -- no spill code
-              load reg = []
-              store reg = []
-
-              pairHas :: ASMReg -> (Maybe ASMReg, Maybe ASMReg) -- is reg in the tuple?
-              pairHas reg t = 
-                case t of
-                  (Just r1, Just r2) -> reg == r1 || (reg == r2)
-                  (Just r1, Nothing) -> reg == r1
-                  (Nothing, Just r2) -> reg == r2
-                  (Nothing, Nothing) -> False
-          in (is++newlist, max m line, if length newlist > 0 then count+1 else count)
 
 
+                         in loads ++ [(inst, line)] ++ stores
+
+          in 
+            dospill (SpillState p newlist c) xs
+        dospill (SpillState p [] c) [] = p
+
+
+
+    -- color, then rebuild program
     registers :: Int -> IGraph -> [(ASMInst, Int)] -> ASMProgram
     registers numspills g pr = ASMProgram pfls pxts $
-                               (dsec, castASMList $ map color pr)
+                               (dsec, ASMTextSection $ castASMList $ map color pr)
           where
             keys = keys g -- all (reg,node) pairs
 
             sw :: ASMOperand -> Int -> ASMOperand
-            sw (ASMRegOperand reg _) i = 
+            sw (ASMRegOperand reg ehh) i = 
               ASMRegOperand 
-              $ let things  = zip3 (map (getASMLine . snd) keys) -- (line#,reg,key)
-                                   (map fst keys) 
-                                   keys
-                    things' = filter (\(l, r, _) -> (l == i) && (r == reg)) things
-                in case things' of
-                     collist | length collist == 0 -> 
-                               error "allocator produced no color for SREG " ++ show (reg,i)
-                             | length collist > 1 -> 
-                               error "allocator produced multiple colors for SREG " ++ show (reg,i)
-                             | case getLabel (third (head collist)) of
-                                 Spill -> error "spill detected in final coloring routine"
-                                 Reg reg' -> reg'
+              (let things = zip3 (map (getASMLine . snd) keys) -- (line#,reg,key)
+                                 (map fst keys) 
+                                 keys
+                   things' = filter (\(l, r, _) -> (l == i) && (r == reg)) things
+               in case things' of
+                    collist | length collist == 0 -> 
+                              error "allocator produced no color for SREG " ++ show (reg,i)
+                            | length collist > 1 -> 
+                              error "allocator produced multiple colors for SREG " ++ show (reg,i)
+                            | otherwise ->
+                              case getLabel (third (head collist)) g of
+                                Spill -> error "spill detected in final coloring routine"
+                                Reg reg' -> reg')
+               ehh
 
             sw op i = op -- not a reg
+
             third (a,b,c) = c
 
             color :: (ASMInst, Int) -> ASMInst
@@ -301,7 +381,7 @@ colorRegisters prog@(ASMProgram pfls pxts (dsec, tsec)) = loop 0 $ numberListASM
 numberListASM :: ASMProgram -> [(ASMInst, Int)]
 numberListASM prog = 
   let instructions = snd (progSections prog) -- text section
-  in zip (castAsmToList instructions) [1..]
+  in zip (castASMToList instructions) [1..]
 
 
 {- this moved to Dataflow.hs

@@ -83,6 +83,7 @@ data ASMOperand where
     ASMSymOperand :: ASMSym -> ASMOperand --Mem_
     ASMRegOperand :: ASMReg -> Int64 -> ASMOperand --Reg_
     ASMLitOperand :: Int64 -> ASMOperand --Lit_
+                     deriving (Show, Eq, Ord)
 
 -- |Represents a single opcode (one, two or three bytes) in the x86_64
 -- instruction set. ASMInst is a GADT parameterized 
@@ -212,6 +213,7 @@ castASMToList (ASMCons x y) = x:(castASMToList y)
 
 data ASMMemBase = ASMRegBase ASMReg
                 | ASMSymBase ASMSym
+                  deriving (Show, Eq, Ord)
 
 data ASMReg = RAX
             | RCX
@@ -256,8 +258,10 @@ r14 = ASMGenOperand $ ASMRegOperand R14 8
 r15 = ASMGenOperand $ ASMRegOperand R15 8
 
 newtype ASMSym = ASMSym String
+  deriving (Show, Eq, Ord)
 
-data ASMLabel = ASMLabel String Int
+data ASMLabel = ASMLabel String Int 
+              deriving (Show, Eq, Ord)
 
 -- | 'gnuSuffix' calculates the opcode suffix for
 -- x86_64 instructions.
