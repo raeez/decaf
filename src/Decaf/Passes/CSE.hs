@@ -5,17 +5,15 @@ import qualified Data.Map as Map
 import Decaf.IR.LIR
 import Decaf.IR.IRNode
 import Control.Monad
-import Decaf.HooplNodes
+import Decaf.LIRNodes
 import Loligoptl.Combinators
 import Debug.Trace
 import Data.Maybe
+import Decaf.Passes.Simplify
 import Loligoptl
 
 import qualified Data.Map as M
 ----------------------------------------------------
--- this file contains CSE transfer/rewrite functions
--- currently it is local rewrite,  
--- would need to expand to global rewrite later
 
 data CSEKey = CSEKey LIROperand LIRBinOp LIROperand
               deriving (Show, Ord)
@@ -37,8 +35,18 @@ data CSEFact = CSEFactMap (M.Map CSEKey CSEData)
              | CSEBot
              deriving (Show, Eq)
 
+-- define const lattice
+cseBottom = fact_bot cseLattice
+cseTop = CSEFactMap $ M.empty
+cseLattice :: DataflowLattice CSEFact
+cseLattice = DataflowLattice
+  { fact_name = "Common Subexpression Elimination"
+  , fact_bot  = CSEBot
+  , fact_join = joinCSEFact
+  }
+
 -- join two CSE facts 
-joinCSEFact :: Label -> OldFact CSEFact -> NewFact CSEFact -> (ChangeFlag, CSEFact)
+joinCSEFact :: JoinFun CSEFact
 joinCSEFact l (OldFact x) (NewFact CSEBot) = (NoChange, x)
 joinCSEFact l (OldFact CSEBot) (NewFact y) = (SomeChange, y)
 joinCSEFact l (OldFact (CSEFactMap x)) (NewFact (CSEFactMap y)) = 
@@ -62,14 +70,6 @@ joinCSEFact l (OldFact (CSEFactMap x)) (NewFact (CSEFactMap y)) =
     changed :: M.Map CSEKey (ChangeFlag, CSEData) -> Bool
     changed x = or $ map snd (M.toList (M.map ((== SomeChange) . fst) x))
 
--- define const lattice
-cseBottom = fact_bot cseLattice
-cseTop = CSEFactMap $ M.empty
-cseLattice :: DataflowLattice CSEFact
-cseLattice = DataflowLattice
-  { fact_name = "CommonSubexpressionMap"
-  , fact_bot  = CSEBot
-  , fact_join = joinCSEFact }
 
 -- aux: remvoe all records containing x, because x has been changed
 varChanged :: M.Map CSEKey CSEData -> LIRReg -> M.Map CSEKey CSEData
@@ -93,14 +93,14 @@ varChanged f x = M.mapWithKey keep f
 
 -- transfer: define CSE lattice transfer function:  a expression (x op y) is available iff ((x,op,y),w) \in Lattice
 -- concerns only RegAssignNode and LoadNode
-exprIsAvail :: FwdTransfer Node CSEFact
-exprIsAvail = mkFTransfer unwrapFactFt
+cseTransfer :: FwdTransfer LIRNode CSEFact
+cseTransfer = mkFTransfer unwrapFactFt
   where
-    unwrapFactFt :: Node e x -> CSEFact -> Fact x CSEFact
-    unwrapFactFt n CSEBot = error "exprIsAvail:unwrapFactFt called on CSEBot; should not happen!"
+    unwrapFactFt :: LIRNode e x -> CSEFact -> Fact x CSEFact
+    unwrapFactFt n CSEBot = error "cseTransfer:unwrapFactFt called on CSEBot; should not happen!"
     unwrapFactFt n (CSEFactMap f) = ft n f
 
-    ft :: Node e x -> M.Map CSEKey CSEData -> Fact x CSEFact
+    ft :: LIRNode e x -> M.Map CSEKey CSEData -> Fact x CSEFact
     ft (LIRLabelNode {}) f         = CSEFactMap f
     ft (LIRRegAssignNode x (LIRBinExpr a op b)) f
                                    = CSEFactMap $ M.insert (CSEKey a op b) (CSEReg x) (varChanged f x) -- a op b -> x
@@ -122,31 +122,36 @@ exprIsAvail = mkFTransfer unwrapFactFt
     ft (LIRCalloutNode {}) f       = CSEFactMap f
     ft (LIREnterNode {}) f         = CSEFactMap f
     ft (LIRRetNode successors _) f = mkFactBase cseLattice [] -- (map (\x -> (x, f)) successors)
-    ft (LIRIfNode expr tl fl) f    = mkFactBase cseLattice [(tl, CSEFactMap f), (fl, CSEFactMap f)]  -- if expr the jmp tl else jmp fl
+    ft (LIRIfNode expr fl tl) f    = mkFactBase cseLattice [(fl, CSEFactMap f), (tl, CSEFactMap f)]  -- if expr the jmp tl else jmp fl
     ft (LIRJumpLabelNode l) f      = mkFactBase cseLattice [(l, CSEFactMap f)]        -- jmp l --> associate f with l 
 
 -- rewrite: define constant folding rewrites
-cse :: Monad m => FwdRewrite m Node CSEFact
-cse  = shallowFwdRw simp
+cseRewrite :: FuelMonad m => FwdRewrite m LIRNode CSEFact
+cseRewrite  = mkFRewrite simp
   where
-    simp :: forall m e x . (ShapeLifter e x, Monad m) => 
-            Node e x -> CSEFact -> m (Maybe (Graph Node e x))
-    simp node CSEBot = error "cse: called on CSEBot; shoudl not happen!"
-    simp node (CSEFactMap f) = return $ liftM nodeToG $ s_node (trace ("REWRITING NODE [" ++ show node ++ "] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {\n" ++ unlines(map show $ M.toList f) ++ "}") node)
+    simp :: forall m e x . (ShapeLifter e x, FuelMonad m) => 
+            LIRNode e x -> CSEFact -> m (Maybe (Graph LIRNode e x))
+    simp node CSEBot = error "cse: called on CSEBot; should not happen!"
+    -- simp node (CSEFactMap f) = return $ liftM nodeToG $ s_node (trace ("REWRITING NODE [" ++ show node ++ "] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {\n" ++ unlines(map show $ M.toList f) ++ "}") node)
+    simp node (CSEFactMap f) = return $ liftM nodeToG $ s_node node
   
       where
-        s_node :: Node e x -> Maybe (Node e x)
+        s_node :: LIRNode e x -> Maybe (LIRNode e x)
         -- x = lit op lit     
         s_node (LIRRegAssignNode reg (LIRBinExpr o1 binop o2)) = 
           case M.lookup (CSEKey o1 binop o2) f of
-            Just (CSEReg result)  -> trace ("lookup found! rewrote to " ++ show (LIRRegAssignNode reg $ LIROperExpr $ LIRRegOperand result)) (Just $ LIRRegAssignNode reg $ LIROperExpr $ LIRRegOperand result)
-            Just CSETop           -> trace "lookup failed!" Nothing
+            -- Just (CSEReg result)  -> trace ("lookup found! rewrote to " ++ show (LIRRegAssignNode reg $ LIROperExpr $ LIRRegOperand result)) (Just $ LIRRegAssignNode reg $ LIROperExpr $ LIRRegOperand result)
+            Just (CSEReg result)  -> Just $ LIRRegAssignNode reg $ LIROperExpr $ LIRRegOperand result
+            -- Just CSETop           -> trace "lookup failed!" Nothing
+            Just CSETop           -> Nothing
             Nothing -> Nothing
 
         -- others do not need CSE
         s_node _ = Nothing
 -- define fwd pass
+-- csePass = FuelMonad m => FwdPass m 
 csePass  = FwdPass 
-  { fpLattice = cseLattice
-  , fpTransfer = exprIsAvail
-  , fpRewrite = cse }
+  { fp_lattice = cseLattice
+  , fp_transfer = cseTransfer
+  , fp_rewrite = cseRewrite `thenFwdRw` simplify
+  }

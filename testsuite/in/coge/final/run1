@@ -1,0 +1,61 @@
+real    0m0.001s                                                   
+user    0m0.004s                                                   
+sys     0m0.000s                                                   
+done.                                                              
+processing blur.o...                                               
+Timer: 788305 usecs                                                
+                                                                   
+real    0m2.992s                                                   
+user    0m0.460s                                                   
+sys     0m0.032s                                                   
+done.                                                              
+processing emboss.o...                                             
+Timer: 141502 usecs                                                
+                                                                   
+real    0m0.570s                                                   
+user    0m0.088s                                                   
+sys     0m0.000s                                                   
+done.                                                              
+processing median.o...                                             
+Timer: 185689 usecs                                                
+                                                                   
+real    0m0.470s                                                   
+user    0m0.112s                                                   
+sys     0m0.016s                                                   
+done.                                                              
+processing negative.o...                                           
+Timer: 3703 usecs                                                  
+                                                                   
+real    0m0.447s                                                   
+user    0m0.068s                                                   
+sys     0m0.000s                                                   
+done.                                                              
+processing philbin.o...                                            
+Timer: 295793 usecs                                                
+                                                                   
+real    0m1.420s                                                   
+user    0m0.284s                                                   
+sys     0m0.008s                                                   
+done.                                                              
+processing shift_left.o...                                         
+Timer: 3342 usecs                                                  
+                                                                   
+real    0m0.140s                                                   
+user    0m0.068s                                                   
+sys     0m0.000s                                                   
+done.                                                              
+Comparing saman_emboss /w saman_emboss                             
+done.                                                              
+Comparing saman_fixed /w saman_fixed                               
+done.                                                              
+Comparing saman_negative /w saman_negative                         
+done.                                                              
+Comparing saman_noise /w saman_noise                               
+done.                                                              
+Comparing saman_sl /w saman_sl                                     
+done.                                                              
+Comparing segovia_blur /w segovia_blur                             
+done.                                                              
+Comparing segovia_philbin /w segovia_philbin                       
+segovia_philbin.out segovia_philbin.pgm differ: byte 873, line 4   
+done.                                                              

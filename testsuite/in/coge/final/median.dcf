@@ -1,0 +1,128 @@
+// 3x3 median filter.  Removes white noise.
+class Program {
+  int imageIn[130000];
+  int imageOut[130000];
+  int cols, rows, size;
+
+  void read() {
+    int i,j;
+
+    callout("pgm_open_for_read", "saman_noise.pgm");
+    cols = callout("pgm_get_cols");
+    rows = callout("pgm_get_rows");
+
+    size = cols * rows;
+    for i = 0, rows {
+      for j = 0, cols {
+        imageIn[i*303+j] = callout("pgm_get_next_pixel");
+      }
+    }
+
+    callout("pgm_close");
+  }
+
+  void write() {
+    int i,j;
+
+    callout("pgm_open_for_write", "saman_fixed.pgm", cols, rows);
+
+    size = cols * rows;
+    for i = 0, rows {
+      for j = 0, cols {
+        callout("pgm_write_next_pixel", imageOut[i*303+j]);
+      }
+    }
+
+    callout("pgm_close");
+  }
+
+  void filter() {
+    int i,j;
+
+    for i = 1, rows-1 {
+      for j = 1, cols-1 {
+	int p1, p2, p3, p4, p5, p6, p7, p8, p9, t;
+	p1 = imageIn[(i-1)*303 + j-1];
+	p2 = imageIn[(i-1)*303 + j];
+	p3 = imageIn[(i-1)*303 + j+1];
+	p4 = imageIn[i*303 + j-1];
+	p5 = imageIn[i*303 + j];
+	p6 = imageIn[i*303 + j+1];
+	p7 = imageIn[(i+1)*303 + j-1];
+	p8 = imageIn[(i+1)*303 + j];
+	p9 = imageIn[(i+1)*303 + j+1];
+
+	t = p4 - p1;
+	if (t < 0) { p1 = p1 + t; p4 = p4 - t; }
+
+	t = p5 - p2;
+	if (t < 0) { p2 = p2 + t; p5 = p5 - t; }
+
+	t = p6 - p3;
+	if (t < 0) { p3 = p3 + t; p6 = p6 - t; }
+
+	t = p2 - p1;
+	if (t < 0) { p1 = p1 + t; p2 = p2 - t; }
+
+	t = p3 - p1;
+	if (t < 0) { p1 = p1 + t; p3 = p3 - t; }
+
+	t = p6 - p5;
+	if (t < 0) { p5 = p5 + t; p6 = p6 - t; }
+
+	t = p6 - p4;
+	if (t < 0) { p4 = p4 + t; p6 = p6 - t; }
+
+	t = p3 - p2;
+	if (t < 0) { p2 = p2 + t; p3 = p3 - t; }
+
+	t = p5 - p4;
+	if (t < 0) { p4 = p4 + t; p5 = p5 - t; }
+
+	t = p4 - p2;
+	if (t < 0) { p2 = p2 + t; p4 = p4 - t; }
+
+	t = p7 - p2;
+	if (t < 0) { p2 = p2 + t; p7 = p7 - t; }
+
+	t = p7 - p5;
+	if (t < 0) { p5 = p5 + t; p7 = p7 - t; }
+
+	t = p7 - p3;
+	if (t < 0) { p3 = p3 + t; p7 = p7 - t; }
+
+	t = p4 - p3;
+	if (t < 0) { p3 = p3 + t; p4 = p4 - t; }
+
+	t = p8 - p5;
+	if (t < 0) { p5 = p5 + t; p8 = p8 - t; }
+
+	t = p5 - p3;
+	if (t < 0) { p3 = p3 + t; p5 = p5 - t; }
+
+	t = p8 - p4;
+	if (t < 0) { p4 = p4 + t; p8 = p8 - t; }
+
+	t = p9 - p5;
+	if (t < 0) { p5 = p5 + t; p9 = p9 - t; }
+
+	t = p9 - p4;
+	if (t < 0) { p4 = p4 + t; p9 = p9 - t; }
+
+	t = p5 - p4;
+	if (t < 0) { p4 = p4 + t; p5 = p5 - t; }
+
+	imageOut[i*303 + j] = p5;
+      }
+    }
+  }
+
+  void main() {
+    read();
+    callout("start_caliper");
+    filter();
+    callout("end_caliper");
+    write();
+  }
+}
+  

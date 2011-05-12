@@ -1,0 +1,56 @@
+// Negative of a black and white pgm image.
+class Program {
+  int image[130000];
+  int cols, rows, size;
+
+  void read() {
+    int i,j;
+
+    callout("pgm_open_for_read", "saman.pgm");
+    cols = callout("pgm_get_cols");
+    rows = callout("pgm_get_rows");
+
+    size = cols * rows;
+    for i = 0, rows {
+      for j = 0, cols {
+        image[i*303+j] = callout("pgm_get_next_pixel");
+      }
+    }
+
+    callout("pgm_close");
+  }
+
+  void write() {
+    int i,j;
+
+    callout("pgm_open_for_write", "saman_negative.pgm", cols, rows);
+
+    size = cols * rows;
+    for i = 0, rows {
+      for j = 0, cols {
+        callout("pgm_write_next_pixel", image[i*303+j]);
+      }
+    }
+
+    callout("pgm_close");
+  }
+
+  void invert() {
+    int i,j;
+
+    for i = 0, rows {
+      for j = 0, cols {
+        image[i*303+j] = 255 - image[i*303+j];
+      }
+    }
+  }
+
+  void main() {
+    read();
+    callout("start_caliper");
+    invert();
+    callout("end_caliper");
+    write();
+  }
+}
+  

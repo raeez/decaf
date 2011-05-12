@@ -1,8 +1,7 @@
 module Main where
 import System.Environment
 import System.Exit
-import Decaf.Util.Report
-import Decaf.Checker hiding (check)
+import Decaf
 
 main :: IO ()
 main = do args <- getArgs

@@ -1,72 +1,100 @@
-{-# LANGUAGE GADTs, EmptyDataDecls, TypeFamilies, Rank2Types, ScopedTypeVariables #-}
+{-# LANGUAGE GADTs, EmptyDataDecls, TypeFamilies #-}
 
-module Loligoptl.Graph
-    ( O, C, Block(..)
-    , Graph, MaybeO(..), MaybeC(..)
-    , Graph'(..)
-    , Body, emptyBody
-    , NonLocal(..)
-    , addBlock --, bodyList
-    , DG, DBlock(..)
-    , gUnitOO, gUnitCO, gUnitOC, gUnitCC
-    , dgSplice, gSplice , cat
-    , dgNil, dgNilC
-    )
+module Loligoptl.Graph 
+  ( O, C, Block(..), Body, Body'(..), Graph, Graph'(..)
+  , MaybeO(..), MaybeC(..), Shape(..), IndexedCO
+  , NonLocal(entryLabel, successors)
+  , emptyBody, addBlock, bodyList
+  )
 where
 
+import Loligoptl.Collections
 import Loligoptl.Label
-import qualified Data.Map as Map
 
-data O
+-----------------------------------------------------------------------------
+--		Graphs
+-----------------------------------------------------------------------------
+
+-- | Used at the type level to indicate an "open" structure with    
+-- a unique, unnamed control-flow edge flowing in or out.         
+-- "Fallthrough" and concatenation are permitted at an open point.
+data O 
+       
+       
+-- | Used at the type level to indicate a "closed" structure which
+-- supports control transfer only through the use of named
+-- labels---no "fallthrough" is permitted.  The number of control-flow
+-- edges is unconstrained.
 data C
 
-data MaybeO ex t where
-  JustO    :: t -> MaybeO O t
-  NothingO :: MaybeO C t
-
-data MaybeC ex t where
-  JustC    :: t -> MaybeC C t
-  NothingC :: MaybeC O t
-
-instance Functor (MaybeO ex) where
-  fmap f (JustO a) = JustO (f a)
-  fmap f NothingO = NothingO
-
-instance Functor (MaybeC ex) where
-  fmap f (JustC a) = JustC (f a)
-  fmap f NothingC = NothingC
-
+-- | A sequence of nodes.  May be any of four shapes (O/O, O/C, C/O, C/C).
+-- Open at the entry means single entry, mutatis mutandis for exit.
+-- A closed/closed block is a /basic/ block and can't be extended further.
+-- Clients should avoid manipulating blocks and should stick to either nodes
+-- or graphs.
 data Block n e x where
-  BFirst  :: n C O -> Block n C O
-  BMiddle :: n O O -> Block n O O
-  BLast   :: n O C -> Block n O C
+  -- nodes
+  BFirst  :: n C O                 -> Block n C O -- x^ block holds a single first node
+  BMiddle :: n O O                 -> Block n O O -- x^ block holds a single middle node
+  BLast   :: n O C                 -> Block n O C -- x^ block holds a single last node
 
-  BCat    :: Block n e O -> Block n O x -> Block n e x
-
-  BHead   :: Block n C O -> n O O       -> Block n C O -- the zipper
+  -- concatenation operations
+  BCat    :: Block n O O -> Block n O O -> Block n O O -- non-list-like
+  BHead   :: Block n C O -> n O O       -> Block n C O
   BTail   :: n O O       -> Block n O C -> Block n O C  
-  BClosed :: Block n C O -> Block n O C -> Block n C C 
 
-instance Show (Block n e x) where
-  show x = "Block"
+  BClosed :: Block n C O -> Block n O C -> Block n C C -- the zipper
 
+-- | A (possibly empty) collection of closed/closed blocks
 type Body n = LabelMap (Block n C C)
-emptyBody :: LabelMap (thing C C)
-emptyBody = mapEmpty
+newtype Body' block n = Body (LabelMap (block n C C))
 
+-- | A control-flow graph, which may take any of four shapes (O/O, O/C, C/O, C/C).
+-- A graph open at the entry has a single, distinguished, anonymous entry point;
+-- if a graph is closed at the entry, its entry point(s) are supplied by a context.
+type Graph = Graph' Block
 data Graph' block n e x where
   GNil  :: Graph' block n O O
-  GUnit :: block n O O -> Graph' block n O O 
-  GMany :: MaybeO e (block n O C)
+  GUnit :: block n O O -> Graph' block n O O
+  GMany :: MaybeO e (block n O C) 
         -> LabelMap (block n C C)
         -> MaybeO x (block n C O)
         -> Graph' block n e x
 
-type Graph = Graph' Block
+-- | Maybe type indexed by open/closed
+data MaybeO ex t where
+  JustO    :: t -> MaybeO O t
+  NothingO ::      MaybeO C t
 
-class NonLocal thing where
-  entryLabel :: thing C x -> Label
-  successors :: thing e C -> [Label]
+-- | Maybe type indexed by closed/open
+data MaybeC ex t where
+  JustC    :: t -> MaybeC C t
+  NothingC ::      MaybeC O t
+
+-- | Dynamic shape value
+data Shape ex where
+  Closed :: Shape C
+  Open   :: Shape O
+
+-- | Either type indexed by closed/open using type families
+type family IndexedCO ex a b :: *
+type instance IndexedCO C a b = a
+type instance IndexedCO O a b = b
+
+instance Functor (MaybeO ex) where
+  fmap _ NothingO = NothingO
+  fmap f (JustO a) = JustO (f a)
+
+instance Functor (MaybeC ex) where
+  fmap _ NothingC = NothingC
+  fmap f (JustC a) = JustC (f a)
+
+-------------------------------
+-- | Gives access to the anchor points for
+-- nonlocal edges as well as the edges themselves
+class NonLocal thing where 
+  entryLabel :: thing C x -> Label   -- ^ The label of a first node or block
+  successors :: thing e C -> [Label] -- ^ Gives control-flow successors
 
 instance NonLocal n => NonLocal (Block n) where
   entryLabel (BFirst n)    = entryLabel n
@@ -76,81 +104,16 @@ instance NonLocal n => NonLocal (Block n) where
   successors (BTail _ t)   = successors t
   successors (BClosed _ t) = successors t
 
+------------------------------
+emptyBody :: LabelMap (thing C C)
+emptyBody = mapEmpty
+
 addBlock :: NonLocal thing => thing C C -> LabelMap (thing C C) -> LabelMap (thing C C)
-addBlock block body = mapInsert (entryLabel block) block body
+addBlock b body = nodupsInsert (entryLabel b) b body
+  where nodupsInsert l b body = if mapMember l body then
+                                    error $ "duplicate label " ++ show l ++ " in graph"
+                                else
+                                    mapInsert l b body
 
--- | Decorated graphs
-type DG f = Graph' (DBlock f)
-data DBlock f n e x = DBlock f (Block n e x)
-
-instance NonLocal n => NonLocal (DBlock f n) where
-  entryLabel (DBlock _ b) = entryLabel b
-  successors (DBlock _ b) = successors b
-
-dgNil  = GNil
-dgNilC :: DG f n C C
-dgNilC = GMany NothingO emptyBody NothingO
-
-gUnitOO b = GUnit b
-gUnitOC b = GMany (JustO b) emptyBody NothingO
-gUnitCO b = GMany NothingO emptyBody (JustO b)
-gUnitCC b = GMany NothingO (addBlock b emptyBody) NothingO
-
-dgSplice :: NonLocal n => DG f n e a -> DG f n a x -> DG f n e x
-dgSplice = splice fzCat
-  where fzCat :: DBlock f n e O -> DBlock t n O x -> DBlock f n e x
-        fzCat (DBlock f b1) (DBlock _ b2) = DBlock f (b1 `cat` b2)
-
-
--- boilerplate from hoopl follows
--- necessary for all the good static type checking
-splice :: forall block n e a x . NonLocal (block n) =>
-          (forall e x . block n e O -> block n O x -> block n e x)
-       -> (Graph' block n e a -> Graph' block n a x -> Graph' block n e x)
-splice bcat = sp
-  where sp :: forall e a x .
-              Graph' block n e a -> Graph' block n a x -> Graph' block n e x
-
-        sp GNil g2 = g2
-        sp g1 GNil = g1
-
-        sp (GUnit b1) (GUnit b2) = GUnit (b1 `bcat` b2)
-
-        sp (GUnit b) (GMany (JustO e) bs x) = GMany (JustO (b `bcat` e)) bs x
-
-        sp (GMany e bs (JustO x)) (GUnit b2) = GMany e bs (JustO (x `bcat` b2))
-
-        sp (GMany e1 bs1 (JustO x1)) (GMany (JustO e2) b2 x2)
-          = GMany e1 (b1 `bodyUnion` b2) x2
-          where b1 = addBlock (x1 `bcat` e2) bs1
-
-        sp (GMany e1 b1 NothingO) (GMany NothingO b2 x2)
-          = GMany e1 (b1 `bodyUnion` b2) x2
-
-        sp _ _ = error "bogus GADT match failure"
-
-bodyUnion :: forall a . LabelMap a -> LabelMap a -> LabelMap a
-bodyUnion = mapUnionWithKey nodups
-  where nodups l _ _ = error $ "duplicate blocks with label " ++ show l
-
-
-gSplice :: NonLocal n => Graph n e a -> Graph n a x -> Graph n e x
-gSplice = splice cat
-
-cat :: Block n e O -> Block n O x -> Block n e x
-cat b1@(BFirst {})     (BMiddle n)  = BHead   b1 n
-cat b1@(BFirst {})  b2@(BLast{})    = BClosed b1 b2
-cat b1@(BFirst {})  b2@(BTail{})    = BClosed b1 b2
-cat b1@(BFirst {})     (BCat b2 b3) = (b1 `cat` b2) `cat` b3
-cat b1@(BHead {})      (BCat b2 b3) = (b1 `cat` b2) `cat` b3
-cat b1@(BHead {})      (BMiddle n)  = BHead   b1 n
-cat b1@(BHead {})   b2@(BLast{})    = BClosed b1 b2
-cat b1@(BHead {})   b2@(BTail{})    = BClosed b1 b2
-cat b1@(BMiddle {}) b2@(BMiddle{})  = BCat    b1 b2
-cat    (BMiddle n)  b2@(BLast{})    = BTail    n b2
-cat b1@(BMiddle {}) b2@(BCat{})     = BCat    b1 b2
-cat    (BMiddle n)  b2@(BTail{})    = BTail    n b2
-cat    (BCat b1 b2) b3@(BLast{})    = b1 `cat` (b2 `cat` b3)
-cat    (BCat b1 b2) b3@(BTail{})    = b1 `cat` (b2 `cat` b3)
-cat b1@(BCat {})    b2@(BCat{})     = BCat    b1 b2
-cat b1@(BCat {})    b2@(BMiddle{})  = BCat    b1 b2
+bodyList :: NonLocal (block n) => Body' block n -> [(Label,block n C C)]
+bodyList (Body body) = mapToList body
