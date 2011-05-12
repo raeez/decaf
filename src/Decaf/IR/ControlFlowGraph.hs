@@ -119,25 +119,26 @@ makeBlocks insts = startBlock [] insts
           buildBlock bs (b `BHead` (LIREnterNode int)) is
 
 graphToLIRProgram :: [Label] -> LIRGraph C C -> LIRProgram
-graphToLIRProgram procLabels g@(GMany _ labels _)
-    = LIRProgram (LIRLabel "" 0) (map (LIRUnit (LIRLabel "" 0)) (snd units)) -- units -- units
+graphToLIRProgram procLabels (GMany _ labels _)
+    = LIRProgram (LIRLabel "" 0) (map (LIRUnit (LIRLabel "" 0)) (snd units))
   where
     entry = LIRLabel "main" (-1)
-    functions = entry:(delete entry procLabels)
+    procedures = entry:(delete entry procLabels)
     units = foldl (\(s, uns) l -> let (s', uns') = searchGraph s [l]
-                                  in (s', uns ++ [uns'])) (Set.empty, []) functions
+                                  in (s', uns ++ [uns'])) (Set.empty, []) procedures
     searchGraph :: (Set.Set Label) -> [Label] -> (Set.Set Label, [LIRInst])
-    searchGraph s [] = (s, [])
+    searchGraph s [] = (s, []) -- end of the road
     searchGraph s (l:ls) = if l `Set.member` s      -- seen before
                             then searchGraph s ls   -- so skip this node
-                            else case mapLookup l labels of     -- look for this node
-                                    Nothing -> searchGraph s ls -- can't find, continue searching
-                                    Just block ->               -- found this node
-                                        let b = blockToLIR block  -- convert to LIR
-                                            s' = Set.insert l s   -- mark as seen
+                            else case mapLookup l labels of     -- else look for this node
+                                    Nothing -> searchGraph s ls -- can't find, go on searching
+                                    Just block ->               -- ah, but found this node!
+                                        let b = blockToLIR block  -- convert it to LIR
+                                            s' = Set.insert l s   -- mark it as seen
                                             inMethodSuccessors = filter (\l -> l `notElem` functions) (successors block)
-                                            -- ^ only search inside the current method
-                                            (s'', b'') = searchGraph s' (ls ++ inMethodSuccessors) -- the future
+                                            -- ^ continue searching only inside the current method
+                                            (s'', b'') = searchGraph s' (ls ++ inMethodSuccessors)
+                                            -- ^ search the future
                                         in (s'', b ++ b'') -- combine the past with the future
 
 
