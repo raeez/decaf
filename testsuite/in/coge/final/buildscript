@@ -1,0 +1,16 @@
+#!/bin/bash
+gcc 6035.c -o 6035.o
+for f in *.o
+  do
+    echo "processing $f..."
+    gcc -o ${f/%o/bin} $f 6035.o 
+    time ./${f/%o/bin}
+     echo "done."
+    done
+
+for f in {saman_emboss.o, saman_fixed.o, saman_negative.o, saman_noise.o, saman_sl.o, segovia_blur.o, segovia_philbin.o}
+  do
+    echo "Comparing ${f/%o/out} /w ${f/%o/output}
+    cmp ${f/%o/out} ${f/%o/pgm}
+    echo "done."
+  done
