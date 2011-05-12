@@ -58,7 +58,7 @@ symToInt  reg = error "attempted to label if using non-symbolic register"
 graphProgram :: SymbolTree -> DecafProgram -> Int -> LIRGraph C C
 graphProgram st dp rc =
     let g (CFGUnit lab insts) = (CFGLIRInst $ LIRLabelInst lab) : insts 
-        (res, Namespace _ _ _ _ _ sm) = -- grab the successor map
+        (res, Namespace _ _ _ _ _ sm _) = -- grab the successor map
             runLIR (do prog <- translateProgram st dp
                        mapM (shortCircuit.g) (cgProgUnits prog) 
                                      >>= (return . (map stripCFG)))

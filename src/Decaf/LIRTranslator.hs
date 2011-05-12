@@ -18,10 +18,11 @@ data Namespace = Namespace
     , encMethod    :: String
     , blockindex   :: [Int]
     , successorMap :: Map.Map String [LIRLabel]
+    , ivarStack    :: [(LIRReg, [CFGInst])] -- stack of ivars, motioned code
     }
 
 mkNamespace :: Int -> Namespace
-mkNamespace lastTemp = Namespace 0 lastTemp [] "null" [0] Map.empty
+mkNamespace lastTemp = Namespace 0 lastTemp [] "null" [0] Map.empty []
 
 newtype LIRTranslator a = LIRTranslator
     { runLIR :: Namespace -> (a, Namespace) }
@@ -44,7 +45,6 @@ translate :: LIRTranslator a -> Namespace -> a
 translate comp ns = fst $ runLIR comp ns
 
 incTemp :: LIRTranslator Int
---incTemp = LIRTranslator (\(Namespace t l s m b) -> (t, Namespace (t+1) l s m b))
 incTemp = incLabel -- changed so that every label has a unique numeric id 
 
 incLabel :: LIRTranslator Int
@@ -52,6 +52,24 @@ incLabel = LIRTranslator (\ns@(Namespace{ labels = l }) -> (l, ns{ labels = (l+1
 
 getScope :: LIRTranslator (LIRLabel, LIRLabel)
 getScope = LIRTranslator (\ns@(Namespace{ scope = s }) -> (last s, ns))
+
+getIvar :: LIRTranslator (Maybe LIRReg)
+getIvar = LIRTranslator (\ns@(Namespace{ ivarStack = s }) -> case s of
+                                                              [] -> (Nothing, ns)
+                                                              (x:xs) -> (Just $ fst x, ns))
+motionCode :: [CFGInst] -> LIRTranslator ()
+motionCode insts = LIRTranslator (\ns@(Namespace{ ivarStack = s }) ->
+    case s of
+        [] -> error "attempted code motion, but not currently in a loop!"
+        ((ivar, insts'):xs) -> ((), ns{ ivarStack = (ivar, insts' ++ insts):xs}))
+
+-- | also pops ivar and instructions off the stack
+getMotionedCode :: LIRTranslator [CFGInst]
+getMotionedCode = LIRTranslator (\ns@(Namespace{ ivarStack = s}) ->
+    case s of
+        [] -> error "attempted to retrieve motioned code, but not currently in a loop!"
+        ((ivar, insts):xs) -> (insts, ns{ ivarStack = xs }))
+    
 
 getBlock :: LIRTranslator Int
 getBlock = LIRTranslator (\ns@(Namespace{ blockindex = b }) -> ((last . init) b, ns))
@@ -65,18 +83,18 @@ setMethod newMethod = LIRTranslator (\ns -> ((), ns{ encMethod = newMethod }))
 getNesting :: LIRTranslator [Int]
 getNesting = LIRTranslator (\ns@(Namespace{ blockindex = b }) -> (b, ns))
 
-withScope :: LIRLabel -> LIRLabel -> LIRTranslator a -> LIRTranslator a
-withScope looplabel endlabel m 
+withScope :: LIRLabel -> LIRLabel -> LIRReg -> LIRTranslator a -> LIRTranslator a
+withScope looplabel endlabel ivarreg m 
   = LIRTranslator 
-    (\(Namespace t l s me b sm) ->
-       let (a, Namespace t' l' _ me' b' sm') = runLIR m (Namespace t l [(looplabel, endlabel)] me b sm)
-       in (a, Namespace t' l' s me' b' sm'))
+    (\(Namespace t l s me b sm iv) ->
+       let (a, Namespace t' l' _ me' b' sm' iv') = runLIR m (Namespace t l [(looplabel, endlabel)] me b sm ((ivarreg, []):iv)) -- add the looplabel, endlabel tuple and the ivarreg
+       in (a, Namespace t' l' s me' b' sm' iv'))
 
 withBlock :: LIRTranslator a -> LIRTranslator a
-withBlock m = LIRTranslator (\(Namespace t l s me b sm) ->
+withBlock m = LIRTranslator (\(Namespace t l s me b sm iv) ->
     let b' = init b ++ [last b + 1]
-        (a, Namespace t' l' s' me' _ sm') = runLIR m (Namespace t l s me (b ++ [0]) sm)
-    in (a, Namespace t' l' s' me' b' sm'))
+        (a, Namespace t' l' s' me' _ sm' iv') = runLIR m (Namespace t l s me (b ++ [0]) sm iv)
+    in (a, Namespace t' l' s' me' b' sm' iv'))
 
 -- | Given a SymbolTree, Translate a DecafProgram into an LIRProgram
 translateProgram :: SymbolTree -> DecafProgram -> LIRTranslator CFGProgram
@@ -185,16 +203,18 @@ translateStm st (DecafForStm ident expr expr' block _) =
         endlabel <- incLabel >>= return.endLabel -- end label for while AND if; should work okay
         (instructions, operand) <- translateExpr st expr
         (instructions2, (LIROperRelExpr terminateoperand)) <- translateRelExpr st expr'
-        bs <- getNesting -- can't use getBlock, it assumes you're in a new block
+        bs <- getNesting -- can't use getBlock, it assumes you're in a new block, and increments state appropriately
         let st' = select (last bs) st -- needed to lookup index variable correctly
-        forblock <- withScope looplabel endlabel 
-                    $ translateBlock st block
-        let ivarlabel = (case symLookup ident (table st') of
+            ivarlabel = (case symLookup ident (table st') of
                             Just (_, (VarRec _ label)) -> (show label) -- stupid!
                             Nothing -> error ("LIRTranslator.hs:translateStm Invalid SymbolTable; could not find a valid symbol for'" ++ show ident ++ "'") )
             ivarlabelreg = SREG (read ivarlabel :: Int)
-            lessThan = LIRBinRelExpr (LIRRegOperand ivarlabelreg) LLT terminateoperand
+        forblock <- withScope looplabel endlabel ivarlabelreg
+                    $ translateBlock st block
+        let lessThan = LIRBinRelExpr (LIRRegOperand ivarlabelreg) LLT terminateoperand
+        motionedCode <- getMotionedCode
         return $ instructions
+            ++ motionedCode
             ++ [CFGLIRInst $ LIRRegAssignInst ivarlabelreg (LIROperExpr operand)]
             ++ [CFGLIRInst $ LIRJumpLabelInst looplabel] -- necessary for hoopl I think
             ++ [CFGLIRInst $ LIRLabelInst looplabel]
