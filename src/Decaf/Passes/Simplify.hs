@@ -15,7 +15,7 @@ import Data.Int
 import Loligoptl
 
 --------------------------------------------------
--- Simplification ("constant folding")
+-- Simplification ("all kinds of magic")
 simplify :: forall m f. FuelMonad m => FwdRewrite m LIRNode f
 simplify = mkFRewrite simp
  where

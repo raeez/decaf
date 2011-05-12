@@ -143,7 +143,7 @@ graphToLIRProgram procLabels (GMany _ labels _)
                                     Just block ->               -- ah, but found this node!
                                         let b = blockToLIR block  -- convert it to LIR
                                             s' = Set.insert l s   -- mark it as seen
-                                            inMethodSuccessors = filter (\l -> l `notElem` functions) (successors block)
+                                            inMethodSuccessors = filter (\l -> l `notElem` procedures) (successors block)
                                             -- ^ continue searching only inside the current method
                                             (s'', b'') = searchGraph s' (ls ++ inMethodSuccessors)
                                             -- ^ search the future

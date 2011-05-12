@@ -179,8 +179,12 @@ optimize :: LIRGraph C C -> IO (LIRGraph C C, DominatorTree, DominanceFrontiers)
 optimize g = do
     let fwd   = runSimpleUniqueMonad $ runWithFuel infiniteFuel (fwdOpt g)
         final = runSimpleUniqueMonad $ runWithFuel infiniteFuel (liveOpt fwd)
+        one   = runSimpleUniqueMonad $ runWithFuel infiniteFuel (copyOpt final)
+        two   = runSimpleUniqueMonad $ runWithFuel infiniteFuel (constOpt one)
+        three = runSimpleUniqueMonad $ runWithFuel infiniteFuel (cseOpt two)
+        four  = runSimpleUniqueMonad $ runWithFuel infiniteFuel (liveOpt three)
         (df, dt) = runSimpleUniqueMonad $ runWithFuel infiniteFuel (ssa g)
-    return (final, dt, df)
+    return (four, dt, df)
 
 fwdOpt :: LIRGraph C C -> M (LIRGraph C C)
 fwdOpt g = do
