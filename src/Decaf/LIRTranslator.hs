@@ -10,6 +10,8 @@ import Decaf.IR.SymbolTable
 --import Decaf.IR.ControlFlowGraph
 import Decaf.Data.Tree
 import Decaf.Data.Zipper
+import Decaf.Passes.CodeMotion
+import Debug.Trace
 
 data Namespace = Namespace
     { temp         :: Int
@@ -55,19 +57,22 @@ getScope = LIRTranslator (\ns@(Namespace{ scope = s }) -> (last s, ns))
 
 getIvar :: LIRTranslator (Maybe LIRReg)
 getIvar = LIRTranslator (\ns@(Namespace{ ivarStack = s }) -> case s of
-                                                              [] -> (Nothing, ns)
-                                                              (x:xs) -> (Just $ fst x, ns))
+                                                                [] -> (Nothing, ns)
+                                                                x:xs -> (Just $ fst x, ns))
 motionCode :: [CFGInst] -> LIRTranslator [CFGInst]
 motionCode insts = do
     iv <- getIvar
-    return (case iv of
-              Just r -> insts   -- for now, return as-is
-              Nothing -> insts) -- return as-is
-    {-LIRTranslator (\ns@(Namespace{ ivarStack = s }) ->
-    do
-    case s of
+    case iv of
+      Nothing -> return insts -- not in a loop, just return instructions as-is
+      Just r -> let p = partition (loopInvariant r) insts
+                    (invariant, variant) = trace ("PARTITION: " ++ show p) p
+                in trackMotionedCode (trace ("MOTIONING CODE: " ++ show invariant) invariant) >> return (trace ("NOT MOTIONING: " ++ show variant) variant)
+
+trackMotionedCode :: [CFGInst] -> LIRTranslator ()
+trackMotionedCode insts = LIRTranslator (\ns@(Namespace{ ivarStack = s }) ->
+    case  s of
         [] -> error "attempted code motion, but not currently in a loop!"
-        ((ivar, insts'):xs) -> ((), ns{ ivarStack = (ivar, insts' ++ insts):xs}))-}
+        ((ivar, insts'):xs) -> ((), ns{ ivarStack = (ivar, insts' ++ insts):xs}))
 
 -- | also pops ivar and instructions off the stack
 getMotionedCode :: LIRTranslator [CFGInst]
@@ -224,7 +229,7 @@ translateStm st (DecafForStm ident expr expr' block _) =
         let lessThan = LIRBinRelExpr (LIRRegOperand ivarlabelreg) LLT terminateoperand
         motionedCode <- getMotionedCode
         return $ instructions
-            ++ motionedCode
+            ++ trace ("PLACING MOTIONED CODE: " ++ show motionedCode) motionedCode
             ++ [CFGLIRInst $ LIRRegAssignInst ivarlabelreg (LIROperExpr operand)]
             ++ [CFGLIRInst $ LIRJumpLabelInst looplabel] -- necessary for hoopl I think
             ++ [CFGLIRInst $ LIRLabelInst looplabel]

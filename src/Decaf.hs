@@ -22,6 +22,7 @@ module Decaf
     , module Decaf.Passes.CSE
     , module Decaf.Passes.Copy
     , module Decaf.Passes.Constant
+    , module Decaf.Passes.CodeMotion
     , module Decaf.Passes.Live
     , module Decaf.Passes.Variable
     , module Decaf.Passes.Dominator
@@ -50,6 +51,7 @@ import Decaf.SSANodes
 import Decaf.Passes.CSE
 import Decaf.Passes.Copy
 import Decaf.Passes.Constant
+import Decaf.Passes.CodeMotion
 import Decaf.Passes.Live
 import Decaf.Passes.Variable
 import Decaf.Passes.Dominator
