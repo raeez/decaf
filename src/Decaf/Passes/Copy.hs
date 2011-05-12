@@ -75,15 +75,39 @@ copyTransfer = mkFTransfer unwrapFactFt
     ft (LIRRegAssignNode x (LIROperExpr (LIRRegOperand r))) f
                                    = CopyFactMap $ skipForbidden
       where
-        forbidden = []
-        skipForbidden = if x `notElem` forbidden
+        forbidden =  [LRDI, LRAX, LRDI, LRSI, LRCX, LRDX, LR8, LR9]
+        skipForbidden = if (x `notElem` forbidden) && (r `notElem` forbidden)
                           then M.insert x (CopyReg r) (varChanged f x)
-                          else varChanged f x
+                          else f
     ft (LIRRegAssignNode x _) f    = CopyFactMap $ varChanged f x                                       -- x = _, no change
     ft (LIRRegOffAssignNode {}) f  = CopyFactMap $ f                                       -- write to a memory location indexed by the registers
     ft (LIRStoreNode {}) f         = CopyFactMap $ f
     ft (LIRLoadNode x _) f         = CopyFactMap $ varChanged f x                          -- remove all records containing x
-    ft (LIRCallNode proc ret) f    = mkFactBase copyLattice [(proc, CopyFactMap f), (ret, CopyFactMap f)] -- remove all local vars (i.e. only keep global vars) when jumping to the function
+    ft (LIRCallNode proc ret) f    = mkFactBase copyLattice [(proc, CopyFactMap mkLocalsTop), (ret, CopyFactMap mkRegTop)] -- remove all local vars (i.e. only keep global vars) when jumping to the function
+      where
+        mkLocalsTop = M.mapWithKey f' f
+          where
+            f' (GI {}) v = v
+            f' _ v = CopyTop
+
+        mkRegTop = M.mapWithKey f' f
+          where
+            f' _ _    = CopyTop
+            f' LRAX _ = CopyTop
+            f' LRDI _ = CopyTop
+            f' LRSI _ = CopyTop
+            f' LRCX _ = CopyTop
+            f' LRDX _ = CopyTop
+            f' LR8 _ = CopyTop
+            f' LR9 _ = CopyTop
+            f' _ (CopyReg LRAX) = CopyTop
+            f' _ (CopyReg LRDI) = CopyTop
+            f' _ (CopyReg LRSI) = CopyTop
+            f' _ (CopyReg LRCX) = CopyTop
+            f' _ (CopyReg LRDX) = CopyTop
+            f' _ (CopyReg LR8) = CopyTop
+            f' _ (CopyReg LR9) = CopyTop
+            f' _ v    = CopyTop
 
     ft (LIRCalloutNode {}) f       = CopyFactMap mkRAXTop
       where
