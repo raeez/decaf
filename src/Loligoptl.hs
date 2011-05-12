@@ -14,7 +14,7 @@ import Loligoptl.Combinators
 import Loligoptl.Graph
 import Loligoptl.Fuel
 import Loligoptl.Label
-import Loligoptl.Dataflow hiding (Graph)
+import Loligoptl.Dataflow
 import Loligoptl.Pointed
 import Loligoptl.Checkpoint
 import Loligoptl.Collections

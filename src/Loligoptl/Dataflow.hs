@@ -14,14 +14,17 @@ module Loligoptl.Dataflow
 where
 
 import Loligoptl.Label
-import Loligoptl.Graph hiding (Graph)
+import Loligoptl.Graph
 import Loligoptl.Fuel
 import Loligoptl.Checkpoint
 import Loligoptl.Util
 import Loligoptl.Collections
+import Loligoptl.Unique
 import qualified Loligoptl.GraphUtil as U
 
 import Data.Maybe
+
+import Decaf.IR.LIR -- ehh
 
 changeIf :: Bool -> ChangeFlag
 changeIf changed = if changed then SomeChange else NoChange
@@ -31,6 +34,8 @@ type instance Fact C f = FactBase f
 
 newtype OldFact a = OldFact a
 newtype NewFact a = NewFact a
+
+type M = CheckingFuelMonad (SimpleUniqueMonad)
 
 data FwdPass m n f 
   = FwdPass { fp_lattice  :: DataflowLattice f
@@ -52,6 +57,121 @@ data DataflowLattice a = DataflowLattice
 
 type JoinFun a = Label -> OldFact a -> NewFact a -> (ChangeFlag, a)
 -- are these foralls needed?
+
+
+
+-- pass -> graph -> fold function from node, associated fact, to result type -> initial -> final
+-- this doesn't properly belong here; assumes some Decaf stuff
+foldDataflowFactsFwd :: forall n f e x res . ({- CheckpointMonad m,-} NonLocal n)
+                     => FwdPass M n f
+                     -> Graph n C C
+                     -> (forall e x. n e x -> f -> res -> res)
+                     -> res -> res
+
+foldDataflowFactsFwd pass graph func init = 
+  -- fst takes the DG, drops the state
+  let
+      -- partly copied from afrgraph
+      block :: forall e x. Block n e x 
+            -> f -> res -> (Fact x f, res)
+      block (BFirst  n)   = node n 
+      block (BMiddle n)   = node n
+      block (BLast   n)   = node n
+      block (BCat b1 b2)  = block b1 `cat` block b2
+      block (BHead h n)   = block h  `cat` node n
+      block (BTail n t)   = node  n  `cat` block t
+      block (BClosed h t) = block h  `cat` block t
+                           
+      node :: forall e x. (ShapeLifter e x) => n e x 
+           -> f -> res -> (Fact x f, res)
+      -- apply transfer function and accum function
+      -- use fact flowing OUT of node
+      -- so that definitions get joined to themself in web building
+      node n f acc = (ftransfer pass n f, func n f acc)
+
+--       cat :: (f -> res -> (f,res))
+--           -> (f -> res -> (f,res))
+--           -> (f -> res -> (f,res))
+      cat t1 t2 f acc = let (f', acc') = t1 f acc
+                        in t2 f' acc'
+
+      (undg, fb, _) = runSimpleUniqueMonad $ runWithFuel infiniteFuel
+                      $ (analyzeAndRewriteFwd pass entries graph (mapSingleton mainlab bottom))
+--                      $ ((analyzeAndRewriteFwd pass entries graph (mapSingleton mainlab bottom)) :: CheckingFuelMonad (SimpleUniqueMonad) (Graph n e x, FactBase f, MaybeO x f))
+
+      undgBody = case undg of
+                   GMany _ body _ -> body -- this seems like a hack
+      mainlab = LIRLabel "main" (-1)
+      entries = JustC [mainlab]
+
+      -- dataflow stuff
+      bottom = (fact_bot . fp_lattice) pass
+
+      blocks = mapToList undgBody -- list of label, block pairs
+      -- reverse, lookup facts, apply block functions
+      blofacts = map (\(l,b) -> (block b,  lookupFact l fb)) blocks
+      
+  in
+    -- apply the tuples to each other, only save the res
+    -- fold list of res -> res onto init
+    foldr ($) init $ concatMap process blofacts
+      where
+--        process :: ((f -> res -> (Fact x f, res)), Maybe f) -> [res -> res]
+        process (bl, Just f) = [\res -> snd $ bl f res]
+        process (bl, Nothing) = []
+
+foldDataflowFactsBwd :: forall n f e x res . (NonLocal n)
+                     => BwdPass M n f
+                     -> Graph n C C
+                     -> (forall e x. n e x-> Fact x f -> res -> res)
+                     -> res -> res
+
+foldDataflowFactsBwd pass graph func init = 
+  -- fst takes the DG, drops the state
+  let
+      -- partly copied from afrgraph
+      block :: forall e x. Block n e x 
+            -> Fact x f -> res -> (f, res)
+      block (BFirst  n)   = node n
+      block (BMiddle n)   = node n
+      block (BLast   n)   = node n
+      block (BCat b1 b2)  = block b1 `cat` block b2
+      block (BHead h n)   = block h  `cat` node n
+      block (BTail n t)   = node  n  `cat` block t
+      block (BClosed h t) = block h  `cat` block t
+                           
+      node :: forall e x. (ShapeLifter e x) => n e x 
+           -> Fact x f -> res -> (f, res)
+      node n f acc = (btransfer pass n f, func n f acc) -- apply transfer function and accum function func
+
+{-      cat :: (f -> res -> (f,res))
+          -> (f -> res -> (f,res))
+          -> (f -> res -> (f,res)) sort of -}
+      cat t1 t2 f acc = let (f', acc') = t2 f acc
+                        in t1 f' acc'
+
+        
+      (undg, fb, _) = runSimpleUniqueMonad $ runWithFuel infiniteFuel
+                      $ analyzeAndRewriteBwd pass entries graph (mapSingleton mainlab bottom)
+
+      undgBody = case undg of
+                   GMany _ body _ -> body -- this seems like a hack
+
+      mainlab = LIRLabel "main" (-1)
+      entries = JustC [mainlab]
+
+      -- dataflow stuff
+      bottom = (fact_bot . bp_lattice) pass
+
+      -- does this need to change?
+      blocks :: [Block n C C]
+      blocks = map snd $ mapToList undgBody
+      
+  in
+    -- CHANGE?
+    foldr ($) init (map (\f res -> snd $ f fb res) (map block blocks))
+
+
 
 newtype FwdTransfer n f 
   = FwdTransfer3 { getFTransfer3 ::
@@ -90,6 +210,14 @@ newtype BwdRewrite m n f
                     , n O C -> FactBase f -> m (Maybe (Graph n O C, BwdRewrite m n f))
                     ) }
 
+{-analyzeAndFwdRewrite
+  :: (FuelMonad m, NonLocal n)
+  => FwdPass m n f
+  -> [Label]          -- entry points
+  -> Graph n C C      -- might need to make more polymorphic on shape 
+  -> FactBase f       -- input facts
+  -> m (Graph n C C, FactBase f)
+-}
 -- | if the graph being analyzed is open at the entry, there must
 --   be no other entry point, or all goes horribly wrong...
 analyzeAndRewriteFwd
@@ -128,13 +256,15 @@ distinguishedEntryFact g f = maybe g
           maybe (GUnit {}) = JustO f
           maybe (GMany e _ _) = case e of NothingO -> NothingO
                                           JustO _  -> JustO f
-type Graph = Graph' Block
 type DG f  = Graph' (DBlock f)
 data DBlock f n e x = DBlock f (Block n e x) -- ^ block decorated with fact
 -- @ end dg.tex
 instance NonLocal n => NonLocal (DBlock f n) where
   entryLabel (DBlock _ b) = entryLabel b
   successors (DBlock _ b) = successors b
+
+dgFact (DBlock f _)  = f
+dgBlock (DBlock _ b) = b
 
 --- constructors
 
@@ -353,8 +483,6 @@ backwardBlockList :: (LabelsPtr entries, NonLocal n) => entries -> Body n -> [Bl
 -- along with the list of Labels it may depend on for facts.
 backwardBlockList entries body = reverse $ forwardBlockList entries body
 
-
-
 data ChangeFlag = SomeChange
                 | NoChange
                 deriving (Show, Eq)
@@ -420,7 +548,7 @@ fixpoint direction lat do_block blocks init_fbase
      -- 'tag' adds the in-labels of the block; 
      -- see Note [TxFactBase invairants]
 
-    tx_blocks :: [((Label, Block n C C), [Label])]   -- I do not understand this type
+    tx_blocks :: [((Label, Block n C C), [Label])]
               -> TxFactBase n f -> m (TxFactBase n f)
     tx_blocks []              tx_fb = return tx_fb
     tx_blocks (((lbl,blk), in_lbls):bs) tx_fb 

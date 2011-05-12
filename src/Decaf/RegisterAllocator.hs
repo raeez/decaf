@@ -22,8 +22,8 @@ instance Data LIRProgram where
                                         units' <- f units
                                         return $ LIRProgram lab' units'
 
-instance Data LIRLabel where
-    gmapM f l = return l
+{-instance Data LIRLabel where
+    gmapM f l = return l-}
 
 instance Data LIRUnit where
     gmapM f (LIRUnit l uns) = do l' <- f l

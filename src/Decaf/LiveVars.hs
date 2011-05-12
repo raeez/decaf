@@ -1,7 +1,8 @@
 {-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables, NoMonomorphismRestriction #-}
 
 module Decaf.LiveVars 
-  (csePass
+  ( csePass
+  , VarFact
   )
 
 where
@@ -105,7 +106,7 @@ lattice = DataflowLattice
 
 
 -- define fwd pass
-csePass  = FwdPass 
+liveVarPass  = FwdPass 
   { fpLattice = lattice
   , fpTransfer = transfer
   , fpRewrite = rewrite }

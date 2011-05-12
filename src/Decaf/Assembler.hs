@@ -40,7 +40,7 @@ mkAssemblerState = AssemblerState ASMNil empty empty mkMachine
 mkMachine :: MachineState
 mkMachine = MachineState []
 
-appendAssembler :: forall a. ASMInst a -> Assembler ()
+appendAssembler :: ASMInst -> Assembler ()
 appendAssembler item = Assembler (\s ->
     let updatedData = ASMCons item (assembler s)
     in ((), s { assembler = updatedData }))
@@ -157,7 +157,7 @@ programAssembler st prog =
        text <- getAsmList
        -- generate externs
        externs <- getExterns
-       return (ASMProgram defaultFlags (union defaultExterns externs) [dataSection, ASMTextSection text])
+       return (ASMProgram defaultFlags (union defaultExterns externs) (dataSection, ASMTextSection text))
 
 ------------------- DATA --------------------------------
 
@@ -205,15 +205,15 @@ mapTextSection :: LIRProgram -> Assembler ASMSection
 mapTextSection (LIRProgram (LIRLabel label i) units) =
     do instructions <- mapM mapUnit units
        let head = ASMCons (ASMLabelInst (ASMLabel label i)) ASMNil
-           instructions' = castAsmList instructions
-       return $ ASMTextSection (asmConcat head instructions')
+           instructions' = asmConcat instructions
+       return $ ASMTextSection (asmAppend head instructions')
 
-mapUnit :: LIRUnit -> forall a. Assembler ASMInstructions
+mapUnit :: LIRUnit -> {- forall a. -} Assembler ASMInstructions
 mapUnit (LIRUnit (LIRLabel label i) insts) =
     do instructions <- mapM labelFilter insts
        let head = unitLabel
-           instructions' = castAsmList instructions
-       return (asmConcat unitLabel instructions')
+           instructions' = asmConcat instructions
+       return (asmAppend unitLabel instructions')
  where
     unitLabel = if (length label > 0)
                   then ASMCons (ASMLabelInst (ASMLabel label i)) ASMNil
@@ -504,6 +504,7 @@ instance ASMOper ASMGenOperand where
 
 instance ASMOper LIRReg where
     asm reg = case reg of
+        -- CHANGE
         SREG s -> return $ ASMGenOperand $ ASMMemOperand (ASMRegBase RBP) Nothing (stackAddress s) 8
         MEM s  -> return $ ASMGenOperand $ ASMSymOperand (ASMSym s)
         GI s   -> do r <- mapMemBase reg
@@ -540,3 +541,4 @@ mapRegister reg =
         LR13 -> R13
         LR14 -> R14
         LR15 -> R15
+        (SREG i) -> (ASMSREG i)
