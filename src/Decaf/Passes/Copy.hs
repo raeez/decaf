@@ -1,9 +1,12 @@
-{-# LANGUAGE GADTs, RankNTypes, ScopedTypeVariables, NoMonomorphismRestriction #-}
+{-# OPTIONS_GHC -Wall -fno-warn-name-shadowing #-}
+{-# LANGUAGE NoMonomorphismRestriction, ScopedTypeVariables, GADTs #-}
+module Decaf.Passes.Copy (CopyFact, copyTop, copyLattice, copyPass) where
 
-module Decaf.Passes.Copy where
-import qualified Data.Map as Map
+import Control.Monad
+import qualified Data.Map as M
 import Decaf.IR.LIR
 import Decaf.IR.IRNode
+import Decaf.Passes.Simplify
 import Control.Monad
 import Decaf.LIRNodes
 import Loligoptl.Combinators
@@ -11,144 +14,126 @@ import Debug.Trace
 import Data.Maybe
 import Loligoptl
 
-import qualified Data.Map as M
-----------------------------------------------------
+type CopyKey = LIRReg
 
-data CSEKey = CSEKey LIROperand LIRBinOp LIROperand
-              deriving (Show, Ord)
+data CopyData = CopyTop
+              | CopyReg LIRReg
+              deriving (Show, Eq)
 
-instance Eq CSEKey where
-    (==) = keyEq 
+data CopyFact = CopyFactMap (M.Map CopyKey CopyData)
+              | CopyBot
+               deriving (Show, Eq)
 
-keyEq :: CSEKey -> CSEKey -> Bool               -- FIX ME: an expression is equal iff operation is commutative  (SIMPLIFICATION; NOT ALWAYS TRUE)
-keyEq (CSEKey op1 binop op2) (CSEKey op1' binop' op2')
-    | (binop == binop') && (op1 == op1') && (op2 == op2') = True
-    | otherwise                                           = False
-    -- | (binop == binop') && (op1 == op2') && (op2 == op1') = True
+copyBot = fact_bot copyLattice
+copyTop = CopyFactMap $ M.empty
+copyLattice :: DataflowLattice CopyFact
+copyLattice = DataflowLattice
+ { fact_name = "Copy Propogation"
+ , fact_bot  = CopyBot
+ , fact_join = joinCopyFact
+ }
 
-data CSEData = CSETop
-             | CSEReg LIRReg
-             deriving (Show, Eq)
-
-data CSEFact = CSEFactMap (M.Map CSEKey CSEData)
-             | CSEBot
-             deriving (Show, Eq)
-
--- join two CSE facts 
-joinCSEFact :: JoinFun CSEFact
-joinCSEFact l (OldFact x) (NewFact CSEBot) = (NoChange, x)
-joinCSEFact l (OldFact CSEBot) (NewFact y) = (SomeChange, y)
-joinCSEFact l (OldFact (CSEFactMap x)) (NewFact (CSEFactMap y)) = 
+-- join two Copy facts 
+joinCopyFact :: JoinFun CopyFact
+joinCopyFact l (OldFact x) (NewFact CopyBot) = (NoChange, x)
+joinCopyFact l (OldFact CopyBot) (NewFact y) = (SomeChange, y)
+joinCopyFact l (OldFact (CopyFactMap x)) (NewFact (CopyFactMap y)) = 
     extract (M.intersectionWith (\x y -> join (unconv x) (unconv y)) (M.map convertUnchanged x) (M.map convertChanged y))
   where 
-    convertChanged, convertUnchanged :: CSEData -> (ChangeFlag, CSEData)
+    convertChanged, convertUnchanged :: CopyData -> (ChangeFlag, CopyData)
     convertChanged x = (SomeChange, x)
     convertUnchanged x = (NoChange, x)
-    unconv :: (ChangeFlag, CSEData) -> CSEData
+    unconv :: (ChangeFlag, CopyData) -> CopyData
     unconv (_, x) = x
-    join :: CSEData -> CSEData -> (ChangeFlag, CSEData)
-    join CSETop CSETop = (NoChange,   CSETop)
-    join x CSETop = (SomeChange, CSETop)
-    join CSETop x = (NoChange,   CSETop)
+    join :: CopyData -> CopyData -> (ChangeFlag, CopyData)
+    join CopyTop CopyTop = (NoChange,   CopyTop)
+    join x CopyTop = (SomeChange, CopyTop)
+    join CopyTop x = (NoChange,   CopyTop)
     join x y      = if x == y
                       then (NoChange, x)
-                      else (SomeChange, CSETop)
-    extract :: M.Map CSEKey (ChangeFlag, CSEData) -> (ChangeFlag, CSEFact)
+                      else (SomeChange, CopyTop)
+    extract :: M.Map CopyKey (ChangeFlag, CopyData) -> (ChangeFlag, CopyFact)
     extract x =  ( if changed x then SomeChange else NoChange
-                 , CSEFactMap $ M.map snd x)
-    changed :: M.Map CSEKey (ChangeFlag, CSEData) -> Bool
+                 , CopyFactMap $ M.map snd x)
+    changed :: M.Map CopyKey (ChangeFlag, CopyData) -> Bool
     changed x = or $ map snd (M.toList (M.map ((== SomeChange) . fst) x))
 
--- define const lattice
-cseBottom = fact_bot cseLattice
-cseTop = CSEFactMap $ M.empty
-cseLattice :: DataflowLattice CSEFact
-cseLattice = DataflowLattice
-  { fact_name = "CommonSubexpressionMap"
-  , fact_bot  = CSEBot
-  , fact_join = joinCSEFact }
+varChanged :: M.Map CopyKey CopyData -> LIRReg -> M.Map CopyKey CopyData
+varChanged f x = M.insert x CopyTop f
 
--- aux: remvoe all records containing x, because x has been changed
-varChanged :: M.Map CSEKey CSEData -> LIRReg -> M.Map CSEKey CSEData
---varChanged CSEBot x = error "varChanged: called on CSEBot; should not happen!"
-varChanged f x = M.mapWithKey keep f
-  where 
-    -- a record is ok (to keep) if it does not contain x
-    keep :: CSEKey -> CSEData -> CSEData
-    keep (CSEKey a op b) (CSEReg c) = if (oprMismatch a) && (oprMismatch b) && (c /= x)
-                                      then CSEReg c
-                                      else CSETop
-    keep (CSEKey a op b) CSETop = CSETop
-    keep key val = val
-                     
-    -- a operand does not contains x if it is not a RegOperand made with x
-    oprMismatch :: LIROperand -> Bool
-    -- if it is a RegOperand, then change x /= x'
-    oprMismatch (LIRRegOperand x') = (x /= x')  
-    -- mismatch always holds otherwise
-    oprMismatch _                  = True
+--------------------------------------------------
+-- Analysis: variable equals a literal constant
+copyTransfer :: FwdTransfer LIRNode CopyFact
+copyTransfer = mkFTransfer unwrapFactFt
+ where
+    unwrapFactFt :: LIRNode e x -> CopyFact -> Fact x CopyFact
+    unwrapFactFt n CopyBot = error "constTransfer:unwrapFactFt called on CopyBot; should not happen!"
+    unwrapFactFt n (CopyFactMap f) = ft n f
 
--- transfer: define CSE lattice transfer function:  a expression (x op y) is available iff ((x,op,y),w) \in Lattice
--- concerns only RegAssignNode and LoadNode
-cseTransfer :: FwdTransfer LIRNode CSEFact
-cseTransfer = mkFTransfer unwrapFactFt
-  where
-    unwrapFactFt :: LIRNode e x -> CSEFact -> Fact x CSEFact
-    unwrapFactFt n CSEBot = error "cseTransfer:unwrapFactFt called on CSEBot; should not happen!"
-    unwrapFactFt n (CSEFactMap f) = ft n f
-
-    ft :: LIRNode e x -> M.Map CSEKey CSEData -> Fact x CSEFact
-    ft (LIRLabelNode {}) f         = CSEFactMap f
-    ft (LIRRegAssignNode x (LIRBinExpr a op b)) f
-                                   = CSEFactMap $ M.insert (CSEKey a op b) (CSEReg x) (varChanged f x) -- a op b -> x
-    ft (LIRRegAssignNode x _) f    = CSEFactMap $ varChanged f x                                       -- x = _, no change
-    ft (LIRRegOffAssignNode {}) f  = CSEFactMap $ f                                       -- write to a memory location indexed by the registers
-    ft (LIRStoreNode {}) f         = CSEFactMap $ f
-    ft (LIRLoadNode x _) f         = CSEFactMap $ varChanged f x                          -- remove all records containing x
-    ft (LIRCallNode proc ret) f    = mkFactBase cseLattice [(proc, CSEFactMap f), (ret, CSEFactMap mkGlobalsTop)] -- remove all local vars (i.e. only keep global vars) when jumping to the function
+    ft :: LIRNode e x -> M.Map CopyKey CopyData -> Fact x CopyFact
+    ft (LIRLabelNode {}) f         = CopyFactMap f
+    ft (LIRRegAssignNode x (LIROperExpr (LIRRegOperand r))) f
+                                   = CopyFactMap $ skipForbidden
       where
-        mkGlobalsTop = M.mapWithKey globalToTop f
-        globalToTop (CSEKey a op b) (CSEReg (SREG s)) = if local a && local b
-                                                          then CSEReg (SREG s)
-                                                          else CSETop
-        globalToTop _ _ = CSETop
-        local (LIRRegOperand (SREG {})) = True
-        local (LIRIntOperand {}) = True
-        local _ = False
+        forbidden = []
+        skipForbidden = if x `notElem` forbidden
+                          then M.insert x (CopyReg r) (varChanged f x)
+                          else varChanged f x
+    ft (LIRRegAssignNode x _) f    = CopyFactMap $ varChanged f x                                       -- x = _, no change
+    ft (LIRRegOffAssignNode {}) f  = CopyFactMap $ f                                       -- write to a memory location indexed by the registers
+    ft (LIRStoreNode {}) f         = CopyFactMap $ f
+    ft (LIRLoadNode x _) f         = CopyFactMap $ varChanged f x                          -- remove all records containing x
+    ft (LIRCallNode proc ret) f    = mkFactBase copyLattice [(proc, CopyFactMap f), (ret, CopyFactMap f)] -- remove all local vars (i.e. only keep global vars) when jumping to the function
 
-    ft (LIRCalloutNode {}) f       = CSEFactMap f
-    ft (LIREnterNode {}) f         = CSEFactMap f
-    ft (LIRRetNode successors _) f = mkFactBase cseLattice [] -- (map (\x -> (x, f)) successors)
-    ft (LIRIfNode expr fl tl) f    = mkFactBase cseLattice [(fl, CSEFactMap f), (tl, CSEFactMap f)]  -- if expr the jmp tl else jmp fl
-    ft (LIRJumpLabelNode l) f      = mkFactBase cseLattice [(l, CSEFactMap f)]        -- jmp l --> associate f with l 
+    ft (LIRCalloutNode {}) f       = CopyFactMap mkRAXTop
+      where
+        mkRAXTop = M.mapWithKey f' f
+        f' LRAX _ = CopyTop
+        f' _ v    = v
 
--- rewrite: define constant folding rewrites
-cseRewrite :: FuelMonad m => FwdRewrite m LIRNode CSEFact
-cseRewrite  = shallowFwdRw simp
-  where
-    simp :: forall m e x . (ShapeLifter e x, FuelMonad m) => 
-            LIRNode e x -> CSEFact -> m (Maybe (Graph LIRNode e x))
-    simp node CSEBot = error "cse: called on CSEBot; should not happen!"
-    -- simp node (CSEFactMap f) = return $ liftM nodeToG $ s_node (trace ("REWRITING NODE [" ++ show node ++ "] ~~~~~~~~~WITH FACTS~~~~~~~~~~~~ {\n" ++ unlines(map show $ M.toList f) ++ "}") node)
-    simp node (CSEFactMap f) = return $ liftM nodeToG $ s_node node
-  
+    ft (LIREnterNode {}) f         = CopyFactMap f
+    ft (LIRRetNode successors _) f = mkFactBase copyLattice [] -- (map (\x -> (x, f)) successors)
+    ft (LIRIfNode expr fl tl) f    = mkFactBase copyLattice [(tl, CopyFactMap f), (fl, CopyFactMap f)]  -- if expr the jmp tl else jmp fl
+    ft (LIRJumpLabelNode l) f      = mkFactBase copyLattice [(l, CopyFactMap f)]        -- jmp l --> associate f with l 
+
+copyRewrite :: forall m. FuelMonad m => FwdRewrite m LIRNode CopyFact
+copyRewrite = mkFRewrite cp
+ where
+    cp :: forall m e x . (ShapeLifter e x, FuelMonad m) =>
+            LIRNode e x -> CopyFact -> m (Maybe (Graph LIRNode e x))
+    cp node CopyBot = error "cp: called on CopyTop; should not happen!"
+    cp node (CopyFactMap f) = return $ liftM nodeToG $ s_node node
       where
         s_node :: LIRNode e x -> Maybe (LIRNode e x)
-        -- x = lit op lit     
-        s_node (LIRRegAssignNode reg (LIRBinExpr o1 binop o2)) = 
-          case M.lookup (CSEKey o1 binop o2) f of
-            -- Just (CSEReg result)  -> trace ("lookup found! rewrote to " ++ show (LIRRegAssignNode reg $ LIROperExpr $ LIRRegOperand result)) (Just $ LIRRegAssignNode reg $ LIROperExpr $ LIRRegOperand result)
-            Just (CSEReg result)  -> Just $ LIRRegAssignNode reg $ LIROperExpr $ LIRRegOperand result
-            -- Just CSETop           -> trace "lookup failed!" Nothing
-            Just CSETop           -> Nothing
-            Nothing -> Nothing
+        s_node (LIRRegAssignNode x e)          = Just $ LIRRegAssignNode x (rewriteExpr e)
+        s_node (LIRRegOffAssignNode r1 r2 s o) = Just $ LIRRegOffAssignNode (rewriteReg r1) (rewriteReg r2) s (rewriteOperand o)
+        s_node (LIRStoreNode m o)              = Just $ LIRStoreNode (rewriteMemAddr m) (rewriteOperand o)
+        s_node (LIRLoadNode r m)               = Just $ LIRLoadNode r (rewriteMemAddr m)
+        s_node (LIRIfNode rel l l2)            = Just $ LIRIfNode (rewriteRelExpr rel) l l2
+        s_node _                               = Nothing
 
-        -- others do not need CSE
-        s_node _ = Nothing
--- define fwd pass
--- csePass = FuelMonad m => FwdPass m 
-csePass  = FwdPass 
-  { fp_lattice = cseLattice
-  , fp_transfer = cseTransfer
-  , fp_rewrite = cseRewrite
+        rewriteExpr (LIRBinExpr o1 a o2) = LIRBinExpr (rewriteOperand o1) a (rewriteOperand o2)
+        rewriteExpr (LIRUnExpr a o)      = LIRUnExpr a (rewriteOperand o)
+        rewriteExpr (LIROperExpr o)      = LIROperExpr (rewriteOperand o)
+
+        rewriteMemAddr (LIRMemAddr r1 (Just r2) o s) = LIRMemAddr (rewriteReg r1) (Just (rewriteReg r2)) o s
+        rewriteMemAddr (LIRMemAddr r1 Nothing o s)   = LIRMemAddr (rewriteReg r1) Nothing o s
+
+        rewriteRelExpr (LIRBinRelExpr o1 a o2) = LIRBinRelExpr (rewriteOperand o1) a (rewriteOperand o2)
+        rewriteRelExpr (LIRNotRelExpr o)       = LIRNotRelExpr (rewriteOperand o)
+        rewriteRelExpr (LIROperRelExpr o)      = LIROperRelExpr (rewriteOperand o)
+
+        rewriteOperand (LIRRegOperand r) = LIRRegOperand (rewriteReg r)
+        rewriteOperand a = a
+
+        rewriteReg reg =
+          case M.lookup reg f of
+            Just (CopyReg r) -> trace ("rewriting register " ++ pp reg ++ " with copied " ++ pp r) r
+            Just CopyTop     -> reg
+            Nothing ->  reg
+
+copyPass  = FwdPass 
+  { fp_lattice = copyLattice
+  , fp_transfer = copyTransfer
+  , fp_rewrite = copyRewrite `thenFwdRw` simplify
   }

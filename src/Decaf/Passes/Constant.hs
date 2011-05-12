@@ -116,28 +116,45 @@ constRewrite = mkFRewrite cp
       where
         s_node :: LIRNode e x -> Maybe (LIRNode e x)
         -- x = lit op lit     
-        s_node (LIRRegAssignNode x e) = Just $ LIRRegAssignNode x (rewriteExpr e)
-        s_node (LIRRegOffAssignNode a b c o) = Just $ LIRRegOffAssignNode a b c (rewriteOperand o)
-        s_node (LIRStoreNode a o) = Just $ LIRStoreNode a (rewriteOperand o)
-        s_node (LIRIfNode e a b) = Just $ LIRIfNode (rewriteRelExpr e) a b
+        s_node (LIRRegAssignNode x e)          = Just $ LIRRegAssignNode x (rewriteExpr e)
+        {-s_node (LIRRegOffAssignNode r1 r2 s o) = Just $ LIRRegOffAssignNode r1 r2' s (rewriteOperand o)
+          where
+            () = caserewriteReg r1
+            (cf2, r2') = re-}
+        s_node (LIRStoreNode m o)              = Just $ LIRStoreNode (rewriteMemAddr m) (rewriteOperand o)
+        s_node (LIRLoadNode r m)               = Just $ LIRLoadNode r (rewriteMemAddr m)
+        s_node (LIRIfNode e a b)               = Just $ LIRIfNode (rewriteRelExpr e) a b
         s_node _ = Nothing
 
         rewriteExpr (LIRBinExpr o1 a o2) = LIRBinExpr (rewriteOperand o1) a (rewriteOperand o2)
         rewriteExpr (LIRUnExpr a o)      = LIRUnExpr a (rewriteOperand o)
         rewriteExpr (LIROperExpr o)      = LIROperExpr (rewriteOperand o)
 
+        rewriteMemAddr (LIRMemAddr r1 (Just r2) o s) = LIRMemAddr r1 r2' o' s
+          where
+            (o', r2') = (case rewriteReg r2 of
+                          Left i  -> (o + i, Nothing) -- combined offset
+                          Right r -> (o,     Just r))  -- single offset
+        rewriteMemAddr a = a
+
+            
+        -- rewriteMemAddr f (LIRMemAddr r1 Nothing o s)   = LIRMemAddr (rewriteReg r1) Nothing o s
+        -- ^ ignore this case for now, as we simply can't get to this scenario
+
         rewriteRelExpr (LIRBinRelExpr o1 a o2) = LIRBinRelExpr (rewriteOperand o1) a (rewriteOperand o2)
-        rewriteRelExpr (LIRNotRelExpr o)     = LIRNotRelExpr (rewriteOperand o)
+        rewriteRelExpr (LIRNotRelExpr o)       = LIRNotRelExpr (rewriteOperand o)
         rewriteRelExpr (LIROperRelExpr o)      = LIROperRelExpr (rewriteOperand o)
 
-        rewriteOperand (LIRRegOperand r) = constLook r
+        rewriteOperand (LIRRegOperand r) = case rewriteReg r of
+                                              Left i  -> LIRIntOperand i
+                                              Right r -> LIRRegOperand r
         rewriteOperand a = a
 
-        constLook r =
+        rewriteReg r =
           case M.lookup r f of
-            Just (ConstLit i) -> trace ("rewriting register " ++ pp r ++ " with constant " ++ pp i) (LIRIntOperand i)
-            Just ConstTop       -> LIRRegOperand r
-            Nothing -> LIRRegOperand r
+            Just (ConstLit i) -> trace ("rewriting register " ++ pp r ++ " with constant " ++ pp i) (Left i)
+            Just ConstTop       -> Right r
+            Nothing ->  Right r
 
 constPass  = FwdPass 
   { fp_lattice = constLattice

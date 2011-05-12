@@ -180,9 +180,20 @@ optimize :: LIRGraph C C -> IO (LIRGraph C C, DominatorTree, DominanceFrontiers)
 optimize g = do
     let g' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (cseOpt g)
         g'' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (constOpt g')
-        g''' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (liveOpt g'')
+        g''' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (copyOpt g'')
+        g'''' = runSimpleUniqueMonad $ runWithFuel infiniteFuel (liveOpt g'')
         (df, dt) = runSimpleUniqueMonad $ runWithFuel infiniteFuel (ssa g)
-    return (g''', dt, df)
+    return (g'''', dt, df)
+
+
+copyOpt :: LIRGraph C C -> M (LIRGraph C C)
+copyOpt g = do
+    let entry = LIRLabel "main" (-1)
+    (g', facts, _) <- analyzeAndRewriteFwd copyPass
+                                            (JustC [entry])
+                                            g
+                                            (mapSingleton entry copyTop)
+    return g'
 
 constOpt :: LIRGraph C C -> M (LIRGraph C C)
 constOpt g = do

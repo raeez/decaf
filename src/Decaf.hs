@@ -20,7 +20,7 @@ module Decaf
     , module Decaf.IR.SymbolTable
     , module Decaf.Util.Report
     , module Decaf.Passes.CSE
-    -- -, module Decaf.Passes.Copy
+    , module Decaf.Passes.Copy
     , module Decaf.Passes.Constant
     , module Decaf.Passes.Live
     , module Decaf.Passes.Variable
@@ -48,7 +48,7 @@ import Decaf.Assembler
 import Decaf.LIRNodes
 import Decaf.SSANodes
 import Decaf.Passes.CSE
--- import Decaf.Passes.Copy
+import Decaf.Passes.Copy
 import Decaf.Passes.Constant
 import Decaf.Passes.Live
 import Decaf.Passes.Variable
