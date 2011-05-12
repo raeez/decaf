@@ -26,6 +26,7 @@ module Decaf
     , module Decaf.Passes.Live
     , module Decaf.Passes.Variable
     , module Decaf.Passes.Dominator
+    , module Decaf.Passes.Peephole
     ) where
 
 import Decaf.Util.Report
@@ -55,3 +56,4 @@ import Decaf.Passes.CodeMotion
 import Decaf.Passes.Live
 import Decaf.Passes.Variable
 import Decaf.Passes.Dominator
+import Decaf.Passes.Peephole

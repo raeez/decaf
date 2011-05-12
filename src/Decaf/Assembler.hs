@@ -14,6 +14,7 @@ import Decaf.IR.SymbolTable
 import Decaf.IR.LIR
 import Decaf.IR.AST
 import Decaf.IR.ASM
+import Decaf.Passes.Peephole
 
 ------------------- MONAD -----------------------------
 data AssemblerState = AssemblerState
@@ -157,7 +158,7 @@ programAssembler st prog =
        text <- getAsmList
        -- generate externs
        externs <- getExterns
-       return (ASMProgram defaultFlags (union defaultExterns externs) (dataSection, ASMTextSection text))
+       return (ASMProgram defaultFlags (union defaultExterns externs) [dataSection, ASMTextSection text])
 
 ------------------- DATA --------------------------------
 

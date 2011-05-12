@@ -157,7 +157,10 @@ compile chosen source filename =
          withRegs = {-trace ("prog: " ++ show asmprogram) $ -} colorRegisters asmprogram
          -- ^ color registers and rewrite
  
-         asmout = nasm withRegs
+         withPH = runPeepholeOptimizations asmprogram
+         -- ^ do peephole optimizations
+
+         asmout = nasm withPH -- withRegs
          -- ^ translate to NASM assembler syntax
 
      if graph chosen

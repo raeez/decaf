@@ -137,7 +137,7 @@ graphToLIRProgram procLabels (GMany _ labels _)
     searchGraph :: (Set.Set Label) -> [Label] -> (Set.Set Label, [LIRInst])
     searchGraph s [] = (s, []) -- end of the road
     searchGraph s (l:ls) = if l `Set.member` s      -- seen before
-                            then searchGraph s ls   -- so skip this node
+                            then searchGraph s ls   -- so skip this node, and go on searching
                             else case mapLookup l labels of     -- else look for this node
                                     Nothing -> searchGraph s ls -- can't find, go on searching
                                     Just block ->               -- ah, but found this node!
