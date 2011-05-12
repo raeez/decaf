@@ -128,16 +128,17 @@ graphToLIRProgram procLabels g@(GMany _ labels _)
                                   in (s', uns ++ [uns'])) (Set.empty, []) functions
     searchGraph :: (Set.Set Label) -> [Label] -> (Set.Set Label, [LIRInst])
     searchGraph s [] = (s, [])
-    searchGraph s (l:ls) = if l `Set.member` s
-                            then searchGraph s ls
-                            else  case mapLookup l labels of
-                                    Nothing -> searchGraph s ls
-                                    Just block ->
-                                        let b = blockToLIR block
-                                            s' = Set.insert l s
-                                            safeSuccessors = filter (\l -> l `notElem` functions) (successors block)
-                                            (s'', b'') = searchGraph s' (ls ++ safeSuccessors)
-                                        in (s'', b ++ b'')
+    searchGraph s (l:ls) = if l `Set.member` s      -- seen before
+                            then searchGraph s ls   -- so skip this node
+                            else case mapLookup l labels of     -- look for this node
+                                    Nothing -> searchGraph s ls -- can't find, continue searching
+                                    Just block ->               -- found this node
+                                        let b = blockToLIR block  -- convert to LIR
+                                            s' = Set.insert l s   -- mark as seen
+                                            inMethodSuccessors = filter (\l -> l `notElem` functions) (successors block)
+                                            -- ^ only search inside the current method
+                                            (s'', b'') = searchGraph s' (ls ++ inMethodSuccessors) -- the future
+                                        in (s'', b ++ b'') -- combine the past with the future
 
 
 graphToLIR :: Graph' Block LIRNode e x -> [LIRInst]
