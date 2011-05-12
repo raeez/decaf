@@ -57,11 +57,17 @@ getIvar :: LIRTranslator (Maybe LIRReg)
 getIvar = LIRTranslator (\ns@(Namespace{ ivarStack = s }) -> case s of
                                                               [] -> (Nothing, ns)
                                                               (x:xs) -> (Just $ fst x, ns))
-motionCode :: [CFGInst] -> LIRTranslator ()
-motionCode insts = LIRTranslator (\ns@(Namespace{ ivarStack = s }) ->
+motionCode :: [CFGInst] -> LIRTranslator [CFGInst]
+motionCode insts = do
+    iv <- getIvar
+    return (case iv of
+              Just r -> insts   -- for now, return as-is
+              Nothing -> insts) -- return as-is
+    {-LIRTranslator (\ns@(Namespace{ ivarStack = s }) ->
+    do
     case s of
         [] -> error "attempted code motion, but not currently in a loop!"
-        ((ivar, insts'):xs) -> ((), ns{ ivarStack = (ivar, insts' ++ insts):xs}))
+        ((ivar, insts'):xs) -> ((), ns{ ivarStack = (ivar, insts' ++ insts):xs}))-}
 
 -- | also pops ivar and instructions off the stack
 getMotionedCode :: LIRTranslator [CFGInst]
@@ -155,11 +161,13 @@ translateStm st (DecafAssignStm loc op expr _) =
        (instructions2, operand) <- translateExpr st expr
        (instructions3, operand2) <- expr' reg operand
        let arrayStore = genArrayStore instructions1 loc
-       return (instructions1
+       final <- motionCode
+             (instructions1
            ++ instructions2
            ++ instructions3
            ++ [CFGLIRInst $ LIRRegAssignInst reg (LIROperExpr operand2)]
            ++ arrayStore)
+       return final
   where
     genArrayStore [] _ = []
     genArrayStore instructions (DecafArrLoc{arrLocIdent=id})
@@ -185,7 +193,8 @@ translateStm st (DecafAssignStm loc op expr _) =
 -- | Given a SymbolTree, Translate a single DecafMethodStm into [CFGInst]
 translateStm st (DecafMethodStm mc _) =
     do (instructions, operand) <- translateMethodCall st mc
-       return instructions
+       final <- motionCode instructions
+       return final
 
 translateStm st (DecafIfStm expr block melse _) = 
   do (instructions, rexpr@(LIROperRelExpr relexpr)) <- translateRelExpr st expr
@@ -194,7 +203,8 @@ translateStm st (DecafIfStm expr block melse _) =
                     Just b -> translateBlock st b
                     Nothing -> return []
      newif <- makeIf relexpr elseblock trueblock
-     return (instructions ++ newif)
+     final <- motionCode instructions
+     return (final ++ newif)
 
 translateStm st (DecafForStm ident expr expr' block _) =
     do  falselabel <- incLabel >>= return.falseLabel -- false
@@ -231,11 +241,12 @@ translateStm st (DecafForStm ident expr expr' block _) =
 translateStm st (DecafRetStm (Just expr) _) =
     do (instructions, operand) <- translateExpr st expr
        meth <- getMethod
+       final <- motionCode instructions
        (case operand of
-          LIRIntOperand int -> return (instructions
+          LIRIntOperand int -> return (final
                                    ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr $ LIRIntOperand int) ]
                                    ++ [CFGLIRInst $ LIRRetInst [] meth])
-          LIRRegOperand reg -> return (instructions
+          LIRRegOperand reg -> return (final
                                    ++ [CFGLIRInst $ LIRRegAssignInst LRAX (LIROperExpr $ LIRRegOperand reg)]
                                    ++ [CFGLIRInst $ LIRRetInst [] meth]))
 
