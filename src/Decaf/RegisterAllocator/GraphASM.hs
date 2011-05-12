@@ -121,6 +121,8 @@ asmAddPrime n =
 asmDropPrime :: ASMNode' e x -> ASMNode
 asmDropPrime n = 
   case n of
+    (ASMLabelNode' i o  ) -> (ASMLabelNode i o)
+
     (ASMAddNode' i op1 op2) -> (ASMAddNode i op1 op2)
     (ASMSubNode' i op1 op2) -> (ASMSubNode i op1 op2)
     (ASMMovNode' i op1 op2) -> (ASMMovNode i op1 op2)
@@ -138,6 +140,8 @@ asmDropPrime n =
     (ASMMulNode' i op) -> (ASMMulNode i op)
     (ASMDivNode' i op) -> (ASMDivNode i op)
     (ASMModNode' i op) -> (ASMModNode i op)
+    (ASMEnterNode' i o  ) -> (ASMEnterNode i o)
+
     (ASMJmpNode' i o  ) -> (ASMJmpNode i o)
     (ASMJeNode'  i o  ) -> (ASMJeNode i o)
     (ASMJneNode' i o  ) -> (ASMJneNode i o)
@@ -145,9 +149,7 @@ asmDropPrime n =
     (ASMJgeNode' i o  ) -> (ASMJgeNode i o)
     (ASMJlNode'  i o  ) -> (ASMJlNode i o)
     (ASMJleNode' i o  ) -> (ASMJleNode i o)
-    (ASMLabelNode' i o  ) -> (ASMLabelNode i o)
     (ASMCallNode' i o  ) -> (ASMCallNode i o)
-    (ASMEnterNode' i o  ) -> (ASMEnterNode i o)
     (ASMRetNode' i  ) -> (ASMRetNode i)
 
 
@@ -285,6 +287,8 @@ makeBlocks insts = startBlock [] insts
         ASMNegInst  op -> buildBlock bs (b `BHead` (ASMNegNode' i op)) is
         ASMNotInst  op -> buildBlock bs (b `BHead` (ASMNotNode' i op)) is
 
+        ASMEnterInst int -> buildBlock bs (b `BHead` (ASMEnterNode' i int)) is
+
         ASMJmpInst lab -> startBlock ((b `BClosed` (BLast $ ASMJmpNode' i lab)) : bs) is
         ASMJeInst  lab -> startBlock ((b `BClosed` (BLast $ ASMJeNode'  i lab)) : bs) is
         ASMJneInst lab -> startBlock ((b `BClosed` (BLast $ ASMJneNode' i lab)) : bs) is
@@ -292,6 +296,8 @@ makeBlocks insts = startBlock [] insts
         ASMJgeInst lab -> startBlock ((b `BClosed` (BLast $ ASMJgeNode' i lab)) : bs) is
         ASMJlInst  lab -> startBlock ((b `BClosed` (BLast $ ASMJlNode'  i lab)) : bs) is
         ASMJleInst lab -> startBlock ((b `BClosed` (BLast $ ASMJleNode' i lab)) : bs) is
+        ASMCallInst sym -> startBlock ((b `BClosed` (BLast $ ASMCallNode' i sym)) : bs) is
+        ASMRetInst     -> startBlock ((b `BClosed` (BLast $ ASMRetNode' i)) : bs) is 
 
 -- graphToLIR :: Graph' Block Node e x -> [LIRInst]
 -- graphToLIR (GNil) =  []

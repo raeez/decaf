@@ -11,6 +11,7 @@ module Decaf.RegisterAllocator.IGraph
   , Color(..)
   , getLabel
   , labelWithKey
+  , keys
   --, manipulation  functions
   )
 where

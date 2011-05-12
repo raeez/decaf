@@ -31,6 +31,10 @@ import Decaf.IR.ASM
 import Loligoptl
 import Decaf.LIRNodes
 
+import Data.Int
+import Data.Maybe
+
+
 import qualified Data.Set as S
 
 
@@ -137,15 +141,69 @@ makeIGraph g us =
 
 
     -- join function for dataflow fold
-    igraphjoin :: ASMNode' e x -> Fact x VarFact -> (IGraph, CGraph) -> (IGraph, CGraph)
-    igraphjoin n livevars (igraph, cgraph) = (ijoin igraph, cjoin cgraph)
+    igraphjoin :: ASMNode' e x ->  Fact x VarFact -> (IGraph, CGraph) -> (IGraph, CGraph)
+    igraphjoin (ASMJmpNode'   i _ ) = \f -> id
+    igraphjoin (ASMJeNode'    i _ ) = \f -> id
+    igraphjoin (ASMJneNode'   i _ ) = \f -> id
+    igraphjoin (ASMJgNode'    i _ ) = \f -> id
+    igraphjoin (ASMJgeNode'   i _ ) = \f -> id
+    igraphjoin (ASMJlNode'    i _ ) = \f -> id
+    igraphjoin (ASMJleNode'   i _ ) = \f -> id
+    igraphjoin (ASMCallNode'  i _ ) = \f -> id
+    igraphjoin (ASMRetNode'   i   ) = \f -> id
+
+    igraphjoin n@(ASMLabelNode' i _  ) = igraphjoin' n
+
+    igraphjoin n@(ASMAddNode'   i _ _) = igraphjoin' n
+    igraphjoin n@(ASMSubNode'   i _ _) = igraphjoin' n
+    igraphjoin n@(ASMMovNode'   i _ _) = igraphjoin' n
+    igraphjoin n@(ASMCmpNode'   i _ _) = igraphjoin' n
+    igraphjoin n@(ASMAndNode'   i _ _) = igraphjoin' n
+    igraphjoin n@(ASMOrNode'    i _ _) = igraphjoin' n
+    igraphjoin n@(ASMXorNode'   i _ _) = igraphjoin' n
+    igraphjoin n@(ASMShlNode'   i _ _) = igraphjoin' n
+    igraphjoin n@(ASMShrNode'   i _ _) = igraphjoin' n
+    igraphjoin n@(ASMShraNode'  i _ _) = igraphjoin' n
+    igraphjoin n@(ASMMulNode'   i _  ) = igraphjoin' n
+    igraphjoin n@(ASMDivNode'   i _  ) = igraphjoin' n
+    igraphjoin n@(ASMModNode'   i _  ) = igraphjoin' n
+    igraphjoin n@(ASMPushNode'  i _  ) = igraphjoin' n
+    igraphjoin n@(ASMPopNode'   i _  ) = igraphjoin' n
+    igraphjoin n@(ASMNegNode'   i _  ) = igraphjoin' n
+    igraphjoin n@(ASMNotNode'   i _  ) = igraphjoin' n
+    igraphjoin n@(ASMEnterNode' i _  ) = igraphjoin' n
+
+                                      
+    igraphjoin' :: ASMNode' e O -> VarFact -> (IGraph, CGraph) -> (IGraph, CGraph)
+    igraphjoin' n livevars (igraph, cgraph) = (ijoin igraph, cjoin cgraph)
       where
-        addConflicts (ASMRegOperand r _) livs = addConflicts' r livs
-        addConflicts _ _ = igraph
-        addConflicts' :: ASMReg -> S.Set Key -> IGraph
-        addConflicts' r livs =
+{-        livs = 
+          case
+    (ASMLabelNode' i o  ) -> (ASMLabelNode i o)
+    (ASMAddNode' i op1 op2) -> (ASMAddNode i op1 op2)
+    (ASMSubNode' i op1 op2) -> (ASMSubNode i op1 op2)
+    (ASMMovNode' i op1 op2) -> (ASMMovNode i op1 op2)
+    (ASMCmpNode' i op1 op2) -> (ASMCmpNode i op1 op2)
+    (ASMAndNode' i op1 op2) -> (ASMAndNode i op1 op2)
+    (ASMOrNode'  i op1 op2) -> (ASMOrNode i op1 op2)
+    (ASMXorNode' i op1 op2) -> (ASMXorNode i op1 op2)
+    (ASMShlNode' i op1 op2) -> (ASMShlNode i op1 op2)
+    (ASMShrNode' i op1 op2) -> (ASMShrNode i op1 op2)
+    (ASMShraNode' i op1 op2) -> (ASMShraNode i op1 op2)
+    (ASMPushNode' i op) -> (ASMPushNode i op)
+    (ASMPopNode'  i op) -> (ASMPopNode i op)
+    (ASMNegNode'  i op) -> (ASMNegNode i op)
+    (ASMNotNode'  i op) -> (ASMNotNode i op)
+    (ASMMulNode' i op) -> (ASMMulNode i op)
+    (ASMDivNode' i op) -> (ASMDivNode i op)
+    (ASMModNode' i op) -> (ASMModNode i op)
+-}
+        addConflicts (ASMRegOperand r _) = addConflicts' r igraph
+        addConflicts _ = igraph
+        addConflicts' :: ASMReg -> IGraph -> IGraph
+        addConflicts' r igraph =
           foldr (uncurry addEdge) igraph 
-                (map (pair (lift (r, asmDropPrime n) us)) livs)
+                (map (pair (lift (r, asmDropPrime n) us)) $ map ((flip lift) us) $ S.toList livevars)
                           
                 -- ^  pair the current (r,n) with each live var; add edges
 
@@ -165,9 +223,9 @@ makeIGraph g us =
             (ASMShlNode i op1 op2) -> addConflicts op1
             (ASMShrNode i op1 op2) -> addConflicts op1
             (ASMShraNode i op1 op2) -> addConflicts op1
-            (ASMMulNode {}) -> addConflicts' RAX $ addConflicts' RDX  
-            (ASMDivNode {}) -> addConflicts' RAX $ addConflicts' RDX  
-            (ASMModNode {}) -> addConflicts' RAX $ addConflicts' RDX  
+            (ASMMulNode {}) -> addConflicts' RAX $ addConflicts' RDX igraph
+            (ASMDivNode {}) -> addConflicts' RAX $ addConflicts' RDX igraph
+            (ASMModNode {}) -> addConflicts' RAX $ addConflicts' RDX igraph
 
             (ASMPushNode i op) -> igraph
             (ASMPopNode  i op) -> addConflicts op
@@ -201,7 +259,8 @@ makeIGraph g us =
           | (ASMMovNode i op1 op2) <- asmDropPrime n
           , (ASMRegOperand r1 _)   <- op1
           , (ASMRegOperand r2 _)   <- op2
-          = addEdge (lift (r1,n)) (lift (r2,n)) cgraph -- get the parents in the web
+          = let n' = asmDropPrime n in -- lol
+            addEdge (lift (r1,n') us) (lift (r2,n') us) cgraph -- get the parents in the web
 
           | otherwise = cgraph
 {-        op = 
@@ -248,6 +307,7 @@ makeIGraph g us =
   -}          
 -- UTILITY
 -- get parent in web; necessary for accessing IGraph
+lift :: Key -> Web -> Key
 lift key us = getParent key us
 pair x y = (x, y)
 maxL = foldl max 0
@@ -257,7 +317,7 @@ type SpillNo = Int
 data SpillState = 
   SpillState
   { progL :: [(ASMInst, Int)]
-  , toSpill :: [(ASMInst)]
+  , toSpill :: [(ASMInst, Maybe Int)]
   , lineCount :: Int 
   }
 mkSpillState i = SpillState [] [] i
@@ -282,17 +342,21 @@ colorRegisters prog@(ASMProgram pfls pxts (dsec, tsec)) = loop 0 $ numberListASM
       where 
         n = foldl (\a b -> max a (snd b)) 0 pr -- largest index used
         dospill :: SpillState -> [(ASMInst, Int)] -> [(ASMInst, Int)]
-        dospill (SpillState p (x:xs) c) more = 
-          dospill (SpillState (p++[(x,c)]) xs (c+1)) more
+        dospill (SpillState p ((x,mc):xs) c) more = 
+          case mc of
+            Just l -> dospill (SpillState (p++[(x,l)]) xs c) more
+            Nothing -> dospill (SpillState (p++[(x,c)]) xs (c+1)) more
         dospill (SpillState p [] c) ((inst, line):xs) = 
           let slines = map (getASMLine . snd . snd) spills
               hits = filter ((== line) . fst) $ zip slines spills -- spill keys on this line
               newlist = 
                 case hits of
-                  hits | length hits == 0 -> [(inst,line)]
+                  hits | length hits == 0 -> [(inst,Just line)]
                        | otherwise -> 
-                         let loads = map (doLoad . snd) hits -- [int -> (
-                             stores = map (doStore . snd) hits 
+                         let loads :: [(ASMInst, Maybe Int)]
+                             loads = concatMap (doLoad . snd) hits --
+                             stores :: [(ASMInst, Maybe Int)]
+                             stores = concatMap (doStore . snd) hits 
                              -- is reg involved in current inst?
                              doLoad (off, (reg,node)) =
                                if pairHas reg (getASMSource inst) then load reg off else []
@@ -309,9 +373,7 @@ colorRegisters prog@(ASMProgram pfls pxts (dsec, tsec)) = loop 0 $ numberListASM
                                  (Nothing, Just r2) -> reg == r2
                                  (Nothing, Nothing) -> False
 
-
-
-                         in loads ++ [(inst, line)] ++ stores
+                         in loads ++ [(inst, Just line)] ++ stores
 
           in 
             dospill (SpillState p newlist c) xs
@@ -324,22 +386,22 @@ colorRegisters prog@(ASMProgram pfls pxts (dsec, tsec)) = loop 0 $ numberListASM
     registers numspills g pr = ASMProgram pfls pxts $
                                (dsec, ASMTextSection $ castASMList $ map color pr)
           where
-            keys = keys g -- all (reg,node) pairs
+            keys' = keys g -- all (reg,node) pairs
 
             sw :: ASMOperand -> Int -> ASMOperand
             sw (ASMRegOperand reg ehh) i = 
               ASMRegOperand 
-              (let things = zip3 (map (getASMLine . snd) keys) -- (line#,reg,key)
-                                 (map fst keys) 
-                                 keys
+              (let things = zip3 (map (getASMLine . snd) keys') -- (line#,reg,key)
+                                 (map fst keys') 
+                                 keys'
                    things' = filter (\(l, r, _) -> (l == i) && (r == reg)) things
                in case things' of
                     collist | length collist == 0 -> 
-                              error "allocator produced no color for SREG " ++ show (reg,i)
+                              error ("allocator produced no color for SREG " ++ show (reg,i))
                             | length collist > 1 -> 
-                              error "allocator produced multiple colors for SREG " ++ show (reg,i)
+                              error ("allocator produced multiple colors for SREG " ++ show (reg,i))
                             | otherwise ->
-                              case getLabel (third (head collist)) g of
+                              case fromJust $ getLabel (third (head collist)) g of
                                 Spill -> error "spill detected in final coloring routine"
                                 Reg reg' -> reg')
                ehh
@@ -372,7 +434,7 @@ colorRegisters prog@(ASMProgram pfls pxts (dsec, tsec)) = loop 0 $ numberListASM
                 (ASMNegInst  op1) -> ASMNegInst  (sw op1 i)
                 (ASMNotInst  op1) -> ASMNotInst  (sw op1 i)
 
-                (ASMEnterInst _) -> ASMEnterInst numspills -- kind of bad
+                (ASMEnterInst _) -> ASMEnterInst (fromIntegral numspills :: Int64) -- kind of bad
 
                 other -> other -- no operand, don't change
             
@@ -380,7 +442,9 @@ colorRegisters prog@(ASMProgram pfls pxts (dsec, tsec)) = loop 0 $ numberListASM
 
 numberListASM :: ASMProgram -> [(ASMInst, Int)]
 numberListASM prog = 
-  let instructions = snd (progSections prog) -- text section
+  let instructions = case snd (progSections prog) of -- text section
+                       (ASMTextSection insts) -> insts
+                       otherwise -> error "text and data sections out of order; see Allocator.hs"
   in zip (castASMToList instructions) [1..]
 
 
