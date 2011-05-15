@@ -44,9 +44,6 @@ mkLabelGraph things =
 --             (M.fromList $ zip [1..n] $ replicate n $ Nothing)
              (array ((1,1),(n,n)) [((i,j), False) | i <- [1..n], j <- [1..n]])
   where 
-    fromList i [] = M.empty
-    fromList i (x:xs) = M.insert x i (fromList (i+1) xs)
-
     n = length things
 
 index :: (Ord a) => a -> M.Map a Int -> Int
@@ -101,7 +98,7 @@ label a lab (LabelGraph map labels array) =
 labelWithKey :: (k -> Maybe dat) -> (LabelGraph k dat) -> (LabelGraph k dat)
 labelWithKey f (LabelGraph m labels array) = 
   let kas = map (\(x,y) -> (y,f x)) (M.assocs m) -- apply map to k's
-  in LabelGraph m (foldr update labels kas)  array
+  in LabelGraph m (foldr update labels kas) array
     where
       update (i, l) labs = case l of
                            Just l' -> M.insert i l' labs
@@ -183,7 +180,8 @@ colorGraph colors (g, costs) = help g []
         Just (n1,n2) -> help (merge n1 n2 g) stack
         Nothing      ->  -- try to kill small valence nodes
           let keys = M.keys m
-              goodnodes = filter ((< n) . ((flip numNeighbors) g)) keys in
+              goodnodes = filter ((> 0) . S.size . (\x -> colors `S.difference` x) .
+                                  ((flip neighborLabels) g)) keys in
           if length goodnodes > 0 then
             help (deletes goodnodes g) (goodnodes ++ stack)
           else -- otherwise (potentially) spill something

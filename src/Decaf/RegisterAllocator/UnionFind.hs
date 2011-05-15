@@ -1,10 +1,14 @@
 module Decaf.RegisterAllocator.UnionFind
   ( UnionSet
+  , Head(..)
   , emptyUnion
+  , toList
+  , find
   , join
   , getParent
   , listPartitions
   , assocFind
+  , insert
   )
 where
 --import Data.Maybe
@@ -18,7 +22,17 @@ fromJust2 (Nothing) = error "from just error union find 2"
 -- The list !! i = positive, then 
 data  UnionSet a = UnionSet [(a, Int)] [Int] 
                    deriving Show
+
+data Head a = Head a
+            deriving (Show, Eq, Ord)
+
+instance Functor Head where
+  fmap f (Head a) = Head (f a)
+
 emptyUnion = UnionSet [] []
+
+toList :: UnionSet a -> [((a,Int),Int)]
+toList (UnionSet m l) = zip m l
 
 {-instance Show (UnionSet a) where
   show (UnionSet m l) = show l
@@ -97,18 +111,19 @@ assocFind key (UnionSet m l) = (key, fromJust2 $ lookup key (map fst m))
 
 
 -- gets parent node
-getParent :: (Eq a, Show a) => a -> UnionSet a -> a
+getParent :: (Eq a, Show a) => a -> UnionSet a -> Head a
 getParent a us@(UnionSet m l) = 
   let (p, _) = case find' a us of 
                  Just x -> x
                  Nothing -> error ("find error getParent" ++ show a ++ "\n"
                                    ++ (unlines $ map (show . fst) m))
-  in fst $ m !! p
+  in Head $ fst $ m !! p
 --lists the parent of each web
-listPartitions :: (Show a, Eq a) => UnionSet a -> [a]
+listPartitions :: (Show a, Eq a) => UnionSet a -> [Head a]
 listPartitions us@(UnionSet m _) = foldl appendnew [] m
   where
---    appendnew :: [a] -> (a,Int) -> [a]
-    appendnew seen (a,_) = if (getParent a us) `elem` seen then seen else a:seen
+    appendnew seen (a,_) = 
+      let p = getParent a us in 
+      if p `elem` seen then seen else p:seen
 
       

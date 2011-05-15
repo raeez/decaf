@@ -168,7 +168,7 @@ compile chosen source filename =
 
      writeFile newFile asmout
      putStrLn asmout
-     putStrLn $ pp program
+--     putStrLn $ pp program
      --putStrLn $ "Finally DF:\n" ++ show dominanceFrontiers
      --putStrLn "-----"
      exitSuccess

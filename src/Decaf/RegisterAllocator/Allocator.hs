@@ -25,6 +25,7 @@ where
 import Decaf.RegisterAllocator.IGraph
 import Decaf.RegisterAllocator.ASMLiveVars
 import Decaf.RegisterAllocator.ASMReachingDefs
+import Decaf.RegisterAllocator.TrivialPass
 import Decaf.RegisterAllocator.UnionFind
 import Decaf.RegisterAllocator.GraphASM
 import Decaf.IR.ASM
@@ -32,6 +33,7 @@ import Loligoptl
 import Decaf.LIRNodes
 
 import Data.Int
+
 --import Data.Maybe
 
 import Debug.Trace
@@ -55,10 +57,15 @@ type Key = (ASMReg, ASMNode)
 
 type Web = UnionSet Key -- needs to store the register and which line it's on
 
+type WebNode = Head Key
+
+toKey :: WebNode -> Key
+toKey (Head a) = a
+
 -- Interferance graph, cost/coalescing graph
-type IGraph = LabelGraph Key Color
+type IGraph = LabelGraph WebNode Color
 mkIGraph regs = mkLabelGraph regs
-type CGraph = LabelGraph Key Int
+type CGraph = LabelGraph WebNode Int
 mkCGraph regs = mkLabelGraph regs
 
 fromJust (Just x) = x
@@ -68,7 +75,7 @@ fromJust (Nothing) = error "from just error allocator"
 
 -- I think type is right
 makeWebs :: Graph ASMNode' C C -> Web
-makeWebs g = foldDataflowFactsFwd asmReachingDefs g webadd emptyUnion
+makeWebs g = foldDataflowFactsFwd trivialPass {-asmReachingDefs-} g webadd emptyUnion
   where 
     -- add a list of operands
     webjoins :: [ASMOperand] -> DefFact -> ASMNode -> Web -> Web
@@ -80,7 +87,7 @@ makeWebs g = foldDataflowFactsFwd asmReachingDefs g webadd emptyUnion
     webjoins' (reg:regs) f n w = webjoins' regs f n 
                                  $ case getDef reg f of 
                                      Just k -> join (reg, n) (reg,k) w
-                                     Nothing -> w
+                                     Nothing -> insert (reg, n) w
 
     webadd :: ASMNode' e x -> DefFact -> Web -> Web
     webadd n' f = if nmop n then webjoins ops f n else webjoins' [RDX,RAX] f n
@@ -107,7 +114,6 @@ makeWebs g = foldDataflowFactsFwd asmReachingDefs g webadd emptyUnion
          n@(ASMShrNode i op1 op2) -> [op1,op2]
          n@(ASMShraNode i op1 op2) -> [op1,op2]
 
-
          n@(ASMPushNode i op) -> [op]
          n@(ASMPopNode  i op) -> [op]
          n@(ASMNegNode  i op) -> [op]
@@ -132,16 +138,19 @@ makeWebs g = foldDataflowFactsFwd asmReachingDefs g webadd emptyUnion
 
 makeIGraph :: Graph ASMNode' C C -> Web -> (IGraph, CGraph) -- Int's represent webs
 makeIGraph g us =
-  let ginit = mkIGraph $ listPartitions us
-      (g',cg) = foldDataflowFactsBwd asmLiveVars g igraphjoin (ginit, ginit)
+  let parts = listPartitions us
+      ginit = trace "made label graph" $! mkLabelGraph $ trace ("webs: " ++ (show parts) ++ "\n\nwhole: "++  (show us)) parts
+      (g',cg) = (ginit, ginit)
+--      (g',cg) = const (trace "live var fold done" $! foldDataflowFactsBwd asmLiveVars g igraphjoin (ginit, ginit)) $! ginit
+
   in (precolor g',cg)
   where 
     -- finds non-symbolic registers and labels them
     
     precolor ig = labelWithKey colorNonSymb ig
       where
-        colorNonSymb :: Key -> Maybe Color
-        colorNonSymb (r,n) = 
+        colorNonSymb :: WebNode -> Maybe Color
+        colorNonSymb (Head (r, n)) = 
               case r of
                 ASMSREG _ -> Nothing
                 physReg -> Just (Reg physReg)
@@ -149,14 +158,14 @@ makeIGraph g us =
 
     -- join function for dataflow fold
     igraphjoin :: ASMNode' e x ->  Fact x VarFact -> (IGraph, CGraph) -> (IGraph, CGraph)
-    igraphjoin (ASMJmpNode'   i _ _) = \f -> id
+    igraphjoin (ASMJmpNode'   i _) = \f -> id
     igraphjoin (ASMJeNode'    i _ _) = \f -> id
     igraphjoin (ASMJneNode'   i _ _) = \f -> id
     igraphjoin (ASMJgNode'    i _ _) = \f -> id
     igraphjoin (ASMJgeNode'   i _ _) = \f -> id
     igraphjoin (ASMJlNode'    i _ _) = \f -> id
     igraphjoin (ASMJleNode'   i _ _) = \f -> id
-    igraphjoin (ASMCallNode'  i _ ) = \f -> id
+    igraphjoin (ASMCallNode'  i _ _) = \f -> id
     igraphjoin (ASMRetNode'   i   ) = \f -> id
 
     igraphjoin n@(ASMLabelNode' i _  ) = igraphjoin' n
@@ -314,7 +323,7 @@ makeIGraph g us =
   -}          
 -- UTILITY
 -- get parent in web; necessary for accessing IGraph
-lift :: Key -> Web -> Key
+lift :: Key -> Web -> WebNode
 lift key us = getParent key us
 pair x y = (x, y)
 maxL = foldl max 0
@@ -331,120 +340,131 @@ mkSpillState i = SpillState [] [] i
 
 -- final function
 colorRegisters :: ASMProgram -> ASMProgram
-colorRegisters prog@(ASMProgram pfls pxts (dsec, tsec)) = loop 0 $ trace "numberlist 1" $ numberListASM prog
+colorRegisters prog@(ASMProgram pfls pxts (dsec, tsec)) = 
+  let progg = numberListASM prog in 
+    loop 0 $ trace (concat $ map ((++"\n") . show) progg) progg
   where
-    loop :: SpillNo -> [(ASMInst, Int)] -> ASMProgram
-    loop numspills pr = 
-      let g = trace "graph asm\n" $ graphASMList pr in
-      case colorGraph regs $ makeIGraph g (makeWebs g) of
-        Left spills -> loop (numspills + length spills) $ spill (zip [numspills..] spills) pr
-        Right g -> registers numspills g pr
-
-    regs = S.fromList $ map Reg [ RAX, RCX, RDX, RBX, RSP, RBP, RSI, RDI
+    regs = S.fromList $ map Reg [ RAX, RCX, RDX, RBX, RSI, RDI
                                 , R8, R9, R10, R11, R12, R13, R14, R15]
 
-    -- rewrite spills
-    spill ::[(SpillNo,Key)] -> [(ASMInst, Int)] -> [(ASMInst, Int)]
-    spill spills pr = dospill (mkSpillState $ maxL (map snd pr)) pr
-      where 
-        n = foldl (\a b -> max a (snd b)) 0 pr -- largest index used
-        dospill :: SpillState -> [(ASMInst, Int)] -> [(ASMInst, Int)]
-        dospill (SpillState p ((x,mc):xs) c) more = 
-          case mc of
-            Just l -> dospill (SpillState (p++[(x,l)]) xs c) more
-            Nothing -> dospill (SpillState (p++[(x,c)]) xs (c+1)) more
-        dospill (SpillState p [] c) ((inst, line):xs) = 
-          let slines = map (getASMLine . snd . snd) spills
-              hits = filter ((== line) . fst) $ zip slines spills -- spill keys on this line
-              newlist = 
-                case hits of
-                  hits | length hits == 0 -> [(inst,Just line)]
-                       | otherwise -> 
-                         let loads :: [(ASMInst, Maybe Int)]
-                             loads = concatMap (doLoad . snd) hits --
-                             stores :: [(ASMInst, Maybe Int)]
-                             stores = concatMap (doStore . snd) hits 
-                             -- is reg involved in current inst?
-                             doLoad (off, (reg,node)) =
-                               if pairHas reg (getASMSource inst) then load reg off else []
-                             doStore (off, (reg,node)) = 
-                               if pairHas reg (getASMTarget inst) then store reg off else []
-                             load reg off  = [] -- use off!
-                             store reg off = [] -- use off!
-                             -- is reg in the tuple?
-                             pairHas :: ASMReg -> (Maybe ASMReg, Maybe ASMReg) -> Bool 
-                             pairHas reg t = 
-                               case t of
-                                 (Just r1, Just r2) -> reg == r1 || (reg == r2)
-                                 (Just r1, Nothing) -> reg == r1
-                                 (Nothing, Just r2) -> reg == r2
-                                 (Nothing, Nothing) -> False
+    loop :: SpillNo -> [(ASMInst, Int)] -> ASMProgram
+    loop numspills pr = 
+      case colorGraph regs $ makeIGraph g us of
+        Left spills -> loop (numspills + length spills) $ spill (zip [numspills..] spills) pr
+        Right g -> registers numspills g pr
+     where
+       g = graphASMList pr 
+       us = makeWebs g
+       -- rewrite spills
+       spill ::[(SpillNo,WebNode)] -> [(ASMInst, Int)] -> [(ASMInst, Int)]
+       spill spills pr = dospill (mkSpillState $ maxL (map snd pr)) pr
+         where 
+           n = foldl (\a b -> max a (snd b)) 0 pr -- largest index used
+           dospill :: SpillState -> [(ASMInst, Int)] -> [(ASMInst, Int)]
+           dospill (SpillState p ((x,mc):xs) c) more = 
+             case mc of
+               Just l -> dospill (SpillState (p++[(x,l)]) xs c) more
+               Nothing -> dospill (SpillState (p++[(x,c)]) xs (c+1)) more
+           dospill (SpillState p [] c) ((inst, line):xs) = 
+             let slines = map (getASMLine . snd . toKey . snd) spills
+                 hits = filter ((== line) . fst) $ zip slines spills -- spill keys on this line
+                 newlist = 
+                   case hits of
+                     hits | length hits == 0 -> [(inst,Just line)]
+                          | otherwise -> 
+                            let loads :: [(ASMInst, Maybe Int)]
+                                loads = concatMap (doLoad . snd) hits --
+                                stores :: [(ASMInst, Maybe Int)]
+                                stores = concatMap (doStore . snd) hits 
+                                -- is reg involved in current inst?
+                                doLoad  (off, Head (reg,node)) =
+                                  if pairHas reg (getASMSource inst) then load reg off else []
+                                doStore (off, Head (reg,node)) = 
+                                  if pairHas reg (getASMTarget inst) then store reg off else []
 
-                         in loads ++ [(inst, Just line)] ++ stores
+                                load, store :: ASMReg -> Int -> [(ASMInst, Maybe Int)]
+                                load reg off = 
+                                  [((ASMMovInst (ASMRegOperand reg 8) (memop off)), Nothing)]
+                                store reg off =
+                                  [((ASMMovInst (memop off) (ASMRegOperand reg 8)), Nothing)]
+                                -- +1 needed?
+                                memop off  = ASMMemOperand (ASMRegBase RBP) Nothing 
+                                             (fromIntegral (-8 * (off+1)) :: ASMInt) 8
+                                -- is reg in the tuple?
+                                pairHas :: ASMReg -> (Maybe ASMReg, Maybe ASMReg) -> Bool 
+                                pairHas reg t = 
+                                  case t of
+                                    (Just r1, Just r2) -> reg == r1 || reg == r2
+                                    (Just r1, Nothing) -> reg == r1
+                                    (Nothing, Just r2) -> reg == r2
+                                    (Nothing, Nothing) -> False
 
-          in 
-            dospill (SpillState p newlist c) xs
-        dospill (SpillState p [] c) [] = p
+                            in loads ++ [(inst, Just line)] ++ stores
+
+             in 
+               dospill (SpillState p newlist c) xs
+           dospill (SpillState p [] c) [] = p
 
 
 
-    -- color, then rebuild program
-    registers :: Int -> IGraph -> [(ASMInst, Int)] -> ASMProgram
-    registers numspills g pr = ASMProgram pfls pxts $
-                               (dsec, ASMTextSection $ castASMList $ map color pr)
-          where
-            keys' = keys g -- all (reg,node) pairs
+       -- color, then rebuild program
+       registers :: Int -> IGraph -> [(ASMInst, Int)] -> ASMProgram
+       registers numspills g pr = ASMProgram pfls pxts $
+                                  (dsec, ASMTextSection $ castASMList $ map color pr)
+             where
+               keys' = keys g -- all (reg,node) pairs
 
-            sw :: ASMOperand -> Int -> ASMOperand
-            sw (ASMRegOperand reg ehh) i = 
-              ASMRegOperand 
-              (let things = zip3 (map (getASMLine . snd) keys') -- (line#,reg,key)
-                                 (map fst keys') 
-                                 keys'
-                   things' = filter (\(l, r, _) -> (l == i) && (r == reg)) things
-               in case things' of
-                    collist | length collist == 0 -> 
-                              error ("allocator produced no color for SREG " ++ show (reg,i))
-                            | length collist > 1 -> 
-                              error ("allocator produced multiple colors for SREG " ++ show (reg,i))
-                            | otherwise ->
-                              case fromJust $ getLabel (third (head collist)) g of
-                                Spill -> error "spill detected in final coloring routine"
-                                Reg reg' -> reg')
-               ehh
+               sw :: ASMOperand -> Int -> ASMOperand
+               sw (ASMRegOperand reg ehh) i = 
+                 ASMRegOperand 
+                 (let things = zip3 (map (getASMLine . snd . toKey) keys') -- (line#,reg,key)
+                                    (map (fst . toKey) keys') 
+                                    (trace (show keys') keys')
+                      things' = filter (\(l, r, _) -> (cheatParentLine reg i us) == l 
+                                                       && (r == reg)) things
+                  in case things' of
+                       collist | length collist == 0 -> 
+                                 error ("allocator produced no color for: " ++ show (reg,i))
+                               | length collist > 1 -> 
+                                 error ("allocator produced multiple colors for SREG " ++ show (reg,i))
+                               | otherwise ->
+                                 case fromJust $ getLabel (third (head collist)) g of
+                                   Spill -> error "spill detected in final coloring routine"
+                                   Reg reg' -> reg')
+                  ehh
 
-            sw op i = op -- not a reg
+               sw op i = op -- not a reg
 
-            third (a,b,c) = c
+               third (a,b,c) = c
 
-            color :: (ASMInst, Int) -> ASMInst
-            color (inst, i) = 
-              case inst of 
-                (ASMAddInst op1 op2) -> ASMAddInst (sw op1 i) (sw op2 i) 
-                (ASMSubInst op1 op2) -> ASMSubInst (sw op1 i) (sw op2 i)
-                (ASMMovInst op1 op2) -> ASMMovInst (sw op1 i) (sw op2 i)
-                (ASMCmpInst op1 op2) -> ASMCmpInst (sw op1 i) (sw op2 i)
-                (ASMAndInst op1 op2) -> ASMAndInst (sw op1 i) (sw op2 i)
-                (ASMOrInst  op1 op2) -> ASMOrInst  (sw op1 i) (sw op2 i)
-                (ASMXorInst op1 op2) -> ASMXorInst (sw op1 i) (sw op2 i)
+               color :: (ASMInst, Int) -> ASMInst
+               color (inst, i) = 
+                 case inst of 
+                   (ASMAddInst op1 op2) -> ASMAddInst (sw op1 i) (sw op2 i) 
+                   (ASMSubInst op1 op2) -> ASMSubInst (sw op1 i) (sw op2 i)
+                   (ASMMovInst op1 op2) -> ASMMovInst (sw op1 i) (sw op2 i)
+                   (ASMCmpInst op1 op2) -> ASMCmpInst (sw op1 i) (sw op2 i)
+                   (ASMAndInst op1 op2) -> ASMAndInst (sw op1 i) (sw op2 i)
+                   (ASMOrInst  op1 op2) -> ASMOrInst  (sw op1 i) (sw op2 i)
+                   (ASMXorInst op1 op2) -> ASMXorInst (sw op1 i) (sw op2 i)
 
-                (ASMShlInst op1 op2)  -> ASMShlInst (sw op1 i) (sw op2 i)
-                (ASMShrInst op1 op2)  -> ASMShrInst (sw op1 i) (sw op2 i)
-                (ASMShraInst op1 op2) -> ASMShraInst (sw op1 i) (sw op2 i)
-                
-                (ASMMulInst op1) -> ASMMulInst (sw op1 i)
-                (ASMDivInst op1) -> ASMDivInst (sw op1 i)
-                (ASMModInst op1) -> ASMModInst (sw op1 i)
-                                    
-                (ASMPushInst op1) -> ASMPushInst (sw op1 i)
-                (ASMPopInst  op1) -> ASMPopInst  (sw op1 i)
-                (ASMNegInst  op1) -> ASMNegInst  (sw op1 i)
-                (ASMNotInst  op1) -> ASMNotInst  (sw op1 i)
+                   (ASMShlInst op1 op2)  -> ASMShlInst (sw op1 i) (sw op2 i)
+                   (ASMShrInst op1 op2)  -> ASMShrInst (sw op1 i) (sw op2 i)
+                   (ASMShraInst op1 op2) -> ASMShraInst (sw op1 i) (sw op2 i)
 
-                (ASMEnterInst _) -> ASMEnterInst (fromIntegral numspills :: Int64) -- kind of bad
+                   (ASMMulInst op1) -> ASMMulInst (sw op1 i)
+                   (ASMDivInst op1) -> ASMDivInst (sw op1 i)
+                   (ASMModInst op1) -> ASMModInst (sw op1 i)
 
-                other -> other -- no operand, don't change
-            
+                   (ASMPushInst op1) -> ASMPushInst (sw op1 i)
+                   (ASMPopInst  op1) -> ASMPopInst  (sw op1 i)
+                   (ASMNegInst  op1) -> ASMNegInst  (sw op1 i)
+                   (ASMNotInst  op1) -> ASMNotInst  (sw op1 i)
+
+                   (ASMEnterInst _) -> ASMEnterInst (fromIntegral numspills :: Int64) -- kind of bad
+
+                   other -> other -- no operand, don't change
+
 
 
 numberListASM :: ASMProgram -> [(ASMInst, Int)]
@@ -452,8 +472,17 @@ numberListASM prog =
   let instructions = case snd (progSections prog) of -- text section
                        (ASMTextSection insts) -> insts
                        otherwise -> error "text and data sections out of order; see Allocator.hs"
-  in zip (reverse $ castASMToList instructions) [1..]
+  in zip (reverse $ castASMToList instructions) [1..]  
 
+
+
+cheatParentLine :: ASMReg -> Int -> Web -> Int
+cheatParentLine reg i us = 
+  let us' = trace ("cheating " ++ show us ++ show i) 
+       (map (\((a,ind),par) -> ((ind,a),par)) $ toList us :: [((Int, Key),Int)]) in 
+  case snd $ head $ filter ((== i) . getASMLine . snd . snd . fst) us' of 
+    x | x < 0 -> i
+      | x > 0 -> getASMLine $ snd $ fromJust $ lookup x (map fst us')
 
 {- this moved to Dataflow.hs
 

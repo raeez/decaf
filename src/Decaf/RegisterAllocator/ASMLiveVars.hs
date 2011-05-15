@@ -27,15 +27,19 @@ lookupReg :: ASMReg  -> VarFact -> [Key]
 lookupReg r f = S.toList $ S.filter ((== r) . fst) f
 
 -- join two CSE facts 
-join lab (OldFact f) (NewFact g) = if f == g then (NoChange, f) else (SomeChange, S.union f g)
+join lab (OldFact f) (NewFact g) = 
+  let u = f `S.union` g in
+  if S.size u == S.size f then (NoChange, trace ("LVno  ch "++ show lab) f) 
+  else (SomeChange, trace ("LVsome ch " ++(show u)) u)
 
 --fromJust (Just x) = x
 --fromJust (Nothing) = error "from just error live vars"
 
 
 transfer :: BwdTransfer ASMNode' VarFact
-transfer = mkBTransfer livetran
+transfer = mkBTransfer livetran'
   where
+    livetran' n f = trace (show n ) $ livetran n f
     livetran :: ASMNode' e x -> Fact x VarFact -> VarFact
     livetran n@(ASMLabelNode' i lab) f = f
 
@@ -63,7 +67,7 @@ transfer = mkBTransfer livetran
     livetran n@(ASMEnterNode' i int) f = f
 
     -- following two sections probably need to switch (because it's a backwards pass)
-    livetran n@(ASMJmpNode' i lab o) f = (fact lab f) `S.union` (fact o f)
+    livetran n@(ASMJmpNode' i lab) f = (fact lab f)
                                          
     livetran n@(ASMJeNode' i  lab o) f = (fact lab f) `S.union` (fact o f)
     livetran n@(ASMJneNode' i lab o) f = (fact lab f) `S.union` (fact o f)
@@ -72,9 +76,9 @@ transfer = mkBTransfer livetran
     livetran n@(ASMJlNode' i  lab o) f = (fact lab f) `S.union` (fact o f)
     livetran n@(ASMJleNode' i lab o) f = (fact lab f) `S.union` (fact o f)
     livetran n@(ASMRetNode'   i)     f = bottom
-    livetran n@(ASMCallNode'  i sym) f = bottom 
+    livetran n@(ASMCallNode'  i sym lab) f = bottom 
 
-    fact lab f = fromMaybe S.empty $ mapLookup (asmLabeltoHoopl lab) f 
+    fact lab f = fromMaybe bottom $ mapLookup (asmLabeltoHoopl lab) f 
     -- not sure about these yet CHANGE
 
 

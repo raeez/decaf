@@ -11,10 +11,12 @@ module Loligoptl.Util
   , preorder_dfs, preorder_dfs_from_except
   , labelsDefined, labelsUsed, externalEntryLabels
   , LabelsPtr(..)
+  , waitFor
   )
 where
 
 import Control.Monad
+import Debug.Trace
 
 import Loligoptl.Collections
 import Loligoptl.Graph
@@ -268,3 +270,10 @@ externalEntryLabels body = defined `setDifference` used
   where defined = labelsDefined g
         used = labelsUsed g
         g = GMany NothingO body NothingO
+
+
+
+
+
+waitFor :: a -> b -> String -> a
+waitFor a b done = const a $! trace done $! b

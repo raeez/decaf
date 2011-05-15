@@ -23,6 +23,7 @@ import Loligoptl.Unique
 import qualified Loligoptl.GraphUtil as U
 
 import Data.Maybe
+import Debug.Trace
 
 import Decaf.IR.LIR -- ehh
 
@@ -62,7 +63,7 @@ type JoinFun a = Label -> OldFact a -> NewFact a -> (ChangeFlag, a)
 
 -- pass -> graph -> fold function from node, associated fact, to result type -> initial -> final
 -- this doesn't properly belong here; assumes some Decaf stuff
-foldDataflowFactsFwd :: forall n f e x res . ({- CheckpointMonad m,-} NonLocal n)
+foldDataflowFactsFwd :: forall n f e x res . (Show res, {- CheckpointMonad m,-} NonLocal n)
                      => FwdPass M n f
                      -> Graph n C C
                      -> (forall e x. n e x -> f -> res -> res)
@@ -87,7 +88,8 @@ foldDataflowFactsFwd pass graph func init =
       -- apply transfer function and accum function
       -- use fact flowing OUT of node
       -- so that definitions get joined to themself in web building
-      node n f acc = (ftransfer pass n f, func n f acc)
+
+      node n f acc = (ftransfer pass n f,  (func n f acc))
 
 --       cat :: (f -> res -> (f,res))
 --           -> (f -> res -> (f,res))
@@ -120,7 +122,7 @@ foldDataflowFactsFwd pass graph func init =
         process (bl, Just f) = [\res -> snd $ bl f res]
         process (bl, Nothing) = []
 
-foldDataflowFactsBwd :: forall n f e x res . (NonLocal n)
+foldDataflowFactsBwd :: forall n f e x res . (Show res, NonLocal n)
                      => BwdPass M n f
                      -> Graph n C C
                      -> (forall e x. n e x-> Fact x f -> res -> res)
@@ -142,7 +144,7 @@ foldDataflowFactsBwd pass graph func init =
                            
       node :: forall e x. (ShapeLifter e x) => n e x 
            -> Fact x f -> res -> (f, res)
-      node n f acc = (btransfer pass n f, func n f acc) -- apply transfer function and accum function func
+      node n f acc = (btransfer pass n f, (func n f acc)) -- apply transfer function and accum function func
 
 {-      cat :: (f -> res -> (f,res))
           -> (f -> res -> (f,res))
@@ -151,8 +153,8 @@ foldDataflowFactsBwd pass graph func init =
                         in t1 f' acc'
 
         
-      (undg, fb, _) = runSimpleUniqueMonad $ runWithFuel infiniteFuel
-                      $ analyzeAndRewriteBwd pass entries graph (mapSingleton mainlab bottom)
+      (undg, fb, _) = seq (trace "Hello undg" 2) $ runSimpleUniqueMonad $ runWithFuel infiniteFuel
+                       $ analyzeAndRewriteBwd pass entries graph (mapSingleton mainlab bottom)
 
       undgBody = case undg of
                    GMany _ body _ -> body -- this seems like a hack
@@ -169,8 +171,7 @@ foldDataflowFactsBwd pass graph func init =
       
   in
     -- CHANGE?
-    foldr ($) init (map (\f res -> snd $ f fb res) (map block blocks))
-
+    waitFor (foldr ($) init (map (\f res -> snd $ f fb res) (map block blocks))) 5 "undg done"
 
 
 newtype FwdTransfer n f 
@@ -566,7 +567,7 @@ fixpoint direction lat do_block blocks init_fbase
       | otherwise
       = do { (rg, out_facts) <- do_block blk fbase
            ; let (cha', fbase') = mapFoldWithKey
-                                  (updateFact lat lbls) 
+                                  (updateFact lat lbls') 
                                   (cha,fbase) out_facts
            ; return $
                TxFB { tfb_lbls  = lbls'
